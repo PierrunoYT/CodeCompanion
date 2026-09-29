@@ -71,7 +71,14 @@ const changeTool = defineTool({
   },
 });
 
-function setup(steps: Step[], { mode = 'ask' as ApprovalMode, tools = () => [lookTool, changeTool] as AgentTool[] } = {}) {
+function setup(
+  steps: Step[],
+  {
+    mode = 'ask' as ApprovalMode,
+    tools = () => [lookTool, changeTool] as AgentTool[],
+    isPreApproved = undefined as ((toolName: string, input: unknown) => boolean) | undefined,
+  } = {},
+) {
   ran.length = 0;
   const conversation = new ScriptedConversation(steps);
   const events: ChatEvent[] = [];
@@ -82,6 +89,7 @@ function setup(steps: Step[], { mode = 'ask' as ApprovalMode, tools = () => [loo
     agentFile: null,
     tools,
     approvalMode: () => mode,
+    isPreApproved,
     toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
     smallModel: () => null,
     onEvent: (event) => events.push(event),
@@ -121,6 +129,17 @@ describe('agent loop', () => {
     expect(conversation.toolResults).toEqual([[{ id: 't1', content: 'saw a', isError: undefined, images: undefined }]]);
     const tool = session.snapshot().transcript.find((item) => item.kind === 'tool');
     expect(tool).toMatchObject({ status: 'done', summary: 'Looked at a' });
+  });
+
+  it('runs a call the user allowed in advance without asking, and still asks for the others', async () => {
+    const { session, events } = setup(
+      [{ toolCalls: [{ id: 't1', name: 'change', input: { to: 'allowed' } }] }, { text: 'ok' }],
+      { isPreApproved: (name, input) => name === 'change' && (input as { to: string }).to === 'allowed' },
+    );
+    await session.send({ text: 'go' });
+    expect(ran).toEqual(['change:allowed']);
+    const start = events.find((event) => event.type === 'tool-start');
+    expect(start).toMatchObject({ awaitingApproval: false, preview: { title: 'Change to allowed' } });
   });
 
   it('waits for approval and shows a preview', async () => {

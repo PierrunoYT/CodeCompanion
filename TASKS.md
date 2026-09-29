@@ -46,7 +46,7 @@ Tick a box (`- [x]`) when a task is done.
 - [ ] Add a stop-and-resume option for long agent runs
 - [x] Show cost estimates next to the token usage in the status bar (Claude models only)
 - [ ] Add prices for the GPT-6 models to `MODEL_PRICING` once they are known, and count cache-write tokens
-- [ ] Add a setting to allow specific commands without approval
+- [x] Add a setting to allow specific commands without approval
 - [ ] Support several open projects at once
 - [x] Add a search box for saved chats (title and project path; searching the message text is not done)
 - [ ] Search the message text of saved chats, not only title and project

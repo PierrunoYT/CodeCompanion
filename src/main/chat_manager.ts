@@ -1,6 +1,7 @@
 import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
 import { loadAgentFile } from './agent/agent_file';
+import { isCommandAllowed } from './agent/allowed_commands';
 import { buildSystemPrompt } from './agent/system_prompt';
 import { ChatSession, type SavedChat } from './agent/session';
 import type { ChatStore } from './chat_store';
@@ -159,6 +160,11 @@ export class ChatManager {
       usage: saved?.usage,
       readFiles: saved?.readFiles,
       approvalMode: () => this.deps.settings.get().approvalMode,
+      // Only shell commands can be allowed in advance; file edits always wait for the user in 'ask' mode.
+      isPreApproved: (toolName, input) =>
+        toolName === 'run_command' &&
+        typeof (input as { command?: unknown })?.command === 'string' &&
+        isCommandAllowed((input as { command: string }).command, this.deps.settings.get().allowedCommands),
       toolContext: (base): ToolContext => {
         const { codeSearch, browser, webSearch } = capabilities();
         return { ...base, workspace, shell, browser, codeSearch: codeSearch?.search ?? null, webSearch };

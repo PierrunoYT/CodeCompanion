@@ -14,6 +14,8 @@ export interface AgentOptions {
   // Asked for on every turn, so tools that become available mid-chat (e.g. after an API key is saved) are offered.
   tools: () => AgentTool[];
   approvalMode: () => ApprovalMode;
+  // True for a call the user allowed in advance (see the allowedCommands setting); it then skips the approval card.
+  isPreApproved?: (toolName: string, input: unknown) => boolean;
   requestApproval: (id: string, signal: AbortSignal) => Promise<ApprovalDecision>;
   toolContext: (signal: AbortSignal, onProgress: (text: string) => void) => ToolContext;
   emit: (event: ChatEvent) => void;
@@ -158,7 +160,8 @@ export class Agent {
     const onProgress = (text: string) => emit({ type: 'tool-progress', id: eventId, text });
     const context = this.options.toolContext(signal, onProgress);
 
-    const needsApproval = tool.requiresApproval && this.options.approvalMode() === 'ask';
+    const needsApproval =
+      tool.requiresApproval && this.options.approvalMode() === 'ask' && !this.options.isPreApproved?.(tool.name, input);
     let preview: ToolPreview | undefined;
     if (tool.preview) {
       try {

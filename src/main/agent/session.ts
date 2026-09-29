@@ -42,6 +42,7 @@ export interface ChatSessionOptions {
   usage?: UsageTotals;
   readFiles?: string[];
   approvalMode: () => ApprovalMode;
+  isPreApproved?: (toolName: string, input: unknown) => boolean;
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
   smallModel: () => CompletionClient | null;
   onEvent: (event: ChatEvent) => void;
@@ -73,6 +74,7 @@ export class ChatSession {
       system: options.system,
       tools: options.tools,
       approvalMode: options.approvalMode,
+      isPreApproved: options.isPreApproved,
       requestApproval: (id, signal) => this.waitForApproval(id, signal),
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
       emit: (event) => this.emit(event),

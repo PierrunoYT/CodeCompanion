@@ -10,6 +10,9 @@ export interface Settings {
   // How much the model thinks before acting (current Claude models and OpenAI via the Responses API).
   effort: Effort;
   approvalMode: ApprovalMode;
+  // Commands that run without approval in 'ask' mode, one per line; a line also allows the command with arguments
+  // ("npm test" allows "npm test -- foo"). Commands with shell operators (; & | > < ` $() are never allowed this way.
+  allowedCommands: string;
   theme: Theme;
   // Base URL for an OpenAI-compatible API. Empty means api.openai.com.
   openaiBaseUrl: string;
@@ -23,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: DEFAULT_MODEL,
   effort: 'high',
   approvalMode: 'ask',
+  allowedCommands: '',
   theme: 'dark',
   openaiBaseUrl: '',
   editorCommand: 'code',

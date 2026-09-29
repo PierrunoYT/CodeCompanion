@@ -84,7 +84,7 @@ Files skipped: `.gitignore`, `.ccignore` (or the default template in `static/emb
 
 ## Models
 
-`ChatController.initializeModel` picks `AnthropicModel` if the selected model id contains `claude`, else `OpenAIModel` (the base URL is configurable, enabling OpenAI-compatible endpoints). A **small model** (`gpt-4o-mini` if an OpenAI key exists, else `claude-3-haiku`) serves `BackgroundTask` calls: task title, plan detection, summarization, search reranking, result compression. Available models: `static/models_config.js`.
+`ChatController.initializeModel` picks `AnthropicModel` if the selected model id contains `claude`, else `OpenAIModel` (the base URL is configurable, enabling OpenAI-compatible endpoints). A **small model** (`gpt-4o-mini` if an OpenAI key exists, else `claude-haiku-4-5`) serves `BackgroundTask` calls: task title, plan detection, summarization, search reranking, result compression. Available models: `static/models_config.js`.
 
 ## Persistence (`electron-store`)
 

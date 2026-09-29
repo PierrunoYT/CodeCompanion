@@ -13,9 +13,8 @@ class AnthropicModel {
     };
     this.options = {};
     this.maxTokens = 4096;
-    if (model === 'claude-3-5-sonnet-20240620') {
+    if (model && model.startsWith('claude-')) {
       this.maxTokens = 8192;
-      this.options.headers = { 'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15' };
     }
     if (baseUrl) {
       config.baseURL = baseUrl;

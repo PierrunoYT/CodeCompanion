@@ -74,8 +74,6 @@ Safety guard: `create_or_overwrite_file` on an existing file and `replace_code` 
 | `search` | – | `type: codebase` (embeddings + LLM rerank) or `google` (Google CSE, top pages fetched with Readability and compressed). |
 | `task_planning_done` | – | Disabled by default; enabled only during planning. |
 
-Note: `search` and `task_planning_done` use the key `requiresApproval` (not `approvalRequired`) in their definitions, so they never prompt.
-
 To add a tool: append an entry to `toolDefinitions` (`name`, `description`, JSON-schema `parameters`, `executeFunction`, `enabled`, `approvalRequired`) and add a case to `previewMessageMapping`.
 
 ## Code search / embeddings

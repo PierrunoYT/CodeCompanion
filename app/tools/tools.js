@@ -141,7 +141,7 @@ const toolDefinitions = [
     },
     executeFunction: unifiedSearch,
     enabled: true,
-    requiresApproval: false,
+    approvalRequired: false,
   },
   {
     name: 'task_planning_done',
@@ -152,7 +152,7 @@ const toolDefinitions = [
     },
     executeFunction: taskPlanningDone,
     enabled: false,
-    requiresApproval: false,
+    approvalRequired: false,
   },
 ];
 

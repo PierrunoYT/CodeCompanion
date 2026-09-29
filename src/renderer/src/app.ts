@@ -1,6 +1,6 @@
 import { applyChatEvent, type ChatEvent, type ChatSnapshot } from '@shared/chat';
 import type { ImageAttachment } from '@shared/ipc';
-import { MODEL_OPTIONS, providerForModel } from '@shared/models';
+import { estimateCost, formatCost, MODEL_OPTIONS, providerForModel } from '@shared/models';
 import type { ProjectInfo } from '@shared/project';
 import type { SettingsView } from '@shared/settings';
 import { h, icon, setChildren } from './dom';
@@ -190,9 +190,11 @@ export class App {
     this.agentLabel.replaceChildren(...(agentFile ? [icon('file-earmark-check'), ` ${agentFile} loaded`] : []));
 
     const { inputTokens, outputTokens, cacheReadTokens } = this.chat.usage;
+    const cost = estimateCost(model, this.chat.usage);
+    this.usageLabel.title = cost === null ? '' : 'Estimated from list prices; cache writes are not counted, so the real cost can be a little higher.';
     this.usageLabel.textContent =
       inputTokens + outputTokens > 0
-        ? `Tokens: ${format(inputTokens)} in (${format(cacheReadTokens)} cached) · ${format(outputTokens)} out`
+        ? `Tokens: ${format(inputTokens)} in (${format(cacheReadTokens)} cached) · ${format(outputTokens)} out${cost === null ? '' : ` · ≈ ${formatCost(cost)}`}`
         : '';
   }
 

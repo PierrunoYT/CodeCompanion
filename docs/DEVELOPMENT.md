@@ -43,6 +43,7 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 | Goal | File |
 |---|---|
 | Add or rename a model, change defaults | `src/shared/models.ts` |
+| Change model prices used for the cost estimate | `MODEL_PRICING` in `src/shared/models.ts` |
 | Enable a Claude API feature for a model | `claudeCapabilities` in `src/shared/models.ts`, request building in `src/main/llm/anthropic.ts` |
 | Change the system prompt | `src/main/agent/system_prompt.ts` |
 | Add a tool | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts` |

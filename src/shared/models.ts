@@ -25,6 +25,35 @@ export const SMALL_MODELS: Record<Provider, string> = {
   openai: 'gpt-6-luna',
 };
 
+// US dollars per million tokens (Anthropic API list prices, September 2026). Models without an entry (the OpenAI
+// models and custom ids) get no cost estimate rather than a guess. Haiku's cache-read price is 10% of its input price.
+export interface ModelPricing {
+  input: number;
+  output: number;
+  cacheRead: number;
+}
+
+export const MODEL_PRICING: Record<string, ModelPricing> = {
+  'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
+  'claude-haiku-4-5': { input: 1, output: 5, cacheRead: 0.1 },
+};
+
+// Estimated cost in dollars of a chat's token usage, or null when the model's price is not known. The Claude API
+// reports cache reads separately from input tokens; cache writes are not tracked, so this is a lower bound.
+export function estimateCost(
+  model: string,
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number },
+): number | null {
+  const price = MODEL_PRICING[model];
+  if (!price) return null;
+  return (usage.inputTokens * price.input + usage.outputTokens * price.output + usage.cacheReadTokens * price.cacheRead) / 1_000_000;
+}
+
+export function formatCost(dollars: number): string {
+  return dollars < 0.01 ? '<$0.01' : `$${dollars.toFixed(2)}`;
+}
+
 export const EMBEDDING_MODEL = 'text-embedding-3-small';
 
 // Any model id can be entered in settings; ids starting with "claude" go to Anthropic, the rest to the

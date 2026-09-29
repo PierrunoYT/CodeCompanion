@@ -7,6 +7,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 First release of the from-scratch TypeScript codebase (version numbering restarts at 0.1.0; the 6.x line is the old app). No code from 6.x remains; features were rebuilt on a new architecture. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Added
+- The status bar shows an estimated cost (`≈ $0.42`) next to the token usage for Claude models with a known price (`MODEL_PRICING` in `src/shared/models.ts`). Cache writes are not counted, so it is a lower bound; the OpenAI and custom models show no estimate.
 - Export the current chat as Markdown (download button in the header): the conversation, tool summaries, commands and diffs; tool output and thinking are left out. New `chat:export` channel, `src/shared/export.ts`.
 - The chat history dialog has a search box that filters saved chats by title or project path.
 - `AGENTS.md` (or `CLAUDE.md`) from the project root is now always injected into the system prompt of every new chat, and the status bar shows "AGENTS.md loaded".

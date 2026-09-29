@@ -72,6 +72,7 @@
     "crypto-js": "^4.1.1",
     "diff": "^5.2.0",
     "diff2html": "^3.4.48",
+    "dompurify": "^3.4.16",
     "electron-localshortcut": "^3.2.1",
     "electron-store": "^8.1.0",
     "file-type": "^16.5.3",

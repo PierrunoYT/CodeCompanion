@@ -1,5 +1,7 @@
 const context = require('../context');
 const store = require('../store');
+const _ = require('lodash');
+const { actionAttrs } = require('../ui_actions');
 const { v4: uuidv4 } = require('uuid');
 
 const saveChatModal = new bootstrap.Modal(document.getElementById('saveChatModal'));
@@ -73,11 +75,11 @@ class ChatHistory {
       .map(
         (record) => `
         <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-          <a href="#" onclick="event.preventDefault(); chatController.chat.history.restoreChat('${record.id}')" class="text-decoration-none text-body text-truncate">
+          <a href="#" ${actionAttrs('restore-chat', record.id)} class="text-decoration-none text-body text-truncate">
             <i class="bi bi-chat-left me-2"></i>
-            ${record.title}
+            ${_.escape(record.title)}
           </a>
-          <button class="btn btn-sm" onclick="event.preventDefault(); chatController.chat.history.delete('${record.id}')"><i class="bi bi-trash"></i></button>
+          <button class="btn btn-sm" ${actionAttrs('delete-chat', record.id)}><i class="bi bi-trash"></i></button>
         </div>
     `,
       )
@@ -85,7 +87,7 @@ class ChatHistory {
 
     return `
     <div class="d-flex justify-content-end mb-3">
-      <button onclick="chatController.chat.history.deleteAll()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-trash"></i> Delete all</button>
+      <button ${actionAttrs('delete-all-chats')} class="btn btn-sm btn-outline-secondary"><i class="bi bi-trash"></i> Delete all</button>
     </div>
     ${recordRows}
   `;

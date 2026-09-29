@@ -2,6 +2,8 @@ const context = require('../context');
 const simpleGit = require('simple-git');
 const fs = require('graceful-fs');
 const path = require('path');
+const _ = require('lodash');
+const { actionAttrs } = require('../ui_actions');
 const { Diff2HtmlUI } = require('diff2html/lib/ui/js/diff2html-ui');
 
 class Git {
@@ -150,8 +152,8 @@ class Git {
               <div class="d-flex justify-content-end mb-1">
                 ${this.renderActions()}
               </div>
-              <input id="commit-message" class="form-control mb-3" placeholder="Message for &quot;${branchName.current}&quot;">
-              <button id="commit-button" class="btn btn-primary w-100 ${commitButtonDisabled ? 'disabled' : ''}" onclick="chatController.agent.projectController.git?.commit();">
+              <input id="commit-message" class="form-control mb-3" placeholder="Message for &quot;${_.escape(branchName.current)}&quot;">
+              <button id="commit-button" class="btn btn-primary w-100 ${commitButtonDisabled ? 'disabled' : ''}" ${actionAttrs('git-commit')}>
                 <i class="bi bi-check2-all"></i>
                 Commit all
               </button>
@@ -195,7 +197,7 @@ class Git {
         class="btn btn-link-secondary p-0 ms-1"
         data-bs-toggle="tooltip"
         data-bs-title="Refresh"
-        onclick="chatController.agent.projectController.git?.renderUI();"
+        ${actionAttrs('git-refresh')}
       >
         <i class="bi bi-arrow-clockwise"></i>
       </button>
@@ -204,13 +206,13 @@ class Git {
 
   renderFileItem(file) {
     const normalizedPath = path.normalize(file.file);
-    const escapedPath = normalizedPath.replace(/"/g, '&quot;');
+    const escapedPath = _.escape(normalizedPath);
     return `
       <li class="list-group-item d-flex justify-content-between align-items-center p-0 ps-1" data-file="${escapedPath}">
-        <span class="text-truncate mw-75 file-name" style="cursor: pointer;" onclick="chatController.agent.projectController.git?.showFileChanges('${escapedPath}');">${path.basename(normalizedPath)}</span>
+        <span class="text-truncate mw-75 file-name" style="cursor: pointer;" ${actionAttrs('git-show-file', normalizedPath)}>${_.escape(path.basename(normalizedPath))}</span>
         <span class="ms-2 text-nowrap align-items-center d-flex">
           <span class="text-${file.status === 'modified' ? 'info' : file.status === 'not_added' ? 'success' : 'danger'} me-2 d-inline-block text-center">${file.status.charAt(0).toUpperCase()}</span>
-          <button class="btn btn-link-secondary p-0" data-bs-toggle="tooltip" data-bs-title="Discard changes" onclick="chatController.agent.projectController.git?.discardChange('${escapedPath}');">
+          <button class="btn btn-link-secondary p-0" data-bs-toggle="tooltip" data-bs-title="Discard changes" ${actionAttrs('git-discard', normalizedPath)}>
             <i class="bi bi-x-circle"></i>
           </button>
         </span>

@@ -1,6 +1,8 @@
 const path = require('path');
+const _ = require('lodash');
 const context = require('../context');
 const { normalizedFilePath } = require('../utils');
+const { actionAttrs } = require('../ui_actions');
 
 async function openFileLink(filepath) {
   try {
@@ -21,7 +23,7 @@ async function openFileLink(filepath) {
       filename = path.relative(context.chatController.agent.currentWorkingDir, absolutePath);
     }
 
-    return `<a href="#" onclick="event.preventDefault(); viewController.openFileInIDE('${absolutePath.replace(/\\/g, '\\\\')}')">${filename}</a>`;
+    return `<a href="#" ${actionAttrs('open-file', absolutePath)}>${_.escape(filename)}</a>`;
   } catch (error) {
     console.error(error);
     return filepath;

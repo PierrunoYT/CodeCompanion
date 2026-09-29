@@ -1,6 +1,7 @@
 const context = require('../context');
 const { clipboard } = require('electron');
 const marked = require('marked');
+const { sanitizeHtml } = require('../sanitize');
 
 const ChatHistory = require('./chat_history');
 const ChatContextBuilder = require('./chat_context_builder');
@@ -54,7 +55,7 @@ class Chat {
     const taskTitle =
       this.taskTitle || this.task.split(' ').slice(0, 4).join(' ') + (this.task.split(' ').length > 4 ? '...' : '');
     document.getElementById('taskTitle').innerText = taskTitle;
-    document.getElementById('taskContainer').innerHTML = marked.parse(this.task);
+    document.getElementById('taskContainer').innerHTML = sanitizeHtml(marked.parse(this.task));
     document.getElementById('messageInput').setAttribute('placeholder', 'Send message...');
   }
 

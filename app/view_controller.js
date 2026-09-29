@@ -1,5 +1,8 @@
 const context = require('./context');
 const store = require('./store');
+const _ = require('lodash');
+const { actionAttrs, dispatch: dispatchUiAction } = require('./ui_actions');
+const { sanitizeHtml } = require('./sanitize');
 const { ipcRenderer, shell } = require('electron');
 const hljs = require('highlight.js/lib/common');
 const { marked } = require('marked');
@@ -48,6 +51,11 @@ class ViewController {
   }
 
   handleClick(event) {
+    if (dispatchUiAction(event.target)) {
+      event.preventDefault();
+      return;
+    }
+
     let targetElement = event.target;
 
     if (targetElement.tagName === 'I' && targetElement.parentElement && targetElement.parentElement.tagName === 'A') {
@@ -119,8 +127,8 @@ class ViewController {
       return '';
     }
 
-    const copyButton = `<button class="btn btn-sm" id=copyMessage${item.id} onclick="chatController.chat.copyFrontendMessage(${item.id})" data-bs-toggle="tooltip" data-bs-title="Copy"><i class="bi bi-clipboard"></i></button>`;
-    const deleteMessagesButton = `<button class="btn btn-sm" id=deleteMessage${item.id} onclick="chatController.chat.deleteMessagesAfterId(${item.id})" data-bs-toggle="tooltip" data-bs-title="Delete"><i class="bi bi-trash"></i></button>`;
+    const copyButton = `<button class="btn btn-sm" id=copyMessage${item.id} ${actionAttrs('copy-message', item.id)} data-bs-toggle="tooltip" data-bs-title="Copy"><i class="bi bi-clipboard"></i></button>`;
+    const deleteMessagesButton = `<button class="btn btn-sm" id=deleteMessage${item.id} ${actionAttrs('delete-messages-after', item.id)} data-bs-toggle="tooltip" data-bs-title="Delete"><i class="bi bi-trash"></i></button>`;
     let buttons = '';
 
     if ((item.role === 'assistant' && item.content?.length > 10) || item.role === 'file') {
@@ -148,7 +156,7 @@ class ViewController {
                 ${roleSetting.icon ? `<i class="bi bi-${roleSetting.icon}"></i>` : '&nbsp;'}
               </div>
               <div class="col pt-${roleSetting.rowPadding} flex-grow-1 min-width-0">
-                <div class="overflow-hidden">${content ? marked.parse(content) : ''}</div>
+                <div class="overflow-hidden">${content ? sanitizeHtml(marked.parse(content)) : ''}</div>
                 ${buttons}
               </div>
             </div>`;
@@ -297,30 +305,31 @@ class ViewController {
     const recentProjects = projectController.getProjects().slice(0, 10);
 
     recentProjects.forEach((project) => {
-      const projectPath = JSON.stringify(project.path).slice(1, -1);
+      const projectPath = project.path;
+      const escapedName = _.escape(project.name);
       const projectName =
-        project.name === projectController.currentProject?.name ? `<strong>${project.name}</strong>` : project.name;
+        project.name === projectController.currentProject?.name ? `<strong>${escapedName}</strong>` : escapedName;
       recentProjectsContent += `
         <div class="row align-items-center">
           <div class="col-12 col-sm-4 mb-2 mb-sm-0">
-            <a href="#" class="card-link text-nowrap text-truncate" onclick="event.preventDefault(); chatController.agent.projectController.openProject('${projectPath}');">
+            <a href="#" class="card-link text-nowrap text-truncate" ${actionAttrs('open-project', projectPath)}>
               <i class="bi bi-folder me-2"></i>${projectName}
             </a>
           </div>
           <div class="col-12 col-sm-3 mb-2 mb-sm-0">
-            <a href="#" class="card-link text-nowrap" onclick="event.preventDefault(); chatController.agent.projectController.showInstructionsModal('${projectPath}');">
+            <a href="#" class="card-link text-nowrap" ${actionAttrs('project-instructions', projectPath)}>
               <i class="bi bi-pencil me-2"></i> Instructions
             </a>
           </div>
           <div class="col-12 col-sm-5 text-truncate text-secondary text-nowrap">
-            ${projectPath}
+            ${_.escape(projectPath)}
           </div>
         </div>`;
     });
 
     if (projectController.currentProject) {
       currentProjectContent = `
-        <p><span class="me-3 fw-bold">${projectController.currentProject.name}</span><span class="text-truncate text-secondary text-nowrap d-none d-md-inline">${projectController.currentProject.path}</span></p>
+        <p><span class="me-3 fw-bold">${_.escape(projectController.currentProject.name)}</span><span class="text-truncate text-secondary text-nowrap d-none d-md-inline">${_.escape(projectController.currentProject.path)}</span></p>
       `;
     }
 
@@ -331,7 +340,7 @@ class ViewController {
           <h6 class="card-subtitle mt-4 mb-2 text-body-secondary">Current</h6>
           ${currentProjectContent || '<p class="text-secondary">Please select a project directory to proceed</p>'}
           <h6 class="card-subtitle mt-4 mb-2 text-body-secondary">Open project</h6>
-          <a href="#" class="card-link text-decoration-none" onclick="event.preventDefault(); viewController.selectDirectory();"><i class="bi bi-folder-plus me-2"></i>Open</a>
+          <a href="#" class="card-link text-decoration-none" ${actionAttrs('select-directory')}><i class="bi bi-folder-plus me-2"></i>Open</a>
           <h6 class="card-subtitle mt-4 mb-2 text-body-secondary">Recent</h6>
           <div class="container-fluid">
             ${recentProjectsContent || '<p class="text-secondary">No recent projects</p>'}

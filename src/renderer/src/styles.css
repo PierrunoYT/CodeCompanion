@@ -262,6 +262,30 @@ body {
   resize: vertical;
 }
 
+[data-bs-theme='light'] .approval .btn-outline-secondary {
+  color: #212529;
+  border-color: #212529;
+}
+
+[data-bs-theme='dark'] .approval .btn-outline-secondary {
+  color: #dee2e6;
+  border-color: #dee2e6;
+}
+
+[data-bs-theme='light'] .approval .btn-outline-secondary:hover,
+[data-bs-theme='light'] .approval .btn-outline-secondary:focus-visible {
+  color: #fff;
+  background-color: #212529;
+  border-color: #212529;
+}
+
+[data-bs-theme='dark'] .approval .btn-outline-secondary:hover,
+[data-bs-theme='dark'] .approval .btn-outline-secondary:focus-visible {
+  color: #212529;
+  background-color: #dee2e6;
+  border-color: #dee2e6;
+}
+
 /* Composer */
 .composer {
   padding: 0.6rem 1rem 0.8rem;

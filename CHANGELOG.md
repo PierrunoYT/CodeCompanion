@@ -12,9 +12,11 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 - Ask for approval before fetching or browsing unlisted network hosts; add an exact-host allow-list in Settings, block cross-host redirects, and deny browser popups that could bypass navigation checks. Auto mode still skips tool approvals; browser subresources and Google search are not filtered.
 
 ### Fixed
+- Improve Decline-button text contrast in light and dark approval cards, including hover and keyboard focus states.
 - Recent projects keep the most recently opened folder first even when opens share a timestamp, including after reopening the app.
 
 ### Development
+- Add reproducible Settings, Git and Browser README captures and rendered text-contrast checks for both themes.
 - Add executable Amp orb setup and resume scripts: install Linux build/Electron test prerequisites and locked npm dependencies, reuse matching snapshot dependencies, and check readiness on wake without reinstalling.
 
 ## [0.1.0] - 2026-09-29

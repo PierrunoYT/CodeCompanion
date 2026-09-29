@@ -70,6 +70,15 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 
 ## Documentation
 
+<details>
+<summary>Settings, Git changes, and browser preview</summary>
+
+![Settings with model and API configuration](docs/images/settings.png)
+![Git panel showing a new preview page and its diff](docs/images/git.png)
+![Browser panel showing an application preview](docs/images/browser.png)
+
+</details>
+
 - [Architecture](docs/ARCHITECTURE.md) — processes, IPC contract, agent loop, providers, tools, storage, security model
 - [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
 - [Contributing](CONTRIBUTING.md)

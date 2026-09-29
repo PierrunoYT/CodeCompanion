@@ -9,7 +9,7 @@ main.js (Electron main)              renderer.js (renderer, index.html)
 ├─ BrowserWindow + menu + shortcuts  ├─ ChatController  ── Chat, Agent, models, tools
 ├─ node-pty shell (start-shell,…)    ├─ ViewController  ── DOM/UI helpers
 ├─ file/dir open dialogs             └─ OnboardingController
-└─ (no auto-updater)                 preload.js – tiny preload script
+└─ (no updater, no telemetry)        preload.js – tiny preload script
 ```
 
 ### Main process (`main.js`)
@@ -69,8 +69,8 @@ Safety guard: `create_or_overwrite_file` on an existing file and `replace_code` 
 | `replace_code` | yes | Replaces an inclusive line range; the model sees line-numbered content. |
 | `read_file` | no | Adds file to the context; content arrives in next prompt. |
 | `run_shell_command` | yes | Runs in the visible terminal; `background: true` for servers. Output trimmed to first 5 + last 95 lines. |
-| `search` | – | `type: codebase` (embeddings + LLM rerank) or `google` (Google CSE, top pages fetched with Readability and compressed). |
-| `task_planning_done` | – | Disabled by default; enabled only during planning. |
+| `search` | no | `type: codebase` (embeddings + LLM rerank) or `google` (Google CSE, top pages fetched with Readability and compressed). |
+| `task_planning_done` | no | Disabled by default; enabled only during planning. |
 
 To add a tool: append an entry to `toolDefinitions` (`name`, `description`, JSON-schema `parameters`, `executeFunction`, `enabled`, `approvalRequired`) and add a case to `previewMessageMapping`.
 
@@ -82,12 +82,19 @@ Files skipped: `.gitignore`, `.ccignore` (or the default template in `static/emb
 
 ## Models
 
-`ChatController.initializeModel` picks `AnthropicModel` if the selected model id contains `claude`, else `OpenAIModel` (the base URL is configurable, enabling OpenAI-compatible endpoints). A **small model** (`gpt-4o-mini` if an OpenAI key exists, else `claude-haiku-4-5`) serves `BackgroundTask` calls: task title, plan detection, summarization, search reranking, result compression. Available models: `static/models_config.js`.
+`ChatController.initializeModel` picks `AnthropicModel` if the selected model id contains `claude`, else `OpenAIModel` (the base URL is configurable, enabling OpenAI-compatible endpoints). A **small model** (`gpt-4o-mini` if an OpenAI key exists, else `claude-haiku-4-5`) serves `BackgroundTask` calls: task title, plan detection, summarization, search reranking, result compression. Defaults: Claude Sonnet 5.5 (main), Claude Haiku 4.5 (small). Selectable models live in `static/models_config.js` (`modelOptions`); the OpenAI entries there are unchanged from upstream and not re-verified.
 
 ## Persistence (`electron-store`)
 
 Settings (`apiKey`, `anthropicApiKey`, `baseUrl`, `selectedModel`, `approvalRequired`, `maxFilesToEmbed`, `commandToOpenFile`, `theme`), `windowBounds`, `projects`, `project.<name>.embeddings`, `project.<name>.instructions`, `chatHistory`. API keys are stored in plain text in the user data directory.
 
-## Telemetry
+## Network access
 
-None. The original Sentry and Aptabase integrations were removed, so the app sends no data except to the LLM, embeddings and Google APIs you configure.
+The app talks only to the services you configure: the Anthropic/OpenAI APIs (or a custom `baseUrl`), OpenAI embeddings, Google Custom Search, and any URL you or the agent open. Upstream's Sentry, Aptabase and auto-updater were removed, so there is no telemetry and no update check.
+
+## Differences from upstream
+
+- Claude model list and defaults updated (Sonnet 5.5, Opus 5.5, Haiku 4.5); the 3.5-Sonnet max-tokens beta header was dropped.
+- Tool definitions use `approvalRequired` consistently.
+- Platform check in `renderer.js` fixed (`win32`), so xterm's Windows mode and path separators work on Windows.
+- Telemetry and auto-updater removed. The `build.publish` block in `package.json` still targets upstream's S3 bucket and should be changed before running `npm run publish`.

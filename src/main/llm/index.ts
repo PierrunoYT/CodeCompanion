@@ -9,6 +9,8 @@ export * from './types';
 
 // End-to-end tests point the app at a local mock API. Unset in normal use.
 const TEST_ANTHROPIC_BASE_URL = process.env.CODECOMPANION_TEST_ANTHROPIC_URL || undefined;
+// Only used when no custom base URL is set in settings, so the Responses API path can be tested.
+const TEST_OPENAI_BASE_URL = process.env.CODECOMPANION_TEST_OPENAI_URL || undefined;
 
 // Creates conversations and small-model clients from the current settings and keys.
 export class LlmService {
@@ -35,7 +37,7 @@ export class LlmService {
         const key = this.settings.getSecret('openaiApiKey');
         if (key) {
           return new OpenAICompletionClient(
-            createOpenAIClient(key, this.settings.get().openaiBaseUrl),
+            createOpenAIClient(key, this.settings.get().openaiBaseUrl || TEST_OPENAI_BASE_URL),
             SMALL_MODELS.openai,
           );
         }
@@ -62,7 +64,7 @@ export class LlmService {
     }
     const key = this.settings.getSecret('openaiApiKey');
     if (!key) throw new MissingApiKeyError('openai');
-    const client = createOpenAIClient(key, settings.openaiBaseUrl);
+    const client = createOpenAIClient(key, settings.openaiBaseUrl || TEST_OPENAI_BASE_URL);
     return openaiApi === 'responses'
       ? new OpenAIResponsesConversation(client, model, settings.effort, messages as never)
       : new OpenAIConversation(client, model, messages as never);

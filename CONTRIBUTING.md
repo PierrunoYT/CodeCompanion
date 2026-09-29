@@ -4,6 +4,7 @@ Contributions are welcome. This document describes the process.
 
 ## Issues
 
+- Issues and pull requests go to https://github.com/PierrunoYT/CodeCompanion.
 - Before submitting an issue, please check if it already exists.
 - Provide as much information as possible: what you did, what happened, what you expected, your OS and the model you used.
 - Include step-by-step reproduction steps if you can.

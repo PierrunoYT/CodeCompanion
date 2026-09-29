@@ -25,29 +25,72 @@ export const SMALL_MODELS: Record<Provider, string> = {
   openai: 'gpt-6-luna',
 };
 
-// US dollars per million tokens (Anthropic API list prices, September 2026). Models without an entry (the OpenAI
-// models and custom ids) get no cost estimate rather than a guess. Haiku's cache-read price is 10% of its input price.
+// US dollars per million tokens at the providers' standard list prices (September 2026). Custom ids get no estimate.
 export interface ModelPricing {
   input: number;
   output: number;
   cacheRead: number;
+  cacheWrite: number;
+  longContext?: ModelPricing;
 }
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 },
-  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
-  'claude-haiku-4-5': { input: 1, output: 5, cacheRead: 0.1 },
+  'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  'claude-haiku-4-5': { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
+  'gpt-6-astra': {
+    input: 10,
+    output: 50,
+    cacheRead: 1,
+    cacheWrite: 12.5,
+    longContext: { input: 20, output: 75, cacheRead: 2, cacheWrite: 25 },
+  },
+  'gpt-6-sol': {
+    input: 2,
+    output: 10,
+    cacheRead: 0.2,
+    cacheWrite: 2.5,
+    longContext: { input: 4, output: 15, cacheRead: 0.4, cacheWrite: 5 },
+  },
+  'gpt-6-luna': {
+    input: 0.1,
+    output: 0.5,
+    cacheRead: 0.01,
+    cacheWrite: 0.125,
+    longContext: { input: 0.2, output: 0.75, cacheRead: 0.02, cacheWrite: 0.25 },
+  },
 };
 
-// Estimated cost in dollars of a chat's token usage, or null when the model's price is not known. The Claude API
-// reports cache reads separately from input tokens; cache writes are not tracked, so this is a lower bound.
+// Estimated cost in dollars of a chat's token usage, or null when the model/provider price is not known.
 export function estimateCost(
   model: string,
-  usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number },
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens?: number;
+    longContext?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+  },
+  officialProvider = true,
 ): number | null {
+  if (!officialProvider) return null;
   const price = MODEL_PRICING[model];
   if (!price) return null;
-  return (usage.inputTokens * price.input + usage.outputTokens * price.output + usage.cacheReadTokens * price.cacheRead) / 1_000_000;
+  const long = usage.longContext;
+  const shortCost =
+    (usage.inputTokens - (long?.inputTokens ?? 0)) * price.input +
+    (usage.outputTokens - (long?.outputTokens ?? 0)) * price.output +
+    (usage.cacheReadTokens - (long?.cacheReadTokens ?? 0)) * price.cacheRead +
+    ((usage.cacheWriteTokens ?? 0) - (long?.cacheWriteTokens ?? 0)) * price.cacheWrite;
+  const longPrice = price.longContext;
+  const longCost =
+    long && longPrice
+      ? long.inputTokens * longPrice.input +
+        long.outputTokens * longPrice.output +
+        long.cacheReadTokens * longPrice.cacheRead +
+        long.cacheWriteTokens * longPrice.cacheWrite
+      : 0;
+  return (shortCost + longCost) / 1_000_000;
 }
 
 export function formatCost(dollars: number): string {

@@ -48,7 +48,21 @@ describe('OpenAIConversation', () => {
         ],
       }),
       chunk({}, 'tool_calls'),
-      { data: { id: 'x', object: 'chat.completion.chunk', created: 0, model: 'm', choices: [], usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 } } },
+      {
+        data: {
+          id: 'x',
+          object: 'chat.completion.chunk',
+          created: 0,
+          model: 'm',
+          choices: [],
+          usage: {
+            prompt_tokens: 272_000,
+            completion_tokens: 3,
+            total_tokens: 272_003,
+            prompt_tokens_details: { cached_tokens: 5, cache_write_tokens: 2 },
+          },
+        },
+      },
       { data: '[DONE]' },
     ]);
     const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test');
@@ -60,11 +74,52 @@ describe('OpenAIConversation', () => {
     expect(req.streamed.join('')).toBe('Checking');
     expect(result.toolCalls).toEqual([{ id: 'call_1', name: 'read_file', input: { path: 'a.ts' } }]);
     expect(result.stopReason).toBe('tool_use');
-    expect(result.usage.inputTokens).toBe(5);
+    expect(result.usage).toEqual({
+      inputTokens: 271_993,
+      outputTokens: 3,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 2,
+      longContext: false,
+    });
 
     const body = server.requests[0].body;
     expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' });
     expect(body.tools[0].function.parameters).toMatchObject({ type: 'object', required: ['path'] });
+  });
+
+  it('selects the long-context tier only above 272K total per-request input', async () => {
+    server.queueSse([
+      chunk({ role: 'assistant', content: 'ok' }),
+      chunk({}, 'stop'),
+      {
+        data: {
+          id: 'x',
+          object: 'chat.completion.chunk',
+          created: 0,
+          model: 'm',
+          choices: [],
+          usage: {
+            prompt_tokens: 272_001,
+            completion_tokens: 1,
+            total_tokens: 272_002,
+            prompt_tokens_details: { cached_tokens: 200_000, cache_write_tokens: 50_000 },
+          },
+        },
+      },
+      { data: '[DONE]' },
+    ]);
+    const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-6-sol');
+    conversation.addUserMessage({ text: 'large request' });
+
+    const result = await conversation.runTurn(request());
+
+    expect(result.usage).toEqual({
+      inputTokens: 22_001,
+      outputTokens: 1,
+      cacheReadTokens: 200_000,
+      cacheWriteTokens: 50_000,
+      longContext: true,
+    });
   });
 
   it('marks unparseable tool arguments instead of throwing', async () => {

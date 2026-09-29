@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { ChatEvent } from '@shared/chat';
+import type { ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
 import { defineTool, type AgentTool, type ToolContext } from '../tools/types';
@@ -9,13 +9,15 @@ import { ChatSession } from './session';
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
 
 class ScriptedConversation implements Conversation {
-  readonly provider = 'anthropic' as const;
+  readonly provider: 'anthropic' | 'openai';
   readonly model = 'test-model';
   readonly users: UserInput[] = [];
   readonly toolResults: ToolResult[][] = [];
   turns = 0;
 
-  constructor(private readonly steps: Step[]) {}
+  constructor(private readonly steps: Step[], provider: 'anthropic' | 'openai' = 'anthropic') {
+    this.provider = provider;
+  }
 
   addUserMessage(input: UserInput): void {
     this.users.push(input);
@@ -77,17 +79,22 @@ function setup(
     mode = 'ask' as ApprovalMode,
     tools = () => [lookTool, changeTool] as AgentTool[],
     isPreApproved = undefined as ((toolName: string, input: unknown) => boolean) | undefined,
+    usage = undefined as UsageTotals | undefined,
+    provider = 'anthropic' as 'anthropic' | 'openai',
+    officialPricing = undefined as boolean | undefined,
   } = {},
 ) {
   ran.length = 0;
-  const conversation = new ScriptedConversation(steps);
+  const conversation = new ScriptedConversation(steps, provider);
   const events: ChatEvent[] = [];
   const session = new ChatSession({
     projectPath: '/project',
     conversation,
+    officialPricing,
     system: 'system prompt',
     agentFile: null,
     tools,
+    usage,
     approvalMode: () => mode,
     isPreApproved,
     toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
@@ -322,11 +329,54 @@ describe('agent loop', () => {
   });
 
   it('serializes and tracks usage', async () => {
-    const { session } = setup([{ text: 'a' }]);
+    const { session } = setup([
+      {
+        text: 'a',
+        usage: {
+          inputTokens: 7,
+          outputTokens: 5,
+          cacheReadTokens: 3,
+          cacheWriteTokens: 2,
+          longContext: true,
+        },
+      },
+    ]);
     await session.send({ text: 'hi' });
     const saved = session.serialize();
-    expect(saved.usage).toEqual({ inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 });
+    expect(saved.usage).toEqual({
+      inputTokens: 7,
+      outputTokens: 5,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 2,
+      longContext: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
+    });
     expect(saved.system).toBe('system prompt');
     expect(saved.transcript).toHaveLength(2);
+  });
+
+  it('restores legacy saved usage without cache writes', () => {
+    const { session } = setup([], { usage: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3 } });
+    expect(session.snapshot().usage).toEqual({ inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 0 });
+  });
+
+  it('normalizes legacy OpenAI input exactly once and suppresses custom endpoint pricing', () => {
+    const { session } = setup([], {
+      provider: 'openai', officialPricing: false,
+      usage: { inputTokens: 17, outputTokens: 5, cacheReadTokens: 3 },
+    });
+    expect(session.snapshot().usage.inputTokens).toBe(14);
+    expect(session.snapshot().officialPricing).toBe(false);
+    const restored = setup([], { provider: 'openai', usage: session.serialize().usage });
+    expect(restored.session.snapshot().usage.inputTokens).toBe(14);
+  });
+
+  it('accumulates multiple long requests without mutating earlier snapshots', async () => {
+    const usage = { inputTokens: 280_000, outputTokens: 17, cacheReadTokens: 3, cacheWriteTokens: 5, longContext: true };
+    const { session } = setup([{ text: 'first', usage }, { text: 'second', usage }]);
+    await session.send({ text: 'one' });
+    const first = session.snapshot();
+    await session.send({ text: 'two' });
+    expect(first.usage.longContext?.inputTokens).toBe(280_000);
+    expect(session.snapshot().usage.longContext?.inputTokens).toBe(560_000);
   });
 });

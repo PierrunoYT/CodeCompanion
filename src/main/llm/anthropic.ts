@@ -85,7 +85,7 @@ export class AnthropicConversation implements Conversation {
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {
     const text: string[] = [];
-    const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
+    const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
     let jsonRetries = 0;
     let continuations = 0;
 
@@ -109,6 +109,7 @@ export class AnthropicConversation implements Conversation {
       usage.inputTokens += message.usage.input_tokens;
       usage.outputTokens += message.usage.output_tokens;
       usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
       this.messages.push({ role: 'assistant', content: message.content as ContentBlockParam[] });
 
       for (const block of message.content) {

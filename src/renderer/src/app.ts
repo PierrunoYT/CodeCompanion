@@ -191,11 +191,14 @@ export class App {
     this.agentLabel.replaceChildren(...(agentFile ? [icon('file-earmark-check'), ` ${agentFile} loaded`] : []));
 
     const { inputTokens, outputTokens, cacheReadTokens } = this.chat.usage;
-    const cost = estimateCost(model, this.chat.usage);
-    this.usageLabel.title = cost === null ? '' : 'Estimated from list prices; cache writes are not counted, so the real cost can be a little higher.';
+    const cacheWriteTokens = this.chat.usage.cacheWriteTokens ?? 0;
+    const officialProvider =
+      this.chat.officialPricing ?? (providerForModel(model) === 'anthropic' || !this.settings.openaiBaseUrl.trim());
+    const cost = estimateCost(model, this.chat.usage, officialProvider);
+    this.usageLabel.title = cost === null ? '' : 'Estimated from official list prices.';
     this.usageLabel.textContent =
-      inputTokens + outputTokens > 0
-        ? `Tokens: ${format(inputTokens)} in (${format(cacheReadTokens)} cached) · ${format(outputTokens)} out${cost === null ? '' : ` · ≈ ${formatCost(cost)}`}`
+      inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens > 0
+        ? `Tokens: ${format(inputTokens)} in · ${format(cacheReadTokens)} read · ${format(cacheWriteTokens)} written · ${format(outputTokens)} out${cost === null ? '' : ` · ≈ ${formatCost(cost)}`}`
         : '';
   }
 

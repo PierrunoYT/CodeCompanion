@@ -44,6 +44,8 @@ Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screens
 
 Project-store tests use a fixed clock to cover equal-timestamp opens and reopening existing folders; newest-open ordering must survive reload without synthesizing future timestamps.
 
+Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/en/about-claude/pricing) (default 5-minute cache writes) and [OpenAI prices](https://developers.openai.com/api/docs/pricing). OpenAI input totals include cached/read and cache-write tokens; providers normalize them into separate categories before accumulation. Requests above 272,000 input tokens retain their long-context bucket instead of selecting a tier from chat totals. Older saved usage lacks cache-write and per-request tier data, so historical estimates are incomplete. Custom endpoints, title generation, embeddings, and failed requests are not included in the estimate.
+
 `pack` and `dist` first run `scripts/ensure-closed.mjs`. On Windows, electron-builder cannot replace `dist/win-unpacked` while an app started from it is running, so the script stops with "Close CodeCompanion first" instead of an `EBUSY` error. An installed copy (outside `dist/`) does not matter.
 
 Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).

@@ -51,7 +51,7 @@ function responseEvents() {
   add('response.completed', {
     response: baseResponse('completed', [reasoning, message, call], {
       input_tokens: 12,
-      input_tokens_details: { cached_tokens: 4 },
+      input_tokens_details: { cached_tokens: 4, cache_write_tokens: 3 },
       output_tokens: 6,
       output_tokens_details: { reasoning_tokens: 2 },
       total_tokens: 18,
@@ -97,7 +97,13 @@ describe('OpenAIResponsesConversation', () => {
     expect(result.text).toBe('Checking');
     expect(result.stopReason).toBe('tool_use');
     expect(result.toolCalls).toEqual([{ id: 'call_1', name: 'read_file', input: { path: 'a.ts' } }]);
-    expect(result.usage).toEqual({ inputTokens: 12, outputTokens: 6, cacheReadTokens: 4 });
+    expect(result.usage).toEqual({
+      inputTokens: 5,
+      outputTokens: 6,
+      cacheReadTokens: 4,
+      cacheWriteTokens: 3,
+      longContext: false,
+    });
   });
 
   it('sends a stateless request with reasoning effort, encrypted reasoning and auto truncation', async () => {

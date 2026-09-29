@@ -92,14 +92,23 @@ export class OpenAIConversation implements Conversation {
       ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
     });
 
+    const inputTokens = completion.usage?.prompt_tokens ?? 0;
+    const details = completion.usage?.prompt_tokens_details as
+      | { cached_tokens?: number; cache_write_tokens?: number }
+      | undefined;
+    const cacheReadTokens = details?.cached_tokens ?? 0;
+    const cacheWriteTokens = details?.cache_write_tokens ?? 0;
+
     return {
       text: message.content ?? '',
       toolCalls,
       stopReason: mapFinishReason(choice.finish_reason, toolCalls.length > 0),
       usage: {
-        inputTokens: completion.usage?.prompt_tokens ?? 0,
+        inputTokens: Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens),
         outputTokens: completion.usage?.completion_tokens ?? 0,
-        cacheReadTokens: completion.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+        cacheReadTokens,
+        cacheWriteTokens,
+        longContext: inputTokens > 272_000,
       },
       refusal: message.refusal ?? undefined,
     };

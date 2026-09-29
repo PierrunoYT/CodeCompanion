@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Added
+- Add GPT-6 list-price estimates and cache-write accounting. Normalize OpenAI cached input, price long-context requests separately, and hide official estimates for custom endpoints. Older chat usage is migrated without double-counting cache reads.
+
 ### Security
 - Ask for approval before fetching or browsing unlisted network hosts; add an exact-host allow-list in Settings, block cross-host redirects, and deny browser popups that could bypass navigation checks. Auto mode still skips tool approvals; browser subresources and Google search are not filtered.
 

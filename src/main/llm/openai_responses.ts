@@ -91,14 +91,20 @@ export class OpenAIResponsesConversation implements Conversation {
       .flatMap((item) => (item.type === 'message' ? item.content : []))
       .find((part) => part.type === 'refusal');
 
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const cacheReadTokens = response.usage?.input_tokens_details?.cached_tokens ?? 0;
+    const cacheWriteTokens = response.usage?.input_tokens_details?.cache_write_tokens ?? 0;
+
     return {
       text: response.output_text ?? '',
       toolCalls,
       stopReason: stopReason(response, toolCalls.length > 0, Boolean(refusal)),
       usage: {
-        inputTokens: response.usage?.input_tokens ?? 0,
+        inputTokens: Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens),
         outputTokens: response.usage?.output_tokens ?? 0,
-        cacheReadTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0,
+        cacheReadTokens,
+        cacheWriteTokens,
+        longContext: inputTokens > 272_000,
       },
       refusal: refusal?.type === 'refusal' ? refusal.refusal : undefined,
     };

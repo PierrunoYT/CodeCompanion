@@ -24,16 +24,16 @@ export interface AgentOptions {
 // Runs the model/tool loop for one user message: call the model, run the tools it asks for (with approval where
 // needed), send the results back, and repeat until the model answers without tool calls.
 export class Agent {
-  private usage: UsageTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
+  private usage: UsageTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
 
   constructor(private readonly options: AgentOptions) {}
 
   get totals(): UsageTotals {
-    return { ...this.usage };
+    return { ...this.usage, ...(this.usage.longContext ? { longContext: { ...this.usage.longContext } } : {}) };
   }
 
   set totals(value: UsageTotals) {
-    this.usage = { ...value };
+    this.usage = { ...value, cacheWriteTokens: value.cacheWriteTokens ?? 0 };
   }
 
   async send(input: UserInput, signal: AbortSignal): Promise<void> {
@@ -68,6 +68,20 @@ export class Agent {
       this.usage.inputTokens += result.usage.inputTokens;
       this.usage.outputTokens += result.usage.outputTokens;
       this.usage.cacheReadTokens += result.usage.cacheReadTokens;
+      this.usage.cacheWriteTokens = (this.usage.cacheWriteTokens ?? 0) + (result.usage.cacheWriteTokens ?? 0);
+      if (result.usage.longContext) {
+        const long = this.usage.longContext ? { ...this.usage.longContext } : {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        };
+        long.inputTokens += result.usage.inputTokens;
+        long.outputTokens += result.usage.outputTokens;
+        long.cacheReadTokens += result.usage.cacheReadTokens;
+        long.cacheWriteTokens += result.usage.cacheWriteTokens ?? 0;
+        this.usage.longContext = long;
+      }
       emit({ type: 'usage', totals: this.totals });
 
       if (result.stopReason === 'refusal') {

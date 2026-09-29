@@ -30,6 +30,16 @@ export interface UsageTotals {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  // Optional so chats saved before cache-write accounting remain valid.
+  cacheWriteTokens?: number;
+  // GPT-6 requests over 272K input tokens are priced as a whole at long-context rates. Keeping that per-request
+  // classification here avoids incorrectly selecting a tier from aggregate chat usage.
+  longContext?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+  };
 }
 
 export type ChatEvent =
@@ -68,6 +78,8 @@ export interface ChatSnapshot {
   title: string;
   projectPath: string | null;
   model: string;
+  // False for OpenAI-compatible custom endpoints, whose prices may differ even when model ids match.
+  officialPricing?: boolean;
   transcript: TranscriptItem[];
   busy: boolean;
   usage: UsageTotals;

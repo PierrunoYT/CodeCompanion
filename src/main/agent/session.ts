@@ -35,6 +35,7 @@ export interface ChatSessionOptions {
   createdAt?: string;
   projectPath: string | null;
   conversation: Conversation;
+  officialPricing?: boolean;
   system: string;
   agentFile: string | null;
   tools: () => AgentTool[];
@@ -79,7 +80,14 @@ export class ChatSession {
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
       emit: (event) => this.emit(event),
     });
-    if (options.usage) this.agent.totals = options.usage;
+    if (options.usage) {
+      const usage = { ...options.usage };
+      // Older OpenAI totals included cache reads in input. Normalize once when loading the old shape.
+      if (options.conversation.provider === 'openai' && usage.cacheWriteTokens === undefined) {
+        usage.inputTokens = Math.max(0, usage.inputTokens - usage.cacheReadTokens);
+      }
+      this.agent.totals = usage;
+    }
   }
 
   get busy(): boolean {
@@ -96,6 +104,8 @@ export class ChatSession {
       title: this.title,
       projectPath: this.options.projectPath,
       model: this.options.conversation.model,
+      officialPricing:
+        this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
       transcript: this.transcript,
       busy: this.busy,
       usage: this.agent.totals,

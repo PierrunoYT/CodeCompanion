@@ -151,6 +151,7 @@ export class ChatManager {
       createdAt: saved?.createdAt,
       projectPath: project.path,
       conversation,
+      officialPricing: conversation.provider === 'anthropic' || !this.deps.settings.get().openaiBaseUrl.trim(),
       system,
       agentFile: saved ? (saved.agentFile ?? null) : (agentFile?.name ?? null),
       tools: () => {

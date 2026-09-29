@@ -56,7 +56,7 @@ describe('AnthropicConversation', () => {
     expect(result.text).toBe('Let me look.');
     expect(result.stopReason).toBe('tool_use');
     expect(result.toolCalls).toEqual([{ id: 'toolu_1', name: 'read_file', input: { path: 'a.ts' } }]);
-    expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 7, cacheReadTokens: 4 });
+    expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 7, cacheReadTokens: 4, cacheWriteTokens: 3 });
   });
 
   it('sends current-model features: adaptive thinking, effort, compaction, fallback, caching, eager tool input', async () => {

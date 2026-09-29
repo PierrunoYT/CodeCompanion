@@ -7,7 +7,14 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        test: { name: 'unit', include: ['src/**/*.test.ts'], environment: 'node' },
+        // Generous timeouts: the first PowerShell start on a cold CI runner can take several seconds.
+        test: {
+          name: 'unit',
+          include: ['src/**/*.test.ts'],
+          environment: 'node',
+          testTimeout: 30_000,
+          hookTimeout: 30_000,
+        },
       },
       {
         extends: true,

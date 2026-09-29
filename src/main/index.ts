@@ -70,8 +70,15 @@ function start(): void {
   };
   const indexStatus = (index: CodeIndex | null, reason?: string): IndexStatus =>
     index
-      ? { available: true, indexed: index.fileCount > 0, indexing: index.isUpdating, files: index.fileCount, chunks: index.chunkCount }
-      : { available: false, reason, indexed: false, indexing: false, files: 0, chunks: 0 };
+      ? {
+          available: true,
+          indexed: index.fileCount > 0,
+          indexing: index.isUpdating,
+          progress: index.updateProgress,
+          files: index.fileCount,
+          chunks: index.chunkCount,
+        }
+      : { available: false, reason, indexed: false, indexing: false, progress: null, files: 0, chunks: 0 };
   const currentIndex = (): { index: CodeIndex | null; reason?: string } => {
     const project = projects.current();
     if (!project) return { index: null, reason: 'Open a project first.' };

@@ -57,6 +57,7 @@ export class CodeIndex implements CodeSearch {
   private data: StoredIndex;
   private vectors = new Map<string, Float32Array[]>();
   private updating: Promise<void> | null = null;
+  private progress: UpdateProgress | null = null;
 
   constructor(
     private readonly workspace: Workspace,
@@ -76,7 +77,13 @@ export class CodeIndex implements CodeSearch {
 
   // Re-embeds new and changed files and drops deleted ones. Concurrent callers share one update.
   update(signal?: AbortSignal, onProgress?: (progress: UpdateProgress) => void): Promise<void> {
-    this.updating ??= this.runUpdate(signal, onProgress).finally(() => (this.updating = null));
+    this.updating ??= this.runUpdate(signal, (progress) => {
+      this.progress = progress;
+      onProgress?.(progress);
+    }).finally(() => {
+      this.updating = null;
+      this.progress = null;
+    });
     return this.updating;
   }
 
@@ -130,6 +137,11 @@ export class CodeIndex implements CodeSearch {
 
   get isUpdating(): boolean {
     return this.updating !== null;
+  }
+
+  // Chunks embedded so far in the running update; null while idle or still scanning files.
+  get updateProgress(): UpdateProgress | null {
+    return this.progress;
   }
 
   private async runUpdate(signal?: AbortSignal, onProgress?: (progress: UpdateProgress) => void): Promise<void> {

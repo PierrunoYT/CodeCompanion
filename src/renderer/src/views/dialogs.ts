@@ -1,5 +1,6 @@
 import { filterChats, type ChatSummary } from '@shared/chat';
 import { MODEL_OPTIONS, type Effort } from '@shared/models';
+import { describeIndexStatus } from '@shared/index_status';
 import type { IndexStatus } from '@shared/ipc';
 import type { ProjectInfo } from '@shared/project';
 import type { SecretName, Settings, SettingsView } from '@shared/settings';
@@ -125,22 +126,29 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
 
   const indexText = h('span', { class: 'small text-body-secondary flex-grow-1' }, 'Checking…');
   const reindex = h('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm', disabled: true }, 'Reindex');
+  // While an update runs (a rebuild, or one started by a code search), poll the status to show its progress.
+  let poll: ReturnType<typeof setInterval> | undefined;
+  const stopPolling = () => {
+    clearInterval(poll);
+    poll = undefined;
+  };
+  const startPolling = () => {
+    poll ??= setInterval(() => void actions.indexStatus().then(showIndex, () => {}), 1000);
+  };
   const showIndex = (status: IndexStatus) => {
-    indexText.textContent = !status.available
-      ? `Not available: ${status.reason ?? 'no project'}`
-      : status.indexing
-        ? 'Indexing…'
-        : status.indexed
-          ? `Indexed: ${status.files} files, ${status.chunks} chunks`
-          : 'Not indexed yet';
+    indexText.textContent = describeIndexStatus(status);
     reindex.disabled = !status.available || status.indexing;
+    if (status.indexing) startPolling();
+    else stopPolling();
   };
   reindex.addEventListener('click', async () => {
     reindex.disabled = true;
-    indexText.textContent = 'Indexing… this can take a while';
+    indexText.textContent = 'Indexing… scanning files';
+    startPolling();
     try {
       showIndex(await actions.rebuildIndex());
     } catch (err) {
+      stopPolling();
       indexText.textContent = `Indexing failed: ${err instanceof Error ? err.message : String(err)}`;
       reindex.disabled = false;
     }
@@ -181,6 +189,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
 
   const save = h('button', { type: 'button', class: 'btn btn-primary' }, 'Save');
   const element = dialog('Settings', body, h('div', { class: 'd-flex w-100 align-items-center gap-2' }, error, h('button', { type: 'button', class: 'btn btn-outline-secondary', onclick: () => element.close() }, 'Cancel'), save));
+  element.addEventListener('close', stopPolling);
 
   save.addEventListener('click', async () => {
     try {

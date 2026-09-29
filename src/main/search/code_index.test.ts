@@ -90,6 +90,25 @@ describe('CodeIndex', () => {
     expect(index.fileCount).toBe(2);
   });
 
+  it('exposes progress while updating and clears it afterwards', async () => {
+    const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 1000);
+    const seen: Array<{ reported: { embedded: number; total: number }; exposed: { embedded: number; total: number } | null }> = [];
+
+    const running = index.update(undefined, (reported) => seen.push({ reported, exposed: index.updateProgress }));
+    expect(index.isUpdating).toBe(true);
+    expect(index.updateProgress).toBeNull();
+    await running;
+
+    // The getter shows what was just reported, and the last report covers all chunks.
+    expect(seen.length).toBeGreaterThan(0);
+    for (const { reported, exposed } of seen) expect(exposed).toEqual(reported);
+    const last = seen.at(-1)!.reported;
+    expect(last.embedded).toBe(last.total);
+    expect(last.total).toBe(index.chunkCount);
+    expect(index.updateProgress).toBeNull();
+    expect(index.isUpdating).toBe(false);
+  });
+
   it('only re-embeds changed files and drops deleted ones', async () => {
     const embedder = new FakeEmbedder();
     const index = new CodeIndex(new Workspace(root), embedder, indexDir, () => 1000);

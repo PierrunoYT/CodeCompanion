@@ -20,6 +20,8 @@ export interface IndexStatus {
   reason?: string;
   indexed: boolean;
   indexing: boolean;
+  // Chunks embedded so far in the running update; null while idle or still scanning files.
+  progress: { embedded: number; total: number } | null;
   files: number;
   chunks: number;
 }

@@ -51,7 +51,7 @@ Handlers (`src/main/ipc.ts`, `handle` / `send`) and the preload bridge are typed
 2. `Agent.send` (`src/main/agent/agent.ts`) adds the user message and runs turns:
    - The tool list is rebuilt at the start of every turn (`ChatManager` passes `tools: () => …`), so a tool that becomes available while a chat is open, such as `search_code` after an OpenAI key is saved, is offered from the next turn on. The system prompt is not rebuilt; it stays byte-identical for prompt caching.
    - `conversation.runTurn` streams the model's answer (text and summarized thinking are forwarded as `chat:event`s).
-   - For each tool call: validate the input against the tool's Zod schema → build a preview (diff or command) → if the tool needs approval and the mode is **Ask**, wait for `chat:decide` → run it.
+   - For each tool call: validate the input against the tool's Zod schema (a failure names the missing fields and the fields received, and is returned to the model as an error result) → build a preview (diff or command) → if the tool needs approval and the mode is **Ask**, wait for `chat:decide` → run it.
    - All results of a turn go back to the model together, then the next turn starts. The loop ends when the model answers without tool calls (or after 200 turns).
 3. Declining **with** feedback sends the feedback to the model as the tool result and continues; declining **without** feedback stops the task. Stopping (`chat:stop`) aborts the request and running commands. Every tool call always gets a result, even when skipped or stopped, so the history stays valid for the API.
 4. Every event goes through `applyChatEvent` (`src/shared/chat.ts`) in both processes: the main process keeps the transcript for saving, the renderer for display. Streaming deltas are applied in batches once per animation frame.
@@ -102,7 +102,7 @@ A chat keeps its model. Changing the model in settings applies to new chats.
 Rules enforced in code, not only in the prompt:
 
 - `Workspace.resolve` confines every path to the project root (symlinks are resolved first).
-- Existing files must be read in the current chat before `edit_file` or `write_file` may change them.
+- Existing files must be read in the current chat before `edit_file` or `write_file` may change them. The check runs both in `preview` (so an unread file is rejected before the user is asked to approve) and in `run`.
 - Command output is capped (start and end kept); commands are killed with their whole process tree on stop or timeout.
 
 To add a tool: create it with `defineTool` (name, description, Zod schema, `requiresApproval`, optional `preview`, `run`) and register it in `registry.ts`.

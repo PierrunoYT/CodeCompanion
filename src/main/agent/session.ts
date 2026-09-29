@@ -35,7 +35,7 @@ export interface ChatSessionOptions {
   projectPath: string | null;
   conversation: Conversation;
   system: string;
-  tools: AgentTool[];
+  tools: () => AgentTool[];
   transcript?: TranscriptItem[];
   usage?: UsageTotals;
   readFiles?: string[];

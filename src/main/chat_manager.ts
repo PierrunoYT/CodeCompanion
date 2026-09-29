@@ -108,13 +108,20 @@ export class ChatManager {
     if (!project) throw new Error('Open a project folder first (File → Open Project).');
     const workspace = this.currentWorkspace(project.path);
     const shell = this.currentShell(workspace);
-    const codeSearch = this.deps.codeSearch(workspace);
-    const browser = this.deps.browser();
-    const settings = this.deps.settings.get();
-    const webSearch =
-      this.deps.settings.getSecret('googleApiKey') && settings.googleSearchEngineId
-        ? { googleApiKey: this.deps.settings.getSecret('googleApiKey'), googleSearchEngineId: settings.googleSearchEngineId }
-        : null;
+    // Read again on every turn: keys and panels can change while a chat is open.
+    const capabilities = () => {
+      const settings = this.deps.settings.get();
+      const googleApiKey = this.deps.settings.getSecret('googleApiKey');
+      return {
+        codeSearch: this.deps.codeSearch(workspace),
+        browser: this.deps.browser(),
+        webSearch:
+          googleApiKey && settings.googleSearchEngineId
+            ? { googleApiKey, googleSearchEngineId: settings.googleSearchEngineId }
+            : null,
+      };
+    };
+    const initial = capabilities();
 
     const conversation = saved
       ? this.deps.llm.restoreConversation(saved.conversation)
@@ -127,8 +134,8 @@ export class ChatManager {
         platform: platform(),
         date: new Date().toISOString().slice(0, 10),
         customInstructions: project.instructions,
-        hasCodeSearch: Boolean(codeSearch),
-        hasBrowser: Boolean(browser),
+        hasCodeSearch: Boolean(initial.codeSearch),
+        hasBrowser: Boolean(initial.browser),
       });
 
     const session: ChatSession = new ChatSession({
@@ -138,19 +145,18 @@ export class ChatManager {
       projectPath: project.path,
       conversation,
       system,
-      tools: availableTools({ browser, codeSearch: codeSearch?.search ?? null, webSearch }, codeSearch?.tools ?? []),
+      tools: () => {
+        const { codeSearch, browser, webSearch } = capabilities();
+        return availableTools({ browser, codeSearch: codeSearch?.search ?? null, webSearch }, codeSearch?.tools ?? []);
+      },
       transcript: saved?.transcript,
       usage: saved?.usage,
       readFiles: saved?.readFiles,
       approvalMode: () => this.deps.settings.get().approvalMode,
-      toolContext: (base): ToolContext => ({
-        ...base,
-        workspace,
-        shell,
-        browser,
-        codeSearch: codeSearch?.search ?? null,
-        webSearch,
-      }),
+      toolContext: (base): ToolContext => {
+        const { codeSearch, browser, webSearch } = capabilities();
+        return { ...base, workspace, shell, browser, codeSearch: codeSearch?.search ?? null, webSearch };
+      },
       smallModel: () => this.deps.llm.smallModel(),
       onEvent: (event) => this.deps.emit(event, session.id),
       onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),

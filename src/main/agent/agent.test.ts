@@ -71,7 +71,7 @@ const changeTool = defineTool({
   },
 });
 
-function setup(steps: Step[], { mode = 'ask' as ApprovalMode, tools = [lookTool, changeTool] as AgentTool[] } = {}) {
+function setup(steps: Step[], { mode = 'ask' as ApprovalMode, tools = () => [lookTool, changeTool] as AgentTool[] } = {}) {
   ran.length = 0;
   const conversation = new ScriptedConversation(steps);
   const events: ChatEvent[] = [];
@@ -254,6 +254,40 @@ describe('agent loop', () => {
     await expect(session.send({ text: 'second' })).rejects.toThrow(/still working/);
     session.stop();
     await sending;
+  });
+
+  it('offers tools that become available while the chat is open', async () => {
+    let available: AgentTool[] = [lookTool];
+    const offered: string[][] = [];
+    const record = (request: TurnRequest, result: Partial<TurnResult>) => {
+      offered.push(request.tools.map((tool) => tool.name));
+      return Promise.resolve(result);
+    };
+    const { session } = setup(
+      [(request) => record(request, { text: 'one' }), (request) => record(request, { text: 'two' })],
+      { tools: () => available },
+    );
+    await session.send({ text: 'first' });
+    available = [lookTool, changeTool];
+    await session.send({ text: 'second' });
+    expect(offered).toEqual([['look'], ['look', 'change']]);
+  });
+
+  it('runs a tool added mid-chat within the same task', async () => {
+    let available: AgentTool[] = [lookTool];
+    const { session } = setup(
+      [
+        () => {
+          available = [lookTool, changeTool];
+          return Promise.resolve({ toolCalls: [{ id: 't1', name: 'look', input: { what: 'a' } }] });
+        },
+        { toolCalls: [{ id: 't2', name: 'change', input: { to: 'x' } }] },
+        { text: 'done' },
+      ],
+      { mode: 'auto', tools: () => available },
+    );
+    await session.send({ text: 'go' });
+    expect(ran).toEqual(['look:a', 'change:x']);
   });
 
   it('serializes and tracks usage', async () => {

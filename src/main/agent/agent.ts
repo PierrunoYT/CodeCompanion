@@ -11,7 +11,8 @@ const MAX_TURNS = 200;
 export interface AgentOptions {
   conversation: Conversation;
   system: string;
-  tools: AgentTool[];
+  // Asked for on every turn, so tools that become available mid-chat (e.g. after an API key is saved) are offered.
+  tools: () => AgentTool[];
   approvalMode: () => ApprovalMode;
   requestApproval: (id: string, signal: AbortSignal) => Promise<ApprovalDecision>;
   toolContext: (signal: AbortSignal, onProgress: (text: string) => void) => ToolContext;
@@ -39,6 +40,7 @@ export class Agent {
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal.aborted) return;
+      const tools = this.options.tools();
       const messageId = randomUUID();
       emit({ type: 'assistant-start', id: messageId });
 
@@ -46,7 +48,7 @@ export class Agent {
       try {
         result = await conversation.runTurn({
           system: this.options.system,
-          tools: toToolSpecs(this.options.tools),
+          tools: toToolSpecs(tools),
           signal,
           callbacks: {
             onText: (text) => emit({ type: 'assistant-delta', id: messageId, text }),
@@ -79,7 +81,7 @@ export class Agent {
         return;
       }
 
-      const { results, stop } = await this.runTools(result.toolCalls, result.stopReason === 'max_tokens', signal);
+      const { results, stop } = await this.runTools(tools, result.toolCalls, result.stopReason === 'max_tokens', signal);
       conversation.addToolResults(results);
       if (stop || signal.aborted) return;
     }
@@ -89,6 +91,7 @@ export class Agent {
 
   // Every tool call gets a result, even when skipped, because the API requires one per call.
   private async runTools(
+    tools: AgentTool[],
     calls: ToolCall[],
     truncated: boolean,
     signal: AbortSignal,
@@ -114,16 +117,16 @@ export class Agent {
         continue;
       }
 
-      const outcome = await this.runTool(call, signal);
+      const outcome = await this.runTool(tools, call, signal);
       results.push(outcome.result);
       if (outcome.declinedWithoutFeedback) stop = true;
     }
     return { results, stop };
   }
 
-  private async runTool(call: ToolCall, signal: AbortSignal): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
+  private async runTool(tools: AgentTool[], call: ToolCall, signal: AbortSignal): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
     const { emit } = this.options;
-    const tool = this.options.tools.find((candidate) => candidate.name === call.name);
+    const tool = tools.find((candidate) => candidate.name === call.name);
     const eventId = call.id || randomUUID();
 
     if (!tool) {

@@ -24,7 +24,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Project setup
 
-- [ ] Add a `LICENSE` file (docs say MIT)
+- [x] Add a `LICENSE` file (MIT)
 - [ ] Add a GitHub Actions workflow: typecheck, unit tests, end-to-end tests
 - [ ] Add a release workflow that builds the installers
 - [ ] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them)

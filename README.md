@@ -65,3 +65,7 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 - [Contributing](CONTRIBUTING.md)
 - [Tasks](TASKS.md) — roadmap with checkboxes
 - [AGENTS.md](AGENTS.md) — guidance for AI coding agents working on this repo
+
+## License
+
+[MIT](LICENSE)

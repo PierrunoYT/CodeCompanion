@@ -1,19 +1,30 @@
 {
-  "name": "CodeCompanion",
-  "version": "6.1.1",
-  "description": "Natural language to code",
-  "copyright": "Copyright © CodeCompanion",
-  "main": "main.js",
+  "name": "codecompanion",
+  "productName": "CodeCompanion",
+  "version": "7.0.0-alpha.0",
+  "description": "AI coding assistant desktop app",
+  "main": "out/main/index.js",
   "scripts": {
-    "start": "electron .",
-    "debug": "cross-env NODE_ENV=development electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "postinstall": "electron-builder install-app-deps"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite build && electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run --project unit --passWithNoTests",
+    "test:e2e": "npm run build && vitest run --project e2e",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
   },
   "build": {
     "appId": "codecompanion",
     "productName": "CodeCompanion",
+    "files": [
+      "out/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
     "mac": {
       "target": [
         {
@@ -39,9 +50,6 @@
           ]
         }
       ],
-      "publisherName": "Alexander Hedrevich",
-      "verifyUpdateCodeSignature": false,
-      "signAndEditExecutable": true,
       "artifactName": "${productName}.${ext}"
     },
     "nsis": {
@@ -53,60 +61,21 @@
       "uninstallDisplayName": "${productName}"
     },
     "dmg": {
-      "artifactName": "${productName}.${ext}",
-      "sign": true
-    },
-    "afterSign": "scripts/notarize.js"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.129.0",
-    "@electron/notarize": "^2.3.0",
-    "@langchain/openai": "^0.0.12",
-    "@mozilla/readability": "^0.5.0",
-    "@postlight/parser": "^2.2.3",
-    "any-text": "^1.2.0",
-    "autosize": "^6.0.1",
-    "axios": "^1.4.0",
-    "bootstrap": "^5.3.0-alpha3",
-    "bootstrap-icons": "^1.10.5",
-    "crypto-js": "^4.1.1",
-    "diff": "^5.2.0",
-    "diff2html": "^3.4.48",
-    "dompurify": "^3.4.16",
-    "electron-localshortcut": "^3.2.1",
-    "electron-store": "^8.1.0",
-    "file-type": "^16.5.3",
-    "googleapis": "^126.0.1",
-    "graceful-fs": "^4.2.11",
-    "highlight.js": "^11.6.0",
-    "ignore": "^5.2.4",
-    "interactjs": "^1.10.18",
-    "istextorbinary": "^9.5.0",
-    "jimp": "^0.22.12",
-    "js-tiktoken": "^1.0.7",
-    "jsdom": "^24.0.0",
-    "langchain": "^0.1.5",
-    "language-detect": "^1.1.0",
-    "lodash": "^4.17.21",
-    "marked": "^11.1.1",
-    "marked-highlight": "^2.1.0",
-    "node-pty": "^1.1.0",
-    "openai": "^7.23.0",
-    "read-chunk": "^3.2.0",
-    "simple-git": "^3.25.0",
-    "uuid": "^9.0.0",
-    "xterm": "^5.2.1",
-    "xterm-addon-fit": "^0.8.0",
-    "xterm-addon-unicode11": "^0.6.0",
-    "xterm-addon-web-links": "^0.9.0"
+      "artifactName": "${productName}.${ext}"
+    }
   },
   "devDependencies": {
-    "cross-env": "^7.0.3",
-    "dotenv": "^16.3.1",
-    "electron": "^31.3.0",
-    "electron-builder": "^23.6.0",
-    "node-abi": "^3.65.0",
-    "node-gyp": "^10.0.1",
-    "prettier": "^3.0.1"
+    "@types/node": "^24.19.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.2"
+  },
+  "allowScripts": {
+    "electron": true,
+    "esbuild": true
   }
 }

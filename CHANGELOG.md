@@ -2,31 +2,65 @@
 
 All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
-## [Unreleased] - 2026-09-29
+## [7.0.0-alpha.0] - 2026-09-29
+
+A from-scratch rewrite in TypeScript. No code from 6.x remains; features were rebuilt on a new architecture. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Architecture
+- TypeScript, electron-vite, Electron 44.
+- All file, shell, network and API work runs in the main process. The UI runs sandboxed without Node.js access and talks to the main process through a typed, allow-listed IPC contract.
+- Unit tests (Vitest) and end-to-end tests (Playwright driving the built app against a mock Claude API).
 
 ### Added
-- `docs/ARCHITECTURE.md` and `docs/DEVELOPMENT.md`, linked from the README.
+- Approval cards show a diff or the exact command, with **Approve** / **Decline**. Declining with a note sends it to the assistant so it can adjust.
+- **Auto** / **Ask first** toggle in the header.
+- Adaptive thinking with a configurable **Effort** setting, shown as collapsible "Thinking" in the chat (current Claude models).
+- Server-side compaction for long chats and the default refusal fallback (current Claude models).
+- `grep`, `list_directory`, `fetch_url` and `command_output` tools; background commands for dev servers.
+- Browser tool results include HTTP status and page title; the browser panel comes to the front when the assistant uses it.
+- Git panel: discard per file, repository init, diffs for new files.
+- Chats save automatically; any model id can be entered in settings.
+- Paste images into the message box.
+- Token usage (including cached tokens) in the status bar.
 
 ### Changed
-- Claude models updated to Sonnet 5.5 (default), Opus 5.5 and Haiku 4.5. Haiku 4.5 is now the small model used for background tasks. The 3.5-Sonnet max-tokens beta header was dropped and Claude models get an 8192 max-token limit.
-- `node-pty` 1.0 to 1.1, which ships prebuilt binaries. Version 1.0 failed to compile on Windows with Node 24.
-- `openai` 4 to 7. Streaming now uses `chat.completions.stream` (the `beta` helper was removed upstream).
-- `@anthropic-ai/sdk` 0.24 to 0.129.
+- Default model is Claude Opus 5.5; background tasks use Claude Haiku 4.5.
+- File edits use exact string replacement (`edit_file`) instead of line ranges, which broke when earlier edits shifted lines.
+- Chat history is sent in each provider's native format instead of one rebuilt prompt with summaries and file contents; files are read through tools.
+- Code search uses an incremental index with `text-embedding-3-small` (LangChain removed). The index is built on the first search, not when a project opens.
+- Agent commands run in a fresh shell per call with a timeout, separate from the interactive terminal; stopping kills the whole process tree.
+- A chat is tied to one project; switching projects starts a new chat.
+- Web search calls the Google Custom Search API directly and returns results for the assistant to fetch, instead of summarizing pages with a second model.
 
-### Fixed
-- `search` and `task_planning_done` tool definitions used the key `requiresApproval` instead of `approvalRequired`. Behavior is unchanged (neither asks for approval), but the key is now consistent.
-- Platform check in `renderer.js` compared against `'win64'`, which never matches. It now uses `'win32'`, so xterm's Windows mode and path separators apply on Windows.
+### Security
+- API keys are encrypted with the OS keychain (Electron `safeStorage`) and never reach the UI.
+- File tools are confined to the project folder (symlinks resolved) and must read a file before changing it.
+- Model output is sanitized (DOMPurify); images, embeds and forms are stripped from it. Strict content security policy.
+- The app window cannot navigate away; links open in the system browser. Browser-panel pages have no Node access.
 
 ### Removed
-- Sentry error reporting and Aptabase usage tracking, including the `new_chat` event. The app no longer sends data to the original authors.
-- Auto-updater (`electron-updater`), the "Check for Updates" menu item and the update check on launch.
-- Upstream release pipeline: S3 `build.publish` config, `publish` and `set-no-cache` scripts, `appveyor.yml`, `scripts/setNoCache.js`.
-- Upstream links in the settings panel (feedback email, website, X, Discord, release notes, privacy, terms).
-- Dead config and unused dependencies: `enableRemoteModule`, the unused `isDevelopment` variable, `electron-notarize`, `aws-sdk`.
+- Telemetry (Sentry, Aptabase), the auto-updater and the upstream release pipeline (S3 publish, AppVeyor, notarize script, upstream links).
+- The separate "planning" mode; the assistant plans as part of its normal work.
+- Manual "Save chat" (chats are saved automatically) and "Download chat logs".
 
 ### Known issues
-- LangChain (`langchain` 0.1, `@langchain/openai` 0.0) was not upgraded; it works but is old.
-- The renderer still runs with `nodeIntegration: true`, `contextIsolation: false` and `'unsafe-eval'` in the CSP.
-- The OpenAI model list and `text-embedding-ada-002` are unchanged from upstream and not re-verified.
-- macOS builds still expect Apple notarization credentials (`afterSign` in `package.json`).
-- Changes have been checked for syntax and module loading only; no end-to-end run against live model APIs yet.
+- The OpenAI model list (`gpt-4o`, `gpt-4o-mini`) is carried over from 6.x and not re-verified; any model id can be entered in settings.
+- Only the Anthropic path has been tested against a mock API; OpenAI support is covered by unit tests against a mock server, not end to end.
+- No end-to-end run against the live Claude or OpenAI APIs has been done yet.
+- On Linux, `node-pty` compiles from source and needs build tools.
+
+## [6.1.1-fork] - 2026-09-29
+
+Changes made to the 6.x JavaScript app before the rewrite.
+
+### Changed
+- Claude models updated to Sonnet 5.5, Opus 5.5 and Haiku 4.5.
+- `node-pty` 1.0 → 1.1 (prebuilt binaries), `openai` 4 → 7, `@anthropic-ai/sdk` 0.24 → 0.129.
+
+### Fixed
+- `approvalRequired` key typo in two tool definitions; Windows platform check (`win64` → `win32`).
+- Implicit globals replaced by explicit imports; approval polling replaced with a Promise.
+- Model output rendered without sanitization; inline handlers replaced with delegated actions.
+
+### Removed
+- Sentry, Aptabase, the auto-updater and the upstream release pipeline.

@@ -1,84 +1,63 @@
-# 🤖 CodeCompanion.AI
+# CodeCompanion
 
-CodeCompanion is an easy-to-use AI coding assistant desktop app.
+A desktop AI coding assistant. Open a project folder, describe a task, and CodeCompanion reads the code, edits files, runs commands and checks its work, asking for your approval before it changes anything.
 
-This app can help with many coding tasks. It's capable of searching codebases, searching the internet, running commands in the terminal and reading terminal output, editing existing or writing new code, has an unlimited context window, can create files and folders, execute code, and even deploy your code to production.
+This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x). See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
-## ✨ Features
+## Features
 
-- Interactive chat interface with any of Claude or OpenAI models
-- Comprehensive file system operations (create folders, files, read/write files)
-- Web search capabilities
-- Semantic code search
-- Fully functional terminal
-- Preview and approve code changes
-- Or use fully automated mode
-- Unlimited context window
-- Dynamic context management to reduce token usage
-- Works with any size codebase
-- Save chat conversations
-- Custom instructions per project
+- Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5) or OpenAI-compatible models, with streaming answers
+- Works directly in your project: read, search, edit and create files, run commands
+- Every file change and command is shown first (diffs, command text) and waits for **Approve** or **Decline** — or switch to **Auto** mode
+- Decline with a note ("use pnpm instead") and the assistant adjusts
+- Semantic code search over the project (needs an OpenAI key for embeddings)
+- Built-in browser the assistant uses to check web apps: console output and screenshots
+- Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
+- Web search (Google Custom Search) and page fetching
+- Long chats are handled by server-side compaction (current Claude models)
+- Chats are saved automatically; per-project custom instructions
+- Image attachments (attach or paste)
 
-## 😎 User Feedback
+## Getting started
 
-Here's what some of our users have to say about CodeCompanion.AI:
+Requirements: Node.js 20.19+ or 22.12+, Git (optional, for the Git panel).
 
-> "Solid! I've tried nearly every code-copilot and still find that CodeCompanion is up there with the best and just manages to do the job I want it to, can't wait to try Claude 3.5, many thanks for all your work on this project 🙏🤔"
->
-> **Dan H** (07/06/2024 10:02 PM)
+```bash
+npm install
+npm start
+```
 
-> "Hey @CodeCompanion.AI, I want to say I absolutely love this product; it works for me better than any open interpreter every time. It's easy to use and straightforward and I find myself using it more than ChatGPT. Thank you!"
->
-> **Mfayed** (03/25/2024 8:06 AM)
+Then:
 
-> "Cranking right along like a good CodeCompanion 😎
-> I'm really digging how it doesn't just fail on a problem. It makes it work. Who needs Devin?"
->
-> **User**
+1. **File → Open Project…** and pick a folder.
+2. Open **Settings** (gear icon, `Ctrl+,`) and add your Anthropic API key (and optionally an OpenAI key for code search, and a Google API key + search engine id for web search).
+3. Describe a task, e.g. *"Add input validation to the signup form and a test for it."*
 
-> "Awesomee
-> At my company I told my coworkers I was never impressed by Devin as I have already used CodeCompanion"
->
-> **Zenitsu** (07/06/2024 2:42 PM)
+To build an installer: `npm run dist` (Windows NSIS installer or macOS DMG in `dist/`).
 
-## 🚀 Quick Start
+## Keyboard shortcuts
 
-To start using CodeCompanion desktop app, simply download it:
+| Shortcut | Action |
+|---|---|
+| `Enter` / `Shift+Enter` | Send / new line |
+| `Ctrl+O` | Open project |
+| `Ctrl+N` | New chat |
+| `Ctrl+.` | Stop the assistant |
+| `Ctrl+,` | Settings |
 
-- [Download for Windows](https://codecompanion.s3.us-west-2.amazonaws.com/CodeCompanion-Installer.exe)
+(`Cmd` instead of `Ctrl` on macOS.)
 
-- [Download for Mac](https://codecompanion.s3.us-west-2.amazonaws.com/CodeCompanion.dmg)
+## Privacy and security
 
-And install it as any other desktop app
+- The app talks only to the APIs you configure (Anthropic, OpenAI or your OpenAI-compatible endpoint, Google search) and to pages you or the assistant open. There is no telemetry and no update check.
+- API keys are encrypted with the operating system's keychain (Electron `safeStorage`) and never reach the UI process.
+- The assistant's file access is confined to the open project folder. Commands run in your shell with your permissions — keep **Ask first** mode on unless you trust the task.
+- The UI runs sandboxed without Node.js access; model output is sanitized before display.
 
-## Usage
-
-Once installed, add your OpenAI or Claude API key.
-Even if you just use Claude API, its recommended to add OpenAI API key for embeddings that are used for code search, google search and imrpoved dynamic context.
-
-Some prompt examples:
-
-- Refactor `app.js`, move some logic to a separate module
-- Create To Do app using JS, HTML and Tailwind
-- Undo last commit
-
-## Contributing:
-
-1. Clone the repository.
-2. Navigate to the project directory.
-3. Run `npm install` to install dependencies.
-4. The application has a dependency on `node-pty`. To install it, follow the instructions provided [here](https://github.com/microsoft/node-pty?tab=readme-ov-file#dependencies).
-
-5. Start the application with `npm start` or `npm run debug` for development mode.
+Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) – process layout, agent loop, context building, tools, embeddings
-- [Development guide](docs/DEVELOPMENT.md) – setup, scripts, where to change things
-
-## Community and Support
-
-- [Official Website](https://codecompanion.ai/)
-- [Join our Discord](https://discord.com/invite/qcTqDgqy6R)
-
-Thank you for using CodeCompanion.AI. Happy coding!
+- [Architecture](docs/ARCHITECTURE.md) — processes, IPC contract, agent loop, providers, tools, storage, security model
+- [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
+- [Contributing](CONTRIBUTING.md)

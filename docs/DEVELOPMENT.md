@@ -1,44 +1,57 @@
 # Development Guide
 
-## Prerequisites
-- Node.js and npm
-- `node-pty` 1.1+ ships prebuilt binaries for Windows and macOS, so a compiler is normally not needed. Only if no prebuild matches your platform will it compile from source; see the [node-pty dependencies](https://github.com/microsoft/node-pty?tab=readme-ov-file#dependencies) (Python, C++ compiler / Visual Studio Build Tools, Xcode CLT). Version 1.0.x always compiled and failed on Windows with Node 24.
-- npm 11 may print an `allow-scripts` warning for `electron` and `node-pty`. Both still work here, since Electron's binary and node-pty's prebuilds were present after install.
+## Setup
 
-## Run
+Requirements: Node.js 20.19+ or 22.12+, Git.
+
 ```bash
-npm install        # postinstall rebuilds native deps for Electron
-npm start          # run the app
-npm run debug      # NODE_ENV=development, opens DevTools
+npm install
+npm run dev        # hot-reloading renderer, rebuilds main/preload on change
 ```
 
+npm 11 runs dependency install scripts only for packages listed under `allowScripts` in `package.json` (`electron`, `esbuild`). If `node_modules/electron/dist` is missing after installing, run `node node_modules/electron/install.js`.
+
+`node-pty` ships prebuilt binaries for Windows and macOS (x64 and arm64), so no compiler is needed there. On Linux it compiles from source; see the [node-pty prerequisites](https://github.com/microsoft/node-pty#dependencies).
+
 ## Scripts
+
 | Script | Purpose |
 |---|---|
-| `npm run pack` | Unpacked build (`electron-builder --dir`) |
-| `npm run dist` | Build installers (NSIS on Windows, universal DMG on macOS) |
+| `npm run dev` | Development mode |
+| `npm start` | Build and run the production build |
+| `npm run build` | Build main, preload and renderer into `out/` |
+| `npm run typecheck` | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
+| `npm test` | Unit tests, then build + end-to-end tests |
+| `npm run test:unit` / `npm run test:e2e` | One of the two |
+| `npm run pack` | Unpacked app in `dist/` |
+| `npm run dist` | Installer (NSIS on Windows, DMG on macOS) |
 
-There is no publish script or CI config; releases are built locally. macOS builds are signed and notarized via `scripts/notarize.js` (needs Apple credentials in the environment).
+Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screenshots of the main screens.
 
-## Conventions
-- Prettier config in `.prettierrc`; follow existing style (see also `CONTRIBUTING.md`).
-- No test suite or linter is configured.
-- Renderer modules rely on globals `chatController` and `viewController` (defined in `renderer.js`), so be careful when moving code into new modules or calling them from early constructors.
-- Debug logging helper: `log` in `app/utils.js`.
+Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
 
 ## Where to change things
+
 | Goal | File |
 |---|---|
-| Add/remove a selectable model | `app/static/models_config.js` (`modelOptions`) |
-| Change system prompts | `app/static/prompts.js` |
-| Add an agent tool | `app/tools/tools.js` (see ARCHITECTURE.md) |
-| Add a new setting | `DEFAULT_SETTINGS` in `app/chat_controller.js` + matching element id in `index.html` |
-| Tune context size | constants at top of `app/chat/chat_context_builder.js` |
-| Change default embedding ignores | `app/static/embeddings_ignore_patterns.js` |
-| Add onboarding tips | `app/static/onboarding_steps.js` |
-| Add an IPC channel | `main.js` (`ipcMain`) + `ipcRenderer` in the renderer module |
+| Add or rename a model, change defaults | `src/shared/models.ts` |
+| Enable a Claude API feature for a model | `claudeCapabilities` in `src/shared/models.ts`, request building in `src/main/llm/anthropic.ts` |
+| Change the system prompt | `src/main/agent/system_prompt.ts` |
+| Add a tool | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts` |
+| Add a setting | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts` |
+| Add an IPC channel | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts` |
+| Add a chat event | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts` |
+| UI | `src/renderer/src/app.ts`, `views/`, `styles.css` |
 
-## Security notes for contributors
-- `nodeIntegration` is on and `contextIsolation` is off; never render untrusted HTML unsanitized (model output and fetched web pages are rendered in the UI).
-- The agent can write files and run shell commands; keep `approvalRequired` semantics intact when altering `Agent`.
-- API keys live in plain-text `electron-store`.
+## Conventions
+
+- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes).
+- Renderer code builds DOM with `h()` (`src/renderer/src/dom.ts`), which inserts text safely. Use `trustedHtml` only for HTML that went through `renderMarkdown`/`renderDiff` (DOMPurify).
+- Never pass API keys or unsanitized model output to the renderer as HTML.
+- Keep the Claude conversation history append-only; add new request features through `claudeCapabilities` so models that do not support them keep working.
+- Unit tests live next to the code (`*.test.ts`); user-visible behavior gets an end-to-end test in `tests/e2e/`.
+
+## Debugging
+
+- **View → Toggle Developer Tools** for the renderer; the main process logs to the terminal that launched the app.
+- `CODECOMPANION_USER_DATA=<folder>` starts with a clean profile.

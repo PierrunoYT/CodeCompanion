@@ -1,33 +1,28 @@
-# Contributing to CodeCompanion.AI
+# Contributing to CodeCompanion
 
-We welcome contributions from the community and are pleased to have you join us. This document will guide you through the contribution process.
-
-## Code of Conduct
-
-By participating, you are expected to uphold this code. Please report unacceptable behavior to [hello@codecompanion.ai](mailto:hello@codecompanion.ai).
+Contributions are welcome. This document describes the process.
 
 ## Issues
 
 - Before submitting an issue, please check if it already exists.
-- Provide as much information as possible with the issue report.
-- Suggest a step-by-step reproduction method if applicable.
+- Provide as much information as possible: what you did, what happened, what you expected, your OS and the model you used.
+- Include step-by-step reproduction steps if you can.
 
 ## Pull Requests
 
 - Fork the repository and create your branch from `main`.
-- If you've added code that should be tested, add tests.
-- Ensure the test suite passes.
-- Make sure your code lints.
-- Issue that pull request!
+- Add tests for new behavior: unit tests next to the code (`*.test.ts`), end-to-end tests in `tests/e2e/` for user-visible changes.
+- Make sure `npm run typecheck` and `npm test` pass.
+- Update the docs (`README.md`, `docs/`) and `CHANGELOG.md` when behavior changes.
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup and where things live.
 
 ## Coding Conventions
 
-- Use 4 spaces for indentation rather than tabs.
-- Follow the coding style found in the existing codebase.
-- Write meaningful commit messages.
+- TypeScript, formatted with Prettier (`.prettierrc`): 2-space indentation, 120 columns, single quotes.
+- Follow the style of the surrounding code.
+- Write meaningful commit messages (Conventional Commits, e.g. `feat: …`, `fix: …`).
 
 ## License
 
-By contributing to CodeCompanion.AI, you agree that your contributions will be licensed under its MIT License.
-
-Thank you for contributing to CodeCompanion.AI!
+By contributing, you agree that your contributions will be licensed under the project's MIT License.

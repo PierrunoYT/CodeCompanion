@@ -1,101 +1,139 @@
 # Architecture
 
-CodeCompanion.AI is an Electron desktop app (v6.x) that wraps an LLM-driven coding agent. Everything except a thin main process runs in the **renderer** with `nodeIntegration: true` and `contextIsolation: false`, so renderer code can `require()` Node modules directly and shares globals (`chatController`, `viewController`) across files.
-
-## Process layout
+CodeCompanion is an Electron app written in TypeScript and built with electron-vite. All logic that touches the file system, the network, API keys or child processes runs in the **main process**. The **renderer** is a sandboxed page without Node.js access that talks to the main process only through a typed IPC contract.
 
 ```
-main.js (Electron main)              renderer.js (renderer, index.html)
-├─ BrowserWindow + menu + shortcuts  ├─ ChatController  ── Chat, Agent, models, tools
-├─ node-pty shell (start-shell,…)    ├─ ViewController  ── DOM/UI helpers
-├─ file/dir open dialogs             └─ OnboardingController
-└─ (no updater, no telemetry)        preload.js – tiny preload script
+┌──────────────────────── main process (Node) ─────────────────────────┐
+│ index.ts          wiring, IPC handlers                                │
+│ settings.ts       settings + encrypted API keys (safeStorage)         │
+│ projects.ts       recent projects, per-project instructions           │
+│ chat_manager.ts   active chat, autosave  ──▶ chat_store.ts            │
+│ agent/            agent loop, chat session, system prompt             │
+│ llm/              Anthropic + OpenAI conversations, small-model calls │
+│ tools/            read/edit/write/grep/list, run_command, web, browser│
+│ search/           embeddings index for search_code                    │
+│ panels/           terminal (node-pty), git (simple-git), browser      │
+└───────────────▲──────────────────────────────────────────────────────┘
+                │ typed IPC (src/shared/ipc.ts)
+┌───────────────┴── preload (sandboxed) ──┐   ┌── <webview> guest ──────┐
+│ window.api.invoke / window.api.on,       │   │ pages opened in the     │
+│ allow-listed channels only               │   │ browser panel; no Node, │
+└───────────────▲──────────────────────────┘   │ no preload             │
+┌───────────────┴── renderer (no Node) ────┐   └─────────────────────────┘
+│ app.ts, views/ (transcript, composer,     │
+│ dialogs, panels), markdown.ts (DOMPurify) │
+└──────────────────────────────────────────┘
 ```
 
-### Main process (`main.js`)
-- Creates the window (bounds persisted in `electron-store` as `windowBounds`), the application menu (Open Project, New Chat, Save Chat, Stop, Download Chat Logs) and local shortcuts (`app/window/WindowManager.js`).
-- Owns the PTY. IPC channels: `start-shell`, `kill-shell`, `write-shell`, `resize-shell`, `execute-command` (one-shot), and replies `shell-data`, `shell-type`, `command-output`, `command-exit`. Shell is `powershell.exe` on Windows, `zsh` on macOS, `bash` on Linux.
-- Other IPC: `open-file-dialog` → `read-files`, `open-directory` → `directory-data`, `theme-change`; pushes `app-info`, `save-shortcut-triggered`, `download-logs`.
+## Source layout
 
-### Renderer (`renderer.js`)
-Instantiates the three controllers, wires IPC listeners, the message input (debounced Enter handling) and the approve / reject / reflect buttons (which set `chatController.agent.userDecision`).
-
-## Module map (`app/`)
-
-| Module | Responsibility |
+| Path | Contents |
 |---|---|
-| `chat_controller.js` | Top-level orchestrator: settings, model selection, `process()` request loop, usage tracking, stop/retry, URL ingestion. |
-| `chat/chat.js` | Message stores (`frontendMessages` for display, `backendMessages` for the LLM), task title, UI rendering. |
-| `chat/chat_context_builder.js` | Builds the two-message prompt (system + user) sent each turn; summarization; relevant-file selection. |
-| `chat/agent.js` | Executes tool calls returned by the model, handles approval flow. |
-| `chat/chat_history.js` | Save/restore/delete chats in `electron-store` (`chatHistory`). |
-| `chat/file_handler.js`, `image_handler.js` | Drag-drop / attach files and images. |
-| `models/openai.js`, `models/anthropic.js` | Provider adapters exposing `call`, `stream`, `toolUse`, `abort`. |
-| `tools/tools.js` | Tool definitions and implementations (see below). |
-| `tools/code_embeddings.js` | Vector index (LangChain `MemoryVectorStore` + OpenAI embeddings). |
-| `tools/terminal_session.js` | xterm.js terminal + running agent commands and capturing output. |
-| `tools/google_search.js`, `contextual_compressor.js`, `code_diff.js` | Web search, page-content compression, unified diffs. |
-| `project_controller.js` | Open projects, ignore rules, file hashing, embeddings lifecycle, custom instructions. |
-| `window/git.js`, `window/browser.js` | Git tab (simple-git + diff2html) and in-app browser (`<webview>`). |
-| `background_task.js` | Cheap "small model" calls returning structured values via a forced tool call. |
-| `static/*` | Model list, prompt templates, embeddings ignore patterns, onboarding tips, constants. |
+| `src/shared/` | Types and logic used by both processes: IPC contract, settings, models, chat events + transcript reducer, project and panel types |
+| `src/main/` | Main process (see diagram) |
+| `src/preload/` | The `window.api` bridge |
+| `src/renderer/` | UI: `index.html`, `src/app.ts`, `src/views/*`, styles |
+| `tests/e2e/` | Playwright-driven end-to-end tests against the built app and a mock Claude API |
+| `build/` | Icons, macOS entitlements, NSIS include used by electron-builder |
 
-## The agent loop
+## IPC contract
 
-1. User submits text → `ChatController.submitMessage` / `processNewUserMessage`. The first message becomes the **task** (`Chat.addTask`, which also generates a 2–4 word title via the small model).
-2. `ChatController.process()` calls `ChatContextBuilder.buildMessages()` and `model.call({messages, tools})`.
-3. The response goes to `Agent.runAgent()`: assistant text is shown; tool calls are run by `runTools()`.
-4. For each tool call: `isToolAllowedToExecute` → `showToolCallPreview` (diffs for file edits) → `waitForDecision` → `callFunction`.
-5. Tool results are appended as `tool` messages, then `process()` is called again so the model sees the results. The loop ends when the model responds without tool calls or the user rejects/stops.
+`src/shared/ipc.ts` declares every channel:
 
-Approval: tools with `approvalRequired: true` (`create_or_overwrite_file`, `replace_code`, `run_shell_command`) wait for the user when the **approvalRequired** setting is on. An identical repeated tool call always requires approval. The user may **approve**, **reject** (aborts the loop), or **reflect** (sends the tool call back to the model for reconsideration).
+- `InvokeApi` — renderer → main request/response (`window.api.invoke('settings:get')`).
+- `EventMap` — main → renderer pushes (`window.api.on('chat:event', …)`).
 
-Safety guard: `create_or_overwrite_file` on an existing file and `replace_code` are refused unless the file is already in the chat context (`taskRelevantFiles`); the file is then added so the model can retry.
+Handlers (`src/main/ipc.ts`, `handle` / `send`) and the preload bridge are typed from these maps, so a renamed channel or changed payload fails to compile. The preload forwards only channels listed in `INVOKE` / `EVENTS`; those lists are `Record<Channel, true>` so forgetting a new channel is also a compile error.
 
-## Prompt / context construction
+## Chats and the agent loop
 
-`buildMessages` returns `[system, user]`. Full history is not sent verbatim:
+1. The renderer calls `chat:send`. `ChatManager` creates a `ChatSession` on the first message, fixing the chat's project, model and system prompt, and returns as soon as the session starts. Setup errors (no project, missing key) come back immediately.
+2. `Agent.send` (`src/main/agent/agent.ts`) adds the user message and runs turns:
+   - `conversation.runTurn` streams the model's answer (text and summarized thinking are forwarded as `chat:event`s).
+   - For each tool call: validate the input against the tool's Zod schema → build a preview (diff or command) → if the tool needs approval and the mode is **Ask**, wait for `chat:decide` → run it.
+   - All results of a turn go back to the model together, then the next turn starts. The loop ends when the model answers without tool calls (or after 200 turns).
+3. Declining **with** feedback sends the feedback to the model as the tool result and continues; declining **without** feedback stops the task. Stopping (`chat:stop`) aborts the request and running commands. Every tool call always gets a result, even when skipped or stopped, so the history stays valid for the API.
+4. Every event goes through `applyChatEvent` (`src/shared/chat.ts`) in both processes: the main process keeps the transcript for saving, the renderer for display. Streaming deltas are applied in batches once per animation frame.
+5. The chat is saved (debounced 500 ms, and immediately when a task finishes) to `userData/chats/<id>.json`, including the provider-native conversation, so reopened chats continue exactly where they stopped.
+6. A short title is generated by the small model after the first message.
 
-- **System**: `PLAN_PROMPT_TEMPLATE` when a first message is judged complex (`isTaskNeedsPlan`, asked of the small model; only planning tools are exposed until `task_planning_done`), otherwise `TASK_EXECUTION_PROMPT_TEMPLATE`. `FINISH_TASK_PROMPT_TEMPLATE` is appended for simple tasks or after >7 messages. Project custom instructions, OS and shell type are substituted in.
-- **User**: `<task>`, a `<conversation_history>` (older messages summarized by the small model once they exceed `MAX_SUMMARY_TOKENS`=2000; the last `SUMMARIZE_MESSAGES_THRESHOLD`=6 are kept verbatim), the latest user message, project state (working dir, folder structure), embedding-suggested files, `<relevant_files_contents>` (line-numbered; up to 20 candidate files, `MAX_RELEVANT_FILES_COUNT`=7 / `MAX_RELEVANT_FILES_TOKENS`=10000 / `MAX_FILE_SIZE`=30000), and any reflect message. Attached images are prepended.
-- Relevant files come from: files the chat touched, `taskRelevantFiles`, and files modified since the last turn. This is why `read_file` merely registers the file rather than returning contents.
+## Model providers (`src/main/llm/`)
 
-## Tools (`app/tools/tools.js`)
+`Conversation` is the provider-neutral interface: `addUserMessage`, `addToolResults`, `runTurn`, `serialize`. Each implementation stores history in its API's native format.
+
+**Anthropic** (`anthropic.ts`, official SDK, `client.beta.messages.stream`):
+
+- History is **append-only**: assistant turns are stored exactly as returned, including thinking, compaction and fallback blocks, because current Claude models reject or ignore edited history.
+- Features are enabled per model (`claudeCapabilities` in `src/shared/models.ts`) because unsupported parameters are rejected:
+  - Opus 5.5 / Sonnet 5.5 (and other current models): adaptive thinking with summarized display, `output_config.effort` (Settings → Effort, default `high`), server-side compaction (`compact-2026-01-12`).
+  - Opus 5.5 / Sonnet 5.5: refusal fallback (`fallbacks: "default"`, `server-side-fallback-2026-07-01`).
+  - Haiku 4.5 and unknown ids: a plain request.
+- Prompt caching via top-level `cache_control`; the system prompt is built once per chat so the prefix stays cached.
+- Tools are sent with `eager_input_streaming`, so large inputs (file contents) stream as generated. The API then no longer validates them, which is why the agent validates every input itself. A turn whose streamed tool input cannot be parsed is re-issued (up to twice).
+- No `temperature` and no forced `tool_choice` (both rejected by current models).
+
+**OpenAI-compatible** (`openai.ts`): Chat Completions streaming with function tools. With no server-side compaction, the oldest turns are dropped once the history passes ~100k tokens; the first user message (the task) is always kept. Tool screenshots are sent as a follow-up user message because tool messages cannot carry images.
+
+**Small model** (`CompletionClient`): Claude Haiku 4.5 or GPT-4o mini, whichever key is available (preferring the chat's provider). Used for chat titles, with structured outputs (`output_config.format` / `response_format`) validated by Zod.
+
+A chat keeps its model. Changing the model in settings applies to new chats.
+
+## Tools (`src/main/tools/`)
 
 | Tool | Approval | Notes |
 |---|---|---|
-| `browser` | no | Loads a URL in the built-in browser; returns console output, optional screenshot. |
-| `create_or_overwrite_file` | yes | Writes whole file, creates parent dirs. |
-| `replace_code` | yes | Replaces an inclusive line range; the model sees line-numbered content. |
-| `read_file` | no | Adds file to the context; content arrives in next prompt. |
-| `run_shell_command` | yes | Runs in the visible terminal; `background: true` for servers. Output trimmed to first 5 + last 95 lines. |
-| `search` | no | `type: codebase` (embeddings + LLM rerank) or `google` (Google CSE, top pages fetched with Readability and compressed). |
-| `task_planning_done` | no | Disabled by default; enabled only during planning. |
+| `read_file` | no | Line-numbered, optional `offset`/`limit`; marks the file as read |
+| `list_directory` | no | Skips `.gitignore`/`.ccignore` matches, `.git`, `node_modules` |
+| `grep` | no | JavaScript regex over non-ignored text files, 200 matches max |
+| `search_code` | no | Semantic search (only when an OpenAI key is set) |
+| `edit_file` | yes | Exact string replacement; must be unique unless `replace_all`; tolerates CRLF files |
+| `write_file` | yes | Create or overwrite; creates folders |
+| `run_command` | yes | Fresh shell per call (PowerShell on Windows, `$SHELL` elsewhere) in the project root; timeout (default 120 s, max 600 s); `background: true` for servers |
+| `command_output` | no | Read or stop a background command |
+| `fetch_url` | no | Main text via Readability |
+| `web_search` | no | Google Custom Search (only when configured) |
+| `browser` | no | Opens a URL in the browser panel; returns title, status, console messages, optional screenshot |
 
-To add a tool: append an entry to `toolDefinitions` (`name`, `description`, JSON-schema `parameters`, `executeFunction`, `enabled`, `approvalRequired`) and add a case to `previewMessageMapping`.
+Rules enforced in code, not only in the prompt:
 
-## Code search / embeddings
+- `Workspace.resolve` confines every path to the project root (symlinks are resolved first).
+- Existing files must be read in the current chat before `edit_file` or `write_file` may change them.
+- Command output is capped (start and end kept); commands are killed with their whole process tree on stop or timeout.
 
-`ProjectController.createEmbeddings` computes a hash of the project's file list; if unchanged since last index it skips work. Otherwise `CodeEmbeddings` splits files (language-aware `RecursiveCharacterTextSplitter`, 1000-char chunks), embeds with `text-embedding-ada-002`, and stores vectors in memory, persisted to `electron-store` under `project.<name>.embeddings`. Bumping `EMBEDDINGS_VERSION` in `static/models_config.js` forces reindexing. Search takes the top `2×limit` hits, filters by score ≥ 0.4, and reranks via the small model.
+To add a tool: create it with `defineTool` (name, description, Zod schema, `requiresApproval`, optional `preview`, `run`) and register it in `registry.ts`.
 
-Files skipped: `.gitignore`, `.ccignore` (or the default template in `static/embeddings_ignore_patterns.js`). Projects over `maxFilesToEmbed` (default 1000) are truncated with a warning. **An OpenAI API key is required** for embeddings, even when chatting with Claude.
+## Code search (`src/main/search/`)
 
-## Models
+`CodeIndex` walks the project (respecting ignore rules, up to *Maximum files to index*), splits text files into overlapping 60-line chunks, embeds them with OpenAI `text-embedding-3-small` and stores Float32 vectors in `userData/indexes/<sha1 of path>.json`. Updates re-embed only files whose size or modification time changed. The index is built on the first `search_code` call, never in the background. Search ranks by cosine similarity, at most two snippets per file. Changing `INDEX_VERSION` or the embedding model rebuilds indexes.
 
-`ChatController.initializeModel` picks `AnthropicModel` if the selected model id contains `claude`, else `OpenAIModel` (the base URL is configurable, enabling OpenAI-compatible endpoints). A **small model** (`gpt-4o-mini` if an OpenAI key exists, else `claude-haiku-4-5`) serves `BackgroundTask` calls: task title, plan detection, summarization, search reranking, result compression. Defaults: Claude Sonnet 5.5 (main), Claude Haiku 4.5 (small). Selectable models live in `static/models_config.js` (`modelOptions`); the OpenAI entries there are unchanged from upstream and not re-verified.
+## Panels (`src/main/panels/`, `src/renderer/src/views/panels.ts`)
 
-## Persistence (`electron-store`)
+- **Terminal**: one interactive shell per project (`node-pty`), rendered with xterm.js. Separate from the agent's commands.
+- **Browser**: a `<webview>` in the renderer (partition `persist:browser`). When it attaches, the main process receives its `webContents`; `BrowserService` implements the `browser` tool on it (load, console capture, `capturePage` scaled to ≤1280 px).
+- **Git**: `simple-git` — status, diff (untracked files shown as additions), commit all, discard, init. Refreshes when the agent finishes a tool call.
 
-Settings (`apiKey`, `anthropicApiKey`, `baseUrl`, `selectedModel`, `approvalRequired`, `maxFilesToEmbed`, `commandToOpenFile`, `theme`), `windowBounds`, `projects`, `project.<name>.embeddings`, `project.<name>.instructions`, `chatHistory`. API keys are stored in plain text in the user data directory.
+## Storage (`app.getPath('userData')`)
 
-## Network access
+| File | Contents |
+|---|---|
+| `settings.json` | Settings; API keys as `safeStorage` ciphertext (plain text only if the OS offers no encryption, flagged in Settings) |
+| `projects.json` | Recent projects (20) and their instructions |
+| `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage) |
+| `indexes/<hash>.json` | Code search indexes |
 
-The app talks only to the services you configure: the Anthropic/OpenAI APIs (or a custom `baseUrl`), OpenAI embeddings, Google Custom Search, and any URL you or the agent open. Upstream's Sentry, Aptabase and auto-updater were removed, so there is no telemetry and no update check.
+Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses a different folder (tests use this).
 
-## Differences from upstream
+## Security model
 
-- Claude model list and defaults updated (Sonnet 5.5, Opus 5.5, Haiku 4.5); the 3.5-Sonnet max-tokens beta header was dropped.
-- Tool definitions use `approvalRequired` consistently.
-- Platform check in `renderer.js` fixed (`win32`), so xterm's Windows mode and path separators work on Windows.
-- Telemetry and auto-updater removed, along with everything tied to upstream's release pipeline: the S3 `build.publish` config, the `publish` and `set-no-cache` scripts, `appveyor.yml`, and the upstream links in the settings panel.
-- Dead config and unused dependencies dropped (`enableRemoteModule`, `electron-notarize`, `aws-sdk`).
+- **Renderer isolation**: `contextIsolation`, `sandbox`, no `nodeIntegration`. Strict CSP (`script-src 'self'`, no remote images or connections).
+- **Preload**: exposes only `invoke`/`on` for allow-listed channels.
+- **Navigation**: the app window cannot navigate; `http(s)` links and `window.open` go to the system browser.
+- **Browser panel**: guests get no preload, no Node, sandboxed; popups load in the panel.
+- **Model output**: rendered markdown and diffs pass through DOMPurify; images, embeds, forms and styles are removed from model output (an image URL is a common data-exfiltration channel for prompt injection). Generated UI never uses inline handlers.
+- **Secrets**: keys are encrypted at rest and never sent to the renderer.
+- **Agent**: path confinement, read-before-write, approval for edits and commands by default. Commands still run with the user's permissions; **Auto** mode trusts the model with your shell.
+
+## Tests
+
+- `npm run test:unit` — Vitest unit tests next to the code (`*.test.ts`). The provider tests run the real SDKs against a local mock HTTP server (`llm/test_server.ts`).
+- `npm run test:e2e` — builds the app and drives it with Playwright's Electron support, using a throwaway profile and a mock Claude API (`tests/e2e/mock_claude.ts`, enabled by `CODECOMPANION_TEST_ANTHROPIC_URL`). Covers window security, settings, a full tool-using chat with approval, the UI, and the panels.

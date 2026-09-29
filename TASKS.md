@@ -11,14 +11,15 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Docs, changelog, `AGENTS.md`
 - [x] Push to `PierrunoYT/CodeCompanion`
 
-## Release 7.0.0
+## Release 0.1.0
 
 - [ ] Manually test the packaged Windows build (`dist/win-unpacked/CodeCompanion.exe`)
 - [ ] Build and test the NSIS installer (`npm run dist`)
 - [ ] Add an end-to-end test for the OpenAI Responses path
 - [ ] Test on macOS: build the DMG, check signing and notarization
 - [ ] Test on Linux (`node-pty` compiles from source there) and add a Linux build target
-- [ ] Bump the version from `7.0.0-alpha.0` and update `CHANGELOG.md`
+- [x] Reset the version to `0.1.0` (new codebase)
+- [ ] Update the `CHANGELOG.md` date on release
 - [ ] Tag the release and publish the installers on GitHub Releases
 
 ## Project setup

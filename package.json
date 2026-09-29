@@ -3,6 +3,7 @@
   "productName": "CodeCompanion",
   "version": "0.1.0",
   "description": "AI coding assistant desktop app",
+  "author": "PierrunoYT <pierrebruno@hotmail.ch>",
   "license": "MIT",
   "main": "out/main/index.js",
   "scripts": {

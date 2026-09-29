@@ -34,7 +34,7 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request, on `windows-latest`, `ubuntu-latest` and `macos-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e` (under `xvfb-run` on Linux). Run the same commands locally before pushing. Windows is the supported platform; the Linux and macOS jobs are `continue-on-error` until they have been seen passing (see `TASKS.md`).
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request, on `windows-latest`, `ubuntu-latest` and `macos-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e` (under `xvfb-run` on Linux). Run the same commands locally before pushing. Windows is the only supported platform. The Linux and macOS jobs are `continue-on-error` and their failures are not being fixed for now (see `TASKS.md`).
 
 `.github/workflows/release.yml` runs when a tag such as `v0.1.0` is pushed. It checks that the tag matches the `package.json` version, runs the same checks as CI, builds the Windows installer with `electron-builder` and creates a GitHub release with `CodeCompanion-Installer.exe` attached. The release notes are the matching `## [x.y.z]` section of `CHANGELOG.md` plus a link to the full file at that tag; the run fails if the section is missing. To release: add the `## [x.y.z] - date` section to `CHANGELOG.md`, update the version, commit, then `git tag v0.1.0` and `git push origin v0.1.0`.
 

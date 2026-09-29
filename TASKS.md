@@ -24,15 +24,17 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Later: other platforms (after the Windows release)
 
-- [ ] Test on macOS: build the DMG, check signing and notarization
-- [ ] Test on Linux (`node-pty` compiles from source there) and add a Linux build target
+Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not planned.
+
+- [ ] ~~Test on macOS: build the DMG, check signing and notarization~~ (won't fix for now)
+- [ ] ~~Test on Linux (`node-pty` compiles from source there) and add a Linux build target~~ (won't fix for now)
 
 ## Project setup
 
 - [x] Add a `LICENSE` file (MIT)
 - [x] Add a GitHub Actions workflow: typecheck, unit tests, end-to-end tests (Windows only)
 - [x] Add Linux and macOS jobs to the CI workflow (non-blocking until they pass; then remove `continue-on-error`)
-- [ ] Make the Linux and macOS CI jobs blocking once they pass
+- [ ] ~~Make the Linux and macOS CI jobs blocking once they pass~~ (won't fix for now; the jobs stay non-blocking and their failures are ignored)
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them; one approval screenshot so far)
 - [ ] Add more README screenshots (settings, Git and browser panels) without local paths

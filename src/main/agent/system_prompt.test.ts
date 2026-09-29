@@ -1,0 +1,54 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Workspace } from '../tools/workspace';
+import { buildSystemPrompt, type SystemPromptInput } from './system_prompt';
+
+let root: string;
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'cc-prompt-'));
+  mkdirSync(join(root, 'src'));
+  mkdirSync(join(root, 'node_modules'));
+  writeFileSync(join(root, 'package.json'), '{}');
+});
+
+afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+function input(overrides: Partial<SystemPromptInput> = {}): SystemPromptInput {
+  return {
+    workspace: new Workspace(root),
+    shell: 'PowerShell',
+    platform: 'win32',
+    date: '2026-09-29',
+    customInstructions: '',
+    hasCodeSearch: false,
+    hasBrowser: false,
+    ...overrides,
+  };
+}
+
+describe('buildSystemPrompt', () => {
+  it('describes the environment and lists the project top level', () => {
+    const prompt = buildSystemPrompt(input());
+    expect(prompt).toContain('Operating system: Windows');
+    expect(prompt).toContain('Shell for run_command: PowerShell');
+    expect(prompt).toContain('src/\npackage.json');
+    expect(prompt).not.toContain('node_modules');
+  });
+
+  it('mentions optional tools only when available', () => {
+    expect(buildSystemPrompt(input())).not.toContain('search_code');
+    expect(buildSystemPrompt(input({ hasCodeSearch: true, hasBrowser: true }))).toContain('search_code');
+  });
+
+  it('appends project instructions', () => {
+    const prompt = buildSystemPrompt(input({ customInstructions: 'Use tabs.' }));
+    expect(prompt.endsWith('# Project instructions from the user\nUse tabs.')).toBe(true);
+  });
+
+  it('is deterministic for the same input so the prefix stays cached', () => {
+    expect(buildSystemPrompt(input())).toBe(buildSystemPrompt(input()));
+  });
+});

@@ -6,6 +6,8 @@ import { ChatStore } from './chat_store';
 import { openInEditor, pickImages } from './files';
 import { handle, send } from './ipc';
 import { LlmService } from './llm';
+import { createOpenAIClient } from './llm/openai';
+import { CodeIndex, openAIEmbedder, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { SettingsStore } from './settings';
@@ -34,6 +36,9 @@ function start(): void {
   const projects = new ProjectStore(join(userData, 'projects.json'));
   const chats = new ChatStore(join(userData, 'chats'));
   const llm = new LlmService(settings);
+  const codeIndexes = new Map<string, CodeIndex>();
+  // A changed key or endpoint means new embeddings; drop cached indexes so they are rebuilt with the new client.
+  settings.on('change', () => codeIndexes.clear());
 
   const manager = new ChatManager({
     settings,
@@ -41,7 +46,18 @@ function start(): void {
     chats,
     llm,
     browser: () => null,
-    codeSearch: () => null,
+    codeSearch: (workspace) => {
+      // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
+      const key = settings.getSecret('openaiApiKey');
+      if (!key) return null;
+      let index = codeIndexes.get(workspace.root);
+      if (!index) {
+        const embedder = openAIEmbedder(createOpenAIClient(key, settings.get().openaiBaseUrl));
+        index = new CodeIndex(workspace, embedder, join(userData, 'indexes'), () => settings.get().maxIndexedFiles);
+        codeIndexes.set(workspace.root, index);
+      }
+      return { search: index, tools: [searchCodeTool(index)] };
+    },
     emit: (event, chatId) => send(mainWindow, 'chat:event', { chatId, event }),
     onSnapshot: (snapshot) => send(mainWindow, 'chat:snapshot', snapshot),
     onHistoryChanged: () => send(mainWindow, 'history:changed', chats.list()),

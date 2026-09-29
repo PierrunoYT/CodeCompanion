@@ -13,8 +13,8 @@
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "vitest run --project unit --passWithNoTests",
     "test:e2e": "npm run build && vitest run --project e2e",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "pack": "node scripts/ensure-closed.mjs && npm run build && electron-builder --dir",
+    "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder"
   },
   "build": {
     "appId": "codecompanion",

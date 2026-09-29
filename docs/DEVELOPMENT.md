@@ -28,6 +28,8 @@ npm 11 runs dependency install scripts only for packages listed under `allowScri
 
 Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screenshots of the main screens.
 
+`pack` and `dist` first run `scripts/ensure-closed.mjs`. On Windows, electron-builder cannot replace `dist/win-unpacked` while an app started from it is running, so the script stops with "Close CodeCompanion first" instead of an `EBUSY` error. An installed copy (outside `dist/`) does not matter.
+
 Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
 
 ## Continuous integration

@@ -1,37 +1,37 @@
 const context = require('../context');
 const _ = require('lodash');
-const fs = require('graceful-fs');
-const path = require('path');
-const ignore = require('ignore');
-const { getTokenCount } = require('../utils');
-
+const ConversationSummary = require('./conversation_summary');
+const ProjectState = require('./project_state');
+const RelevantFiles = require('./relevant_files');
 const {
   PLAN_PROMPT_TEMPLATE,
   TASK_EXECUTION_PROMPT_TEMPLATE,
   FINISH_TASK_PROMPT_TEMPLATE,
 } = require('../static/prompts');
-const { withErrorHandling, getSystemInfo, isTextFile } = require('../utils');
-const { normalizedFilePath } = require('../utils');
-const ignorePatterns = require('../static/embeddings_ignore_patterns');
+const { getSystemInfo } = require('../utils');
 
-const MAX_SUMMARY_TOKENS = 2000;
-const MAX_RELEVANT_FILES_TOKENS = 10000;
-const MAX_RELEVANT_FILES_COUNT = 7;
-const MAX_FILE_SIZE = 30000;
-const SUMMARIZE_MESSAGES_THRESHOLD = 6; // Last n message will be left as is
-
+// Assembles the two messages (system + user) sent to the model on every turn.
 class ChatContextBuilder {
   constructor(chat) {
     this.chat = chat;
-    this.lastSummarizedMessageID = 0;
-    this.lastMessageIdForRelevantFiles = 0;
-    this.reduceRelevantFilesContextMessageId = 0;
-    this.lastEditedFilesTimestamp = chat.startTimestamp;
-    this.taskRelevantFiles = [];
-    this.pastSummarizedMessages = '';
-    this.searchRelevantFiles = false;
+    this.summary = new ConversationSummary(chat);
+    this.projectState = new ProjectState();
+    this.relevantFiles = new RelevantFiles(chat, {
+      projectState: this.projectState,
+      summary: this.summary,
+      describeTask: () => this.addTaskMessage(),
+    });
     this.taskNeedsPlan = false;
     this.isComplexTask = false;
+  }
+
+  // Files whose contents are kept in the prompt; the agent only edits files that are listed here.
+  get taskRelevantFiles() {
+    return this.relevantFiles.taskRelevantFiles;
+  }
+
+  set taskRelevantFiles(files) {
+    this.relevantFiles.taskRelevantFiles = files;
   }
 
   async buildMessages(userMessage, reflectMessage = null) {
@@ -41,7 +41,7 @@ class ChatContextBuilder {
   }
 
   async addUserMessage(userMessage, reflectMessage) {
-    const conversationSummary = await this.addSummaryOfMessages();
+    const conversationSummary = await this.summary.build();
     const lastUserMessage = this.addLastUserMessage(userMessage);
     const reflectMessageResult = this.addReflectMessage(reflectMessage);
     const relevantSourceCodeInformation = await this.relevantSourceCodeInformation();
@@ -143,310 +143,12 @@ class ChatContextBuilder {
     }
   }
 
-  async addSummaryOfMessages() {
-    let allMessagesText = '';
-    const backendMessages = this.chat.backendMessages;
-
-    // remove image data from content
-    const preprocessedMessages = backendMessages.map((message) => {
-      if (Array.isArray(message.content)) {
-        const filteredContent = message.content.filter((content) => content.type !== 'image_url');
-        return { ...message, content: filteredContent };
-      }
-      return message;
-    });
-    const messagesToSummarize = preprocessedMessages.slice(0, -SUMMARIZE_MESSAGES_THRESHOLD);
-    let lastSummarizedId = this.lastSummarizedMessageID;
-    const notSummarizedMessages = messagesToSummarize
-      .filter((message) => message.id > this.lastSummarizedMessageID)
-      .reduce((acc, message) => {
-        acc += `${this.formatMessageForSummary(message)},\n`;
-        lastSummarizedId = message.id;
-        return acc;
-      }, '');
-
-    allMessagesText = this.pastSummarizedMessages + '\n\n' + notSummarizedMessages; // up to -SUMMARIZE_MESSAGES_THRESHOLD
-
-    if (getTokenCount(notSummarizedMessages) > MAX_SUMMARY_TOKENS) {
-      this.summarizeMessages(allMessagesText).then((summarizedMessages) => {
-        this.pastSummarizedMessages = summarizedMessages;
-        this.lastSummarizedMessageID = lastSummarizedId;
-      });
-    }
-
-    const lastNMessages = preprocessedMessages.slice(-SUMMARIZE_MESSAGES_THRESHOLD);
-    let messagesToAdd = lastNMessages.filter((message) => message.id > this.lastSummarizedMessageID);
-    if (messagesToAdd.length > 0 && messagesToAdd[messagesToAdd.length - 1].role === 'user') {
-      messagesToAdd.pop(); // Remove the last message if it's from a user
-    }
-    messagesToAdd.forEach((message) => {
-      allMessagesText += `${this.formatMessageForSummary(message, false)},\n`;
-    });
-
-    const summary =
-      allMessagesText.trim().length > 0
-        ? `\n<conversation_history>\n[${allMessagesText}]\n</conversation_history>`
-        : '';
-
-    return summary;
-  }
-
-  formatMessageForSummary(message, removeCodeDiff = true) {
-    let messageContent = message.content;
-    let content = [];
-
-    if (messageContent) {
-      if (removeCodeDiff && messageContent && messageContent.includes('<code diff>')) {
-        messageContent = messageContent.replace(/<code diff>[\s\S]*<\/code diff>/g, '');
-      }
-      content.push({
-        type: message.role === 'tool' ? 'tool_result' : 'text',
-        content: messageContent,
-      });
-    }
-    if (message.tool_calls) {
-      message.tool_calls.forEach((toolCall) => {
-        content.push({
-          type: 'tool_use',
-          name: toolCall.function.name,
-        });
-      });
-    }
-    const role = message.role === 'tool' ? 'user' : message.role;
-    const result = { role, content };
-    return JSON.stringify(result, null, 2);
-  }
-
-  async summarizeMessages(messages) {
-    const prompt = `
-    Compress conversation_history below without losing important information.
-    Compress with at least .75 or more compression ratio.
-    
-    Summarization rules:
-     - Preserve roles, tool names, file names
-     - Preserve all important information and code snippets
-     - Leave messages with "user" role word for word without alteration
-     - Make sure to remove any duplicate or similar actions or information that repeats
-     - Compress terminal output and only leave most important information
-     - Compress "content", only keep the most important information, shorten it as much as possible
-     - Compress top (older) messages more, then lower (newer) messages. Compress long assistant messages into maximum 3 sentences
-     - Keep plan for the task as is (can be more than 3 sentences), make sure to preserve all messages that have requirements fully
-
-    Respond with compressed conversation_history without wrapping XML tag, in exactly the same JSON schema format as provided in the original.
-
-    <conversation_history>
-    [
-      ${messages}
-    ]
-    </conversation_history>`;
-    const format = {
-      type: 'string',
-      result: 'Summary of the conversation',
-    };
-    let summary = await context.chatController.backgroundTask.run({
-      prompt,
-      format,
-      model: context.chatController.settings.selectedModel,
-    });
-
-    if (summary) {
-      // Remove first "[" if present
-      summary = summary.replace(/^\s*\[/, '');
-      // Replace last "]" with "," if present
-      summary = summary.replace(/\]\s*$/, ',');
-      console.log('Summarized message history:', summary);
-      return summary;
-    } else {
-      return messages;
-    }
-  }
-
   async relevantSourceCodeInformation() {
-    const projetState = await this.projectStateToText();
-    const relevantFilesAndFoldersToUserMessages = await this.getRelevantFilesAndFoldersToUserMessages();
-    const relevantFilesContents = await this.getRelevantFilesContents();
+    const projetState = await this.projectState.toText();
+    const relevantFilesAndFoldersToUserMessages = await this.relevantFiles.suggestions();
+    const relevantFilesContents = await this.relevantFiles.contents();
 
     return `${projetState}${relevantFilesAndFoldersToUserMessages}${relevantFilesContents}`;
-  }
-
-  async getRelevantFilesAndFoldersToUserMessages() {
-    if (!this.searchRelevantFiles) {
-      return '';
-    }
-
-    let lastBackendMessage = this.chat.backendMessages[this.chat.backendMessages.length - 1];
-    let lastUserMessage;
-    if (!lastBackendMessage) {
-      lastUserMessage = this.chat.task;
-    } else {
-      if (lastBackendMessage.role === 'user') {
-        lastUserMessage = lastBackendMessage;
-      }
-    }
-
-    if (!lastUserMessage) {
-      return '';
-    }
-
-    const params = {
-      query: this.chat.task + (lastUserMessage ? ' ' + lastUserMessage.content : ''),
-      limit: 10,
-      filenamesOnly: true,
-    };
-    const projectController = context.chatController.agent.projectController;
-    if (!projectController.currentProject) {
-      return '';
-    }
-
-    const relevantFilesAndFolders = await projectController.searchEmbeddings(params);
-    if (!relevantFilesAndFolders || relevantFilesAndFolders.length === 0) {
-      return '';
-    } else {
-      const relevantFilesAndFoldersMessage = relevantFilesAndFolders
-        .map((result) => {
-          return `- "${result}"`;
-        })
-        .join('\n');
-      return `These files might or might not be relevant to the task:\n<relevant_files_and_folders>\n${relevantFilesAndFoldersMessage}\n</relevant_files_and_folders>\n`;
-    }
-  }
-
-  async getRelevantFilesContents() {
-    const relevantFileNames = await this.getListOfRelevantFiles();
-    if (relevantFileNames.length === 0) {
-      return '';
-    }
-
-    let fileContents = await this.getFileContents(relevantFileNames);
-    fileContents = await this.reduceRelevantFilesContext(fileContents, relevantFileNames);
-
-    return fileContents
-      ? `\n\nCurrent content of the files (do not read these files again. Do not thank me for providing these files):\n<relevant_files_contents>${fileContents}\n</relevant_files_contents>`
-      : '';
-  }
-
-  async getListOfRelevantFiles() {
-    const chatInteractionFiles = await this.getChatInteractionFiles();
-    const editedFiles = context.chatController.agent.projectController.getRecentModifiedFiles(this.lastEditedFilesTimestamp);
-    this.lastEditedFilesTimestamp = Date.now();
-    const combinedFiles = [...new Set([...chatInteractionFiles, ...this.taskRelevantFiles, ...editedFiles])].slice(
-      0,
-      20,
-    );
-    this.taskRelevantFiles = combinedFiles;
-
-    return combinedFiles;
-  }
-
-  async getChatInteractionFiles() {
-    const chatFiles = this.chat.backendMessages
-      .filter((message) => message.id > this.lastMessageIdForRelevantFiles)
-      .filter((message) => message.role === 'assistant' && message.tool_calls)
-      .flatMap((message) =>
-        message.tool_calls
-          .map((toolCall) => {
-            const parsedArguments = context.chatController.agent.parseArguments(toolCall.function.arguments);
-            return parsedArguments.hasOwnProperty('targetFile') ? parsedArguments.targetFile : undefined;
-          })
-          .filter((file) => file !== undefined),
-      );
-    const normalizedFilePaths = await Promise.all(chatFiles.map((file) => normalizedFilePath(file)));
-    const chatInteractionFiles = normalizedFilePaths
-      .filter((file) => fs.existsSync(file) && !fs.statSync(file).isDirectory())
-      .reverse();
-    this.lastMessageIdForRelevantFiles = this.backendMessages.length - 1;
-
-    return chatInteractionFiles;
-  }
-
-  async getFileContents(fileList) {
-    if (fileList.length === 0) {
-      return '';
-    }
-
-    const fileReadPromises = fileList.map((file) => this.readFile(file));
-    const fileContents = await Promise.all(fileReadPromises);
-
-    return fileList
-      .map((file, index) => `\n<file_content file="${file}">\n${fileContents[index]}\n</file_content>`)
-      .join('\n\n');
-  }
-
-  async reduceRelevantFilesContext(fileContents, fileList) {
-    const fileContentTokenCount = getTokenCount(fileContents);
-    const lastMessageId = this.chat.backendMessages.length - 1;
-    if (
-      fileContentTokenCount > MAX_RELEVANT_FILES_TOKENS &&
-      fileList.length > MAX_RELEVANT_FILES_COUNT &&
-      (lastMessageId - this.reduceRelevantFilesContextMessageId >= 10 || this.reduceRelevantFilesContextMessageId === 0)
-    ) {
-      this.reduceRelevantFilesContextMessageId = lastMessageId;
-      const relevantFiles = await this.updateListOfRelevantFiles(fileContents);
-      if (Array.isArray(relevantFiles)) {
-        console.log('Reducing relevant files context', relevantFiles);
-        this.taskRelevantFiles = relevantFiles.slice(0, MAX_RELEVANT_FILES_COUNT);
-        return await this.getFileContents(relevantFiles);
-      }
-    }
-
-    return fileContents;
-  }
-
-  async updateListOfRelevantFiles(fileContents) {
-    const messageHistory = [this.addTaskMessage(), await this.addSummaryOfMessages()];
-
-    const prompt = `AI coding assistant is helping user with a task.
-    Here is a summary of the conversation and what was done: ${messageHistory}
-    
-    The content of the files is too long to process. Out of the list of files below, select the most relevant files that the assistant still needs to know the contents of in order to complete the user's task.
-    The files are:\n\n${fileContents}
-    
-    Include only required files, exclude files that are already processed or most likely not needed.
-    Respond with an array of file paths exactly as they appeared (do not shorten or change file paths) in the list above, separated by commas.
-    If all files are relevant, respond with a list of all files.
-    Order the files by how much assistant still needs to know about them to complete the user's task, most important first.
-    `;
-
-    const format = {
-      type: 'array',
-      description: 'Array of relevant file paths',
-      items: {
-        type: 'string',
-      },
-    };
-
-    const result = await context.chatController.backgroundTask.run({
-      prompt,
-      format,
-      model: context.chatController.settings.selectedModel,
-    });
-
-    return result;
-  }
-
-  async readFile(filePath) {
-    try {
-      const stats = await fs.promises.stat(filePath);
-      if (!isTextFile(filePath) || stats.size > MAX_FILE_SIZE) {
-        console.error(`Skipped file (non-text or too large): ${filePath}`);
-        return null;
-      }
-      const content = await fs.promises.readFile(filePath, 'utf8');
-      return this.addLineNumbers(content);
-    } catch (error) {
-      console.error(`Error reading file ${filePath}:`, error);
-      return null;
-    }
-  }
-
-  addLineNumbers(content) {
-    const lines = content.split('\n');
-    const paddedLines = lines.map((line, index) => {
-      const lineNumber = (index + 1).toString().padStart(4, ' ');
-      return `${lineNumber}|${line}`;
-    });
-    content = paddedLines.join('\n');
-    return content;
   }
 
   addLastUserMessage(userMessage) {
@@ -475,86 +177,6 @@ class ChatContextBuilder {
   fromTemplate(content, placeholder, value) {
     const regex = new RegExp(placeholder, 'g');
     return content.replace(regex, value);
-  }
-
-  async projectStateToText() {
-    const dirName = path.basename(await context.chatController.terminalSession.getCurrentDirectory());
-
-    let projectStateText = '';
-    projectStateText += `Current directory is '${dirName}'. The full path to this directory is '${context.chatController.agent.currentWorkingDir}'`;
-    if (context.chatController.agent.projectController.currentProject) {
-      const filesInFolder = await withErrorHandling(this.getFolderStructure.bind(this));
-      if (filesInFolder) {
-        projectStateText += `\nThe contents of this directory (excluding files from .gitignore): \n${filesInFolder}`;
-      }
-    }
-
-    return projectStateText ? `\n<current_project_state>\n${projectStateText}\n</current_project_state>\n` : '';
-  }
-
-  async getFolderStructure() {
-    const ig = ignore().add(ignorePatterns);
-    const rootDir = context.chatController.agent.currentWorkingDir;
-
-    // Recursive function to list files
-    const listFiles = async (dir, allFiles = [], currentPath = '') => {
-      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-      for (let entry of entries) {
-        const entryPath = path.join(dir, entry.name);
-        const relativePath = path.join(currentPath, entry.name);
-
-        if (entry.isDirectory()) {
-          await listFiles(entryPath, allFiles, relativePath);
-        } else {
-          allFiles.push(relativePath);
-        }
-      }
-      return allFiles;
-    };
-
-    try {
-      const allFiles = await listFiles(rootDir);
-      const filesExcludingIgnored = allFiles.filter((file) => !ig.ignores(file));
-
-      if (allFiles.length === 0) {
-        // If directory is empty
-        this.searchRelevantFiles = false;
-        return 'The directory is empty.';
-      } else if (filesExcludingIgnored.length <= 30) {
-        this.searchRelevantFiles = false;
-        return filesExcludingIgnored.map((file) => `- ${file}`).join('\n');
-      } else {
-        // If more than 30 files, only show top-level directories and files
-        this.searchRelevantFiles = true;
-        const topLevelEntries = await fs.promises.readdir(rootDir, { withFileTypes: true });
-        const filteredTopLevelEntries = topLevelEntries.filter((entry) => !ig.ignores(entry.name));
-
-        const folderStructure = [];
-        for (const entry of filteredTopLevelEntries) {
-          if (entry.isDirectory()) {
-            folderStructure.push(`- ${entry.name}/`);
-            const subEntries = await fs.promises.readdir(path.join(rootDir, entry.name), { withFileTypes: true });
-            const filteredSubEntries = subEntries.filter(
-              (subEntry) => !ig.ignores(path.join(entry.name, subEntry.name)),
-            );
-            for (const subEntry of filteredSubEntries) {
-              folderStructure.push(`  - ${subEntry.name}${subEntry.isDirectory() ? '/' : ''}`);
-            }
-          } else {
-            folderStructure.push(`- ${entry.name}`);
-          }
-        }
-
-        return folderStructure.join('\n');
-      }
-    } catch (error) {
-      context.chatController.chat.addFrontendMessage(
-        'error',
-        `Error occurred while checking directory structure in ${rootDir}.
-       <br>Please change directory where app can read/write files or update permissions for current directory.`,
-      );
-      return;
-    }
   }
 }
 

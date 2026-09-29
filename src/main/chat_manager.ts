@@ -153,7 +153,7 @@ export class ChatManager {
       }),
       smallModel: () => this.deps.llm.smallModel(),
       onEvent: (event) => this.deps.emit(event, session.id),
-      onChange: () => this.scheduleSave(session),
+      onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),
     });
     return session;
   }

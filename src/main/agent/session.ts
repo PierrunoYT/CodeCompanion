@@ -43,7 +43,8 @@ export interface ChatSessionOptions {
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
   smallModel: () => CompletionClient | null;
   onEvent: (event: ChatEvent) => void;
-  onChange: () => void;
+  // immediate is true when a task just finished, so the chat can be saved right away.
+  onChange: (immediate: boolean) => void;
 }
 
 // One chat: its model conversation, transcript, pending approvals and the files read in it.
@@ -154,7 +155,7 @@ export class ChatSession {
     this.updatedAt = new Date().toISOString();
     this.options.onEvent(event);
     if (event.type !== 'assistant-delta' && event.type !== 'thinking-delta' && event.type !== 'tool-progress') {
-      this.options.onChange();
+      this.options.onChange(event.type === 'busy' && !event.busy);
     }
   }
 

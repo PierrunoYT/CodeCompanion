@@ -37,6 +37,7 @@ export const readFileTool = defineTool({
     return {
       content: truncateOutput(withLineNumbers(selected, offset)) + footer,
       summary: `Read ${rel} (${selected.length} lines)`,
+      path: rel,
     };
   },
 });
@@ -132,7 +133,11 @@ export const writeFileTool = defineTool({
     context.readFiles.add(file);
     if (path.endsWith('.gitignore')) context.workspace.invalidateIgnoreRules();
     const rel = context.workspace.relative(file);
-    return { content: `${exists ? 'Updated' : 'Created'} ${rel}.`, summary: `${exists ? 'Wrote' : 'Created'} ${rel}` };
+    return {
+      content: `${exists ? 'Updated' : 'Created'} ${rel}.`,
+      summary: `${exists ? 'Wrote' : 'Created'} ${rel}`,
+      path: rel,
+    };
   },
 });
 
@@ -164,6 +169,7 @@ export const editFileTool = defineTool({
     return {
       content: `Edited ${rel}.\n${unifiedDiff(rel, before, after)}`,
       summary: `Edited ${rel}`,
+      path: rel,
     };
   },
 });

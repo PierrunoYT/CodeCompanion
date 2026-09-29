@@ -1,0 +1,63 @@
+type Child = Node | string | number | null | undefined | false;
+
+type Props = {
+  class?: string;
+  style?: string;
+  dataset?: Record<string, string>;
+  [key: string]: unknown;
+};
+
+// Creates an element. Text children are inserted as text, never parsed as HTML, so this is safe for model output.
+// Props named on<Event> with a function value become event listeners; other props are set as properties when the
+// element has them, otherwise as attributes.
+export function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: Props = {},
+  ...children: Child[]
+): HTMLElementTagNameMap[K] {
+  const element = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (value === undefined || value === null || value === false) continue;
+    if (key === 'class') element.className = String(value);
+    else if (key === 'style') element.setAttribute('style', String(value));
+    else if (key === 'dataset') Object.assign(element.dataset, value);
+    else if (key.startsWith('on') && typeof value === 'function') {
+      element.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
+    } else if (key in element && !key.includes('-')) {
+      (element as unknown as Record<string, unknown>)[key] = value;
+    } else {
+      element.setAttribute(key, value === true ? '' : String(value));
+    }
+  }
+  append(element, children);
+  return element;
+}
+
+export function append(parent: Node, children: Child[]): void {
+  for (const child of children) {
+    if (child === null || child === undefined || child === false) continue;
+    parent.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+}
+
+export function icon(name: string, extraClass = ''): HTMLElement {
+  return h('i', { class: `bi bi-${name} ${extraClass}`.trim(), 'aria-hidden': 'true' });
+}
+
+// For HTML that has already been sanitized (rendered markdown and diffs).
+export function trustedHtml(tag: keyof HTMLElementTagNameMap, className: string, html: string): HTMLElement {
+  const element = document.createElement(tag);
+  element.className = className;
+  element.innerHTML = html;
+  return element;
+}
+
+export function clear(element: Element): void {
+  element.replaceChildren();
+}
+
+// replaceChildren that skips null/false children, for conditional content.
+export function setChildren(parent: Element, ...children: Child[]): void {
+  parent.replaceChildren();
+  append(parent, children);
+}

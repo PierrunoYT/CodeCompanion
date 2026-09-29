@@ -1,5 +1,365 @@
 html,
-body {
+body,
+#app {
   height: 100%;
   margin: 0;
+}
+
+body {
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.project-picker {
+  position: relative;
+}
+
+.project-button {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-menu {
+  top: 100%;
+  left: 0;
+  min-width: 260px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.chat-title {
+  flex: 1;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* Main split: chat on the left, tool panels on the right */
+.app-main {
+  display: flex;
+  min-height: 0;
+}
+
+.chat-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 55%;
+  min-width: 360px;
+}
+
+.panel-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 45%;
+  min-width: 0;
+  border-left: 1px solid var(--bs-border-color);
+}
+
+.panel-host:empty {
+  display: none;
+}
+
+.chat-scroll-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-scroll {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.welcome {
+  padding: 2rem 0;
+}
+
+.welcome .recent-projects {
+  max-width: 560px;
+}
+
+/* Transcript */
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.message.user {
+  align-self: flex-end;
+  max-width: 85%;
+}
+
+.message.user .bubble {
+  background: var(--bs-primary-bg-subtle);
+  border-radius: 12px;
+  padding: 0.5rem 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message .attachments {
+  font-size: 0.85em;
+  color: var(--bs-secondary-color);
+  text-align: right;
+}
+
+.message.notice {
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
+
+.markdown {
+  overflow-wrap: anywhere;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown pre {
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.9em;
+}
+
+.markdown code:not(pre code) {
+  background: var(--bs-tertiary-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+
+.markdown.thinking {
+  color: var(--bs-secondary-color);
+  font-size: 0.9em;
+  border-left: 3px solid var(--bs-border-color);
+  padding-left: 0.75rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.typing span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--bs-secondary-color);
+  animation: typing 1s infinite ease-in-out;
+}
+
+.typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Tool cards */
+.tool-card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.92em;
+}
+
+.tool-card.awaiting {
+  border-color: var(--bs-warning);
+  box-shadow: 0 0 0 1px var(--bs-warning);
+}
+
+.tool-card.error {
+  border-color: var(--bs-danger-border-subtle);
+}
+
+.tool-card summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.tool-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.tool-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-output,
+.tool-command {
+  margin: 0.5rem 0 0.2rem;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bs-tertiary-bg);
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+.tool-diff {
+  margin-top: 0.5rem;
+  max-height: 420px;
+  overflow: auto;
+  font-size: 0.85em;
+}
+
+.tool-diff .d2h-file-header {
+  display: none;
+}
+
+.approval {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+}
+
+.approval textarea {
+  flex: 1;
+  resize: vertical;
+}
+
+/* Composer */
+.composer {
+  padding: 0.6rem 1rem 0.8rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.composer-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.composer-input {
+  resize: none;
+  min-height: 38px;
+}
+
+.composer-attachments {
+  max-width: 920px;
+  margin: 0 auto 0.4rem;
+}
+
+.composer-attachments:empty {
+  display: none;
+}
+
+/* Footer */
+.app-footer {
+  display: flex;
+  gap: 1rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8em;
+  color: var(--bs-secondary-color);
+  border-top: 1px solid var(--bs-border-color);
+}
+
+/* Dialogs */
+.app-dialog {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 10px;
+  padding: 0;
+  width: min(640px, 92vw);
+  max-height: 88vh;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+.app-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+}
+
+.dialog-header,
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+}
+
+.dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.dialog-body {
+  padding: 0 1rem 1rem;
+  overflow-y: auto;
+}
+
+.history-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Toasts */
+.toast-area {
+  position: fixed;
+  right: 1rem;
+  bottom: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 1100;
+  max-width: 420px;
+}
+
+.app-toast {
+  margin: 0;
+}
+
+.composer-row .btn {
+  white-space: nowrap;
 }

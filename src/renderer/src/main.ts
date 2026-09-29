@@ -1,13 +1,8 @@
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap-icons/font/bootstrap-icons.css';
+import 'highlight.js/styles/github-dark.min.css';
+import 'diff2html/bundles/css/diff2html.min.css';
 import './styles.css';
+import { App } from './app';
 
-async function start(): Promise<void> {
-  const root = document.getElementById('app')!;
-  const info = await window.api.invoke('app:info');
-  root.textContent = `CodeCompanion ${info.version}`;
-
-  window.api.on('menu:command', (command) => {
-    root.dataset.lastCommand = command;
-  });
-}
-
-start();
+new App().start(document.getElementById('app')!);

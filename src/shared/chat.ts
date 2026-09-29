@@ -20,6 +20,8 @@ export type TranscriptItem =
       preview?: ToolPreviewView;
       summary?: string;
       output?: string;
+      // Project-relative file the tool read or changed.
+      path?: string;
     }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'notice'; id: string; text: string };
@@ -41,7 +43,14 @@ export type ChatEvent =
   | { type: 'tool-start'; id: string; name: string; preview?: ToolPreviewView; awaitingApproval: boolean }
   | { type: 'tool-running'; id: string }
   | { type: 'tool-progress'; id: string; text: string }
-  | { type: 'tool-end'; id: string; status: 'done' | 'error' | 'declined'; summary: string; output?: string }
+  | {
+      type: 'tool-end';
+      id: string;
+      status: 'done' | 'error' | 'declined';
+      summary: string;
+      output?: string;
+      path?: string;
+    }
   | { type: 'error'; id: string; text: string }
   | { type: 'notice'; id: string; text: string }
   | { type: 'busy'; busy: boolean }
@@ -130,6 +139,7 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
               ...item,
               status: event.status,
               summary: event.summary,
+              path: event.path,
               output: (event.output ?? item.output)?.slice(-MAX_TOOL_OUTPUT_IN_TRANSCRIPT),
             }
           : item,

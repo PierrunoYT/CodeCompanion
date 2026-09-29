@@ -11,6 +11,8 @@ export interface ToolOutput {
   images?: ImageData[];
   // Short line for the chat transcript, e.g. "Read src/app.ts (120 lines)".
   summary?: string;
+  // Project-relative file the tool read or changed, so the UI can offer to open it.
+  path?: string;
 }
 
 // Shown to the user before an approval-gated tool runs.

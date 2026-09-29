@@ -184,6 +184,7 @@ export class Agent {
         id: eventId,
         status: output.isError ? 'error' : 'done',
         summary: output.summary ?? tool.name,
+        path: output.path,
         output: tool.name === 'run_command' || tool.name === 'command_output' ? output.content : undefined,
       });
       return { result: { id: call.id, content: output.content, isError: output.isError, images: output.images } };

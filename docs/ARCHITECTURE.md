@@ -113,7 +113,7 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 
 ## Panels (`src/main/panels/`, `src/renderer/src/views/panels.ts`)
 
-- **Terminal**: one interactive shell per project (`node-pty`), rendered with xterm.js. Separate from the agent's commands.
+- **Terminal**: one interactive shell per project (`node-pty`), rendered with xterm.js. Separate from the agent's commands. The renderer starts it only when a project is open; without one the panel just says "Open a project to use the terminal." The main process still rejects `terminal:start` without a project as a safety net.
 - **Browser**: a `<webview>` in the renderer (partition `persist:browser`). When it attaches, the main process receives its `webContents`; `BrowserService` implements the `browser` tool on it (load, console capture, `capturePage` scaled to ≤1280 px).
 - **Git**: `simple-git` — status, diff (untracked files shown as additions), commit all, discard, init. Refreshes when the agent finishes a tool call.
 

@@ -43,7 +43,7 @@ Tick a box (`- [x]`) when a task is done.
 
 - [x] Tools were fixed when a chat was created, so adding an OpenAI key mid-chat gave no `search_code`. The tool list is now rebuilt every turn
 - [ ] The system prompt still mentions `search_code` only if a key was set when the chat started (kept frozen for prompt caching); the tool's own description covers it
-- [ ] Stop logging `terminal:start` errors when no project is open (start the terminal only once a project is open)
+- [x] Stop logging `terminal:start` errors when no project is open (the terminal starts only once a project is open)
 
 ## Quality
 

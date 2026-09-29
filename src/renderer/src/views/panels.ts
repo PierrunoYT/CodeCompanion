@@ -24,6 +24,7 @@ export class Panels {
   constructor(
     private readonly theme: () => 'dark' | 'light',
     private readonly onError: (error: unknown) => void,
+    private readonly hasProject: () => boolean,
   ) {
     const tabs: Array<[PanelName, string, string]> = [
       ['terminal', 'Terminal', 'terminal'],
@@ -65,7 +66,7 @@ export class Panels {
   }
 
   private create(name: PanelName): Panel {
-    if (name === 'terminal') return new TerminalPanel();
+    if (name === 'terminal') return new TerminalPanel(this.hasProject);
     if (name === 'browser') return new BrowserPanel();
     return new GitPanel(this.theme, this.onError);
   }
@@ -81,8 +82,9 @@ class TerminalPanel implements Panel {
   });
   private readonly fit = new FitAddon();
   private started = false;
+  private noProjectShown = false;
 
-  constructor() {
+  constructor(private readonly hasProject: () => boolean) {
     this.terminal.loadAddon(this.fit);
     this.terminal.open(this.element);
     this.terminal.onData((data) => {
@@ -107,14 +109,21 @@ class TerminalPanel implements Panel {
 
   projectChanged(): void {
     this.started = false;
+    this.noProjectShown = false;
     this.terminal.reset();
   }
 
   private start(): void {
+    // Without a project the main process would reject the call (and log an error), so do not ask.
+    if (!this.hasProject()) {
+      if (!this.noProjectShown) this.terminal.write('Open a project to use the terminal.\r\n');
+      this.noProjectShown = true;
+      return;
+    }
     this.fit.fit();
     api.invoke('terminal:start', this.terminal.cols, this.terminal.rows).then(
       () => (this.started = true),
-      // Usually "open a project first"; shown in the terminal rather than as an error toast.
+      // Shown in the terminal rather than as an error toast.
       (error) => this.terminal.write(`${error instanceof Error ? error.message.replace(/^.*Error: /, '') : error}\r\n`),
     );
   }

@@ -42,6 +42,7 @@ export class App {
   private readonly panels = new Panels(
     () => this.settings.theme,
     (error) => this.toast(error),
+    () => this.project !== null,
   );
   private readonly panelHost = h('div', { class: 'panel-host' }, this.panels.element);
   private readonly panelButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Show or hide the side panel', onclick: () => this.togglePanel() }, icon('layout-sidebar-reverse'));

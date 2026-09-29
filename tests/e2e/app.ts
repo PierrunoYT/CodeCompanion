@@ -8,6 +8,8 @@ export interface RunningApp {
   page: Page;
   userData: string;
   errors: string[];
+  // Output the main process wrote to stderr (e.g. errors from IPC handlers).
+  mainErrors: string[];
   close(): Promise<void>;
 }
 
@@ -21,6 +23,8 @@ export async function launchApp(env: Record<string, string> = {}): Promise<Runni
     env: { ...process.env, CODECOMPANION_USER_DATA: userData, ...env } as Record<string, string>,
   });
   const page = await app.firstWindow();
+  const mainErrors: string[] = [];
+  app.process().stderr?.on('data', (data: Buffer) => mainErrors.push(data.toString()));
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
@@ -33,6 +37,7 @@ export async function launchApp(env: Record<string, string> = {}): Promise<Runni
     page,
     userData,
     errors,
+    mainErrors,
     async close() {
       await app.close();
       rmSync(userData, { recursive: true, force: true });

@@ -24,7 +24,8 @@ A from-scratch rewrite in TypeScript. No code from 6.x remains; features were re
 - Token usage (including cached tokens) in the status bar.
 
 ### Changed
-- Default model is Claude Opus 5.5; background tasks use Claude Haiku 4.5.
+- Default model is Claude Opus 5.5; background tasks use Claude Haiku 4.5 (or GPT-6 Luna with only an OpenAI key).
+- OpenAI models are GPT-6 Astra, Sol and Luna, used through the Responses API with reasoning (Effort setting) and encrypted reasoning carried across tool calls. Custom OpenAI-compatible endpoints keep using Chat Completions.
 - File edits use exact string replacement (`edit_file`) instead of line ranges, which broke when earlier edits shifted lines.
 - Chat history is sent in each provider's native format instead of one rebuilt prompt with summaries and file contents; files are read through tools.
 - Code search uses an incremental index with `text-embedding-3-small` (LangChain removed). The index is built on the first search, not when a project opens.
@@ -44,8 +45,7 @@ A from-scratch rewrite in TypeScript. No code from 6.x remains; features were re
 - Manual "Save chat" (chats are saved automatically) and "Download chat logs".
 
 ### Known issues
-- The OpenAI model list (`gpt-4o`, `gpt-4o-mini`) is carried over from 6.x and not re-verified; any model id can be entered in settings.
-- Only the Anthropic path has been tested against a mock API; OpenAI support is covered by unit tests against a mock server, not end to end.
+- The OpenAI paths are covered by unit tests against a mock server, not by end-to-end tests.
 - No end-to-end run against the live Claude or OpenAI APIs has been done yet.
 - On Linux, `node-pty` compiles from source and needs build tools.
 

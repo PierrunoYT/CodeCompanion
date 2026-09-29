@@ -106,7 +106,7 @@ export class OpenAIConversation implements Conversation {
   }
 
   serialize(): SerializedConversation {
-    return { provider: this.provider, model: this.model, messages: this.messages };
+    return { provider: this.provider, api: 'chat', model: this.model, messages: this.messages };
   }
 
   // Drops whole turns from the front, keeping the first user message (the task) so the goal is never lost.

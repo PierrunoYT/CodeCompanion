@@ -12,8 +12,9 @@ export const MODEL_OPTIONS: ModelOption[] = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'anthropic' },
   { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'anthropic' },
   { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic' },
-  { id: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
-  { id: 'gpt-4o-mini', label: 'GPT-4o mini', provider: 'openai' },
+  { id: 'gpt-6-astra', label: 'GPT-6 Astra', provider: 'openai' },
+  { id: 'gpt-6-sol', label: 'GPT-6 Sol', provider: 'openai' },
+  { id: 'gpt-6-luna', label: 'GPT-6 Luna', provider: 'openai' },
 ];
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
@@ -21,7 +22,7 @@ export const DEFAULT_MODEL = 'claude-opus-5-5';
 // Cheap model used for background work: chat titles and search re-ranking.
 export const SMALL_MODELS: Record<Provider, string> = {
   anthropic: 'claude-haiku-4-5',
-  openai: 'gpt-4o-mini',
+  openai: 'gpt-6-luna',
 };
 
 export const EMBEDDING_MODEL = 'text-embedding-3-small';

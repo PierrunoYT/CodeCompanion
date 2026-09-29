@@ -7,7 +7,7 @@ export type ApprovalMode = 'ask' | 'auto';
 
 export interface Settings {
   model: string;
-  // How much the model thinks before acting (Claude models that support effort).
+  // How much the model thinks before acting (current Claude models and OpenAI via the Responses API).
   effort: Effort;
   approvalMode: ApprovalMode;
   theme: Theme;

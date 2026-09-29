@@ -6,7 +6,7 @@ This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x). See [CHANGE
 
 ## Features
 
-- Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5) or OpenAI-compatible models, with streaming answers
+- Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5), OpenAI GPT-6 (Astra, Sol, Luna) or any OpenAI-compatible endpoint, with streaming answers
 - Works directly in your project: read, search, edit and create files, run commands
 - Every file change and command is shown first (diffs, command text) and waits for **Approve** or **Decline** — or switch to **Auto** mode
 - Decline with a note ("use pnpm instead") and the assistant adjusts

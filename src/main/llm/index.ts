@@ -2,6 +2,7 @@ import { providerForModel, SMALL_MODELS } from '@shared/models';
 import type { SettingsStore } from '../settings';
 import { AnthropicCompletionClient, AnthropicConversation, createAnthropicClient } from './anthropic';
 import { createOpenAIClient, OpenAICompletionClient, OpenAIConversation } from './openai';
+import { OpenAIResponsesConversation } from './openai_responses';
 import { MissingApiKeyError, type CompletionClient, type Conversation, type SerializedConversation } from './types';
 
 export * from './types';
@@ -14,11 +15,11 @@ export class LlmService {
   constructor(private readonly settings: SettingsStore) {}
 
   createConversation(model = this.settings.get().model): Conversation {
-    return this.build(model, []);
+    return this.build(model, [], this.defaultOpenAIApi());
   }
 
   restoreConversation(saved: SerializedConversation): Conversation {
-    return this.build(saved.model, saved.messages);
+    return this.build(saved.model, saved.messages, saved.api ?? 'chat');
   }
 
   // Prefers the provider of the selected model; falls back to whichever provider has a key. Returns null when no
@@ -43,7 +44,12 @@ export class LlmService {
     return null;
   }
 
-  private build(model: string, messages: unknown[]): Conversation {
+  // OpenAI's own API gets the Responses API; custom OpenAI-compatible endpoints usually only implement Chat Completions.
+  private defaultOpenAIApi(): 'chat' | 'responses' {
+    return this.settings.get().openaiBaseUrl.trim() ? 'chat' : 'responses';
+  }
+
+  private build(model: string, messages: unknown[], openaiApi: 'chat' | 'responses'): Conversation {
     const settings = this.settings.get();
     if (providerForModel(model) === 'anthropic') {
       const key = this.settings.getSecret('anthropicApiKey');
@@ -56,6 +62,9 @@ export class LlmService {
     }
     const key = this.settings.getSecret('openaiApiKey');
     if (!key) throw new MissingApiKeyError('openai');
-    return new OpenAIConversation(createOpenAIClient(key, settings.openaiBaseUrl), model, messages as never);
+    const client = createOpenAIClient(key, settings.openaiBaseUrl);
+    return openaiApi === 'responses'
+      ? new OpenAIResponsesConversation(client, model, settings.effort, messages as never)
+      : new OpenAIConversation(client, model, messages as never);
   }
 }

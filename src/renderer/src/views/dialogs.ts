@@ -124,7 +124,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     ...secretFields,
     h('h3', { class: 'h6 text-body-secondary mt-4' }, 'Assistant'),
     field('Model', h('div', {}, modelSelect, customModel)),
-    field('Effort', effort, 'How much the model thinks before acting (current Claude models). Higher is slower and costs more.'),
+    field('Effort', effort, 'How much the model thinks before acting (current Claude and OpenAI models). Higher is slower and costs more.'),
     field('Approvals', approval),
     h('h3', { class: 'h6 text-body-secondary mt-4' }, 'Other'),
     field('Theme', theme),

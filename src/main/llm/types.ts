@@ -64,6 +64,8 @@ export interface TurnRequest {
 
 export interface SerializedConversation {
   provider: Provider;
+  // OpenAI only: which API the history belongs to. Missing means Chat Completions (chats saved before 'responses').
+  api?: 'chat' | 'responses';
   model: string;
   messages: unknown[];
 }

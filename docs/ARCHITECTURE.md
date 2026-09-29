@@ -72,9 +72,13 @@ Handlers (`src/main/ipc.ts`, `handle` / `send`) and the preload bridge are typed
 - Tools are sent with `eager_input_streaming`, so large inputs (file contents) stream as generated. The API then no longer validates them, which is why the agent validates every input itself. A turn whose streamed tool input cannot be parsed is re-issued (up to twice).
 - No `temperature` and no forced `tool_choice` (both rejected by current models).
 
-**OpenAI-compatible** (`openai.ts`): Chat Completions streaming with function tools. With no server-side compaction, the oldest turns are dropped once the history passes ~100k tokens; the first user message (the task) is always kept. Tool screenshots are sent as a follow-up user message because tool messages cannot carry images.
+**OpenAI** (`openai_responses.ts`, used when no custom base URL is set): the Responses API, because GPT-6 models only support function calling in Chat Completions with reasoning turned off (and GPT-6 Astra cannot turn it off). Requests are stateless (`store: false`); reasoning items come back encrypted (`include: ['reasoning.encrypted_content']`) and are sent back unchanged so the model keeps its reasoning across tool calls. Reasoning effort follows Settings → Effort, reasoning summaries are shown as "Thinking", and `truncation: 'auto'` drops the oldest items when the context fills up.
 
-**Small model** (`CompletionClient`): Claude Haiku 4.5 or GPT-4o mini, whichever key is available (preferring the chat's provider). Used for chat titles, with structured outputs (`output_config.format` / `response_format`) validated by Zod.
+**OpenAI-compatible endpoints** (`openai.ts`, used when Settings → *OpenAI-compatible base URL* is set, e.g. Ollama, OpenRouter, LM Studio): Chat Completions streaming with function tools, since most compatible servers only implement that API. With no server-side compaction, the oldest turns are dropped once the history passes ~100k tokens; the first user message (the task) is always kept.
+
+In both OpenAI paths, tool screenshots are sent as a follow-up user message because tool results cannot carry images. Saved chats record which API their history belongs to (`api: 'responses' | 'chat'`).
+
+**Small model** (`CompletionClient`): Claude Haiku 4.5 or GPT-6 Luna, whichever key is available (preferring the chat's provider). Used for chat titles, with structured outputs (`output_config.format` / `response_format`) validated by Zod.
 
 A chat keeps its model. Changing the model in settings applies to new chats.
 

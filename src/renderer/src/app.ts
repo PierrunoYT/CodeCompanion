@@ -141,7 +141,7 @@ export class App {
   }
 
   private renderAll(): void {
-    this.chatScroll.replaceChildren(this.welcome, this.transcript.element);
+    this.chatScroll.replaceChildren(this.welcome, this.transcript.element, this.transcript.announcer);
     this.transcript.render(this.chat.transcript);
     this.composer.setBusy(this.chat.busy);
     this.renderHeader();
@@ -175,6 +175,7 @@ export class App {
 
     const auto = this.settings.approvalMode === 'auto';
     this.modeButton.className = `btn btn-sm mode-button ${auto ? 'btn-warning' : 'btn-outline-secondary'}`;
+    this.modeButton.setAttribute('aria-pressed', String(auto));
     this.modeButton.replaceChildren(icon(auto ? 'lightning-charge' : 'shield-check'), auto ? ' Auto' : ' Ask first');
     this.modeButton.title = auto
       ? 'Edits and commands run without asking. Click to require approval.'

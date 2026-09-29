@@ -33,9 +33,29 @@ export class Panels {
     ];
     for (const [name, label, iconName] of tabs) {
       this.tabBar.appendChild(
-        h('button', { class: 'panel-tab', role: 'tab', dataset: { panel: name }, onclick: () => this.show(name) }, icon(iconName), ` ${label}`),
+        h(
+          'button',
+          { id: `panel-tab-${name}`, class: 'panel-tab', role: 'tab', 'aria-controls': `panel-${name}`, tabindex: -1, dataset: { panel: name }, onclick: () => this.show(name) },
+          icon(iconName),
+          ` ${label}`,
+        ),
       );
     }
+    // Arrow keys move between tabs, as in a native tab strip; only the selected tab is in the Tab order.
+    this.tabBar.addEventListener('keydown', (event) => {
+      const names = tabs.map(([name]) => name);
+      const current = names.indexOf(this.active ?? names[0]);
+      const next =
+        event.key === 'ArrowRight' ? (current + 1) % names.length
+        : event.key === 'ArrowLeft' ? (current - 1 + names.length) % names.length
+        : event.key === 'Home' ? 0
+        : event.key === 'End' ? names.length - 1
+        : -1;
+      if (next < 0) return;
+      event.preventDefault();
+      this.show(names[next]);
+      this.tabBar.querySelector<HTMLElement>(`#panel-tab-${names[next]}`)?.focus();
+    });
     this.element.append(this.tabBar, this.body);
   }
 
@@ -43,13 +63,18 @@ export class Panels {
     let panel = this.panels.get(name);
     if (!panel) {
       panel = this.create(name);
+      panel.element.id = `panel-${name}`;
+      panel.element.setAttribute('role', 'tabpanel');
+      panel.element.setAttribute('aria-labelledby', `panel-tab-${name}`);
       this.panels.set(name, panel);
       this.body.appendChild(panel.element);
     }
     for (const [other, { element }] of this.panels) element.hidden = other !== name;
     for (const tab of this.tabBar.querySelectorAll<HTMLElement>('.panel-tab')) {
-      tab.classList.toggle('active', tab.dataset.panel === name);
-      tab.setAttribute('aria-selected', String(tab.dataset.panel === name));
+      const selected = tab.dataset.panel === name;
+      tab.classList.toggle('active', selected);
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
     }
     this.active = name;
     panel.shown();
@@ -271,7 +296,7 @@ class GitPanel implements Panel {
             { class: 'btn btn-link p-0 text-reset text-decoration-none text-truncate text-start flex-grow-1', title: file.path, onclick: () => this.select(file.path) },
             file.path,
           ),
-          h('span', { class: `git-status git-${file.status}`, title: file.status }, file.status[0].toUpperCase()),
+          h('span', { class: `git-status git-${file.status}`, title: file.status, 'aria-label': file.status }, file.status[0].toUpperCase()),
           h(
             'button',
             {

@@ -7,16 +7,17 @@ import type { SecretName, Settings, SettingsView } from '@shared/settings';
 import { h, icon } from '../dom';
 
 function dialog(title: string, body: HTMLElement, footer: HTMLElement): HTMLDialogElement {
+  const titleId = `dialog-title-${Math.random().toString(36).slice(2)}`;
   const element = h(
     'dialog',
-    { class: 'app-dialog' },
+    { class: 'app-dialog', 'aria-labelledby': titleId },
     h(
       'form',
       { method: 'dialog', class: 'dialog-content' },
       h(
         'div',
         { class: 'dialog-header' },
-        h('h2', { class: 'h5 m-0' }, title),
+        h('h2', { id: titleId, class: 'h5 m-0' }, title),
         h('button', { class: 'btn-close', type: 'button', 'aria-label': 'Close', onclick: () => element.close() }),
       ),
       h('div', { class: 'dialog-body' }, body),

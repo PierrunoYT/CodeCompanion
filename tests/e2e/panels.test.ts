@@ -53,6 +53,21 @@ describe('side panels', () => {
     await running.page.locator('.terminal-panel .xterm-rows', { hasText: 'terminal-works-42' }).waitFor({ timeout: 20_000 });
   });
 
+  it('moves between panel tabs with the arrow keys and exposes them as tabs', async () => {
+    const tabs = running.page.getByRole('tab');
+    await expect(tabs.count()).resolves.toBe(3);
+    await running.page.getByRole('tab', { name: 'Terminal' }).focus();
+    await running.page.keyboard.press('ArrowRight');
+    await expect(running.page.getByRole('tab', { name: 'Browser' }).getAttribute('aria-selected')).resolves.toBe('true');
+    await running.page.keyboard.press('End');
+    await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('aria-selected')).resolves.toBe('true');
+    await running.page.keyboard.press('Home');
+    await expect(running.page.getByRole('tab', { name: 'Terminal' }).getAttribute('aria-selected')).resolves.toBe('true');
+    // Only the selected tab is in the Tab order.
+    await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('tabindex')).resolves.toBe('-1');
+    await expect(running.page.getByRole('tabpanel').count()).resolves.toBeGreaterThan(0);
+  });
+
   it('shows changes in the Git tab and commits them', async () => {
     await running.page.locator('.panel-tab', { hasText: 'Git' }).click();
     const file = running.page.locator('.git-file', { hasText: 'page.html' });
@@ -79,7 +94,7 @@ describe('side panels', () => {
     );
     await running.page.getByLabel('Message', { exact: true }).fill('Check the page');
     await running.page.getByLabel('Message', { exact: true }).press('Enter');
-    await running.page.getByText('The page logs an error.').waitFor({ timeout: 30_000 });
+    await running.page.getByText('The page logs an error.', { exact: true }).waitFor({ timeout: 30_000 });
 
     // The browser panel was brought to the front.
     await expect(running.page.locator('.panel-tab.active').textContent()).resolves.toContain('Browser');

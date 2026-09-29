@@ -15,6 +15,13 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - `AGENTS.md` (or `CLAUDE.md`) from the project root is now always injected into the system prompt of every new chat, and the status bar shows "AGENTS.md loaded".
 - Settings show whether the current project's code is indexed (files and chunks) and have a Reindex button that rebuilds the index from scratch.
 
+### Accessibility
+- Screen readers no longer re-read the transcript on every streamed chunk: it is not a live region any more. A separate hidden announcer says finished answers, approval requests, failed tools, errors and notices once (`src/shared/announce.ts`).
+- Tool status (done, failed, running) has a text label for screen readers, not only an icon. The approval card is a labelled group and its feedback box has a label.
+- The Terminal, Browser and Git tabs work with the arrow keys, Home and End, only the selected tab is in the Tab order, and the panels are tab panels.
+- Icon-only buttons use their tooltip as their accessible name, the Ask first / Auto button reports its state, dialogs are labelled by their title, and Git file statuses are read out in words.
+- Git status colors use Bootstrap's text-emphasis colors, which keep enough contrast on white in the light theme (the plain info color did not).
+
 ### Security
 - The `browser` tool no longer opens `file://` URLs outside the project. It needs no approval, so a prompt-injected model could otherwise open and screenshot any local file.
 - All permission requests (camera, microphone, location, notifications) are denied for the app page and the browser panel; Electron grants them by default.

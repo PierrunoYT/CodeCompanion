@@ -1,3 +1,4 @@
+import { markAnnounced, newAnnouncements } from '@shared/announce';
 import type { ApprovalDecision, TranscriptItem } from '@shared/chat';
 import { h, icon, trustedHtml } from '../dom';
 import { renderDiff, renderMarkdown } from '../markdown';
@@ -25,7 +26,12 @@ const TOOL_ICONS: Record<string, string> = {
 // Renders the transcript, re-creating only items whose object changed (the reducer returns new objects only for
 // updated items), and keeps the view scrolled to the bottom while the user has not scrolled up.
 export class TranscriptView {
-  readonly element = h('div', { class: 'transcript', 'aria-live': 'polite' });
+  readonly element = h('div', { class: 'transcript' });
+  // Screen-reader only. The transcript itself is not a live region: it is re-rendered on every streamed chunk, which
+  // a screen reader would read out again and again. This announces finished answers, approvals and failures once.
+  readonly announcer = h('div', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'false' });
+  private readonly announced = new Set<string>();
+  private primed = false;
   private readonly nodes = new Map<string, { item: TranscriptItem; node: HTMLElement }>();
   // <details> the user opened, so re-rendering a card does not collapse it.
   private readonly expanded = new Set<string>();
@@ -67,9 +73,20 @@ export class TranscriptView {
     }
 
     if (stick && container) container.scrollTop = container.scrollHeight;
+
+    // The first render after a reset is a chat being opened, not news.
+    if (!this.primed) {
+      markAnnounced(items, this.announced);
+      this.primed = true;
+    } else {
+      for (const message of newAnnouncements(items, this.announced)) this.announcer.appendChild(h('div', {}, message));
+    }
   }
 
   reset(): void {
+    this.announced.clear();
+    this.primed = false;
+    this.announcer.replaceChildren();
     this.nodes.clear();
     this.expanded.clear();
     this.element.replaceChildren();
@@ -105,9 +122,9 @@ export class TranscriptView {
     const title = item.summary ?? item.preview?.title ?? item.name.replace(/_/g, ' ');
     const status: Record<typeof item.status, HTMLElement> = {
       'awaiting-approval': h('span', { class: 'badge text-bg-warning' }, 'Needs approval'),
-      running: h('span', { class: 'spinner-border spinner-border-sm text-secondary', role: 'status' }),
-      done: icon('check2', 'text-success'),
-      error: icon('x-circle', 'text-danger'),
+      running: h('span', { class: 'spinner-border spinner-border-sm text-secondary', role: 'img', 'aria-label': 'Running' }),
+      done: h('span', {}, icon('check2', 'text-success'), h('span', { class: 'visually-hidden' }, 'Done')),
+      error: h('span', {}, icon('x-circle', 'text-danger'), h('span', { class: 'visually-hidden' }, 'Failed')),
       declined: h('span', { class: 'badge text-bg-secondary' }, 'Declined'),
     };
 
@@ -134,11 +151,12 @@ export class TranscriptView {
         class: 'form-control form-control-sm',
         rows: 1,
         placeholder: 'Optional: tell the assistant what to do instead',
+        'aria-label': 'Optional feedback if you decline',
       });
       const decide = (approved: boolean) => this.actions.decide(item.id, { approved, feedback: approved ? undefined : feedback.value });
       return h(
         'div',
-        { class: 'tool-card awaiting', dataset: { id: item.id } },
+        { class: 'tool-card awaiting', role: 'group', 'aria-label': `Approval needed: ${title}`, dataset: { id: item.id } },
         header,
         preview,
         h(

@@ -119,7 +119,7 @@ describe('user interface', () => {
     await shot('3-approval');
 
     await card.getByRole('button', { name: 'Approve' }).click();
-    await running.page.getByText('Updated the greeting.').waitFor();
+    await running.page.getByText('Updated the greeting.', { exact: true }).waitFor();
     expect(readFileSync(join(project, 'app.js'), 'utf8')).toContain('hello, world');
     await expect(running.page.locator('.tool-card.awaiting').count()).resolves.toBe(0);
     await expect(running.page.locator('.tool-card').count()).resolves.toBe(2);

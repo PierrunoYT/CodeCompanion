@@ -128,6 +128,12 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 
 Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses a different folder (tests use this).
 
+## Accessibility
+
+- The transcript is re-rendered per streamed chunk, so it is not an `aria-live` region. `TranscriptView.announcer` is a hidden `role="status"` region fed by `newAnnouncements` (`src/shared/announce.ts`): a finished answer (first 300 characters), an approval request, a failed tool, an error or a notice, each once. Opening a saved chat announces nothing.
+- Anything that carries meaning only through an icon or color needs a text alternative (`visually-hidden` text or `aria-label`). `h()` gives icon-only buttons their `title` as `aria-label`.
+- Use Bootstrap's `*-text-emphasis` colors for colored text, not the plain `--bs-info`/`--bs-warning`, which are too light on white.
+
 ## Security model
 
 - **Renderer isolation**: `contextIsolation`, `sandbox`, no `nodeIntegration`. Strict CSP (`script-src 'self'`, no remote images or connections).

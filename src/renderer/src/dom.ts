@@ -30,6 +30,10 @@ export function h<K extends keyof HTMLElementTagNameMap>(
     }
   }
   append(element, children);
+  // A button with only an icon takes its accessible name from the tooltip.
+  if (tag === 'button' && props.title && !element.hasAttribute('aria-label') && !element.textContent?.trim()) {
+    element.setAttribute('aria-label', String(props.title));
+  }
   return element;
 }
 

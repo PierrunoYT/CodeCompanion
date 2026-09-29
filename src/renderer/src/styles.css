@@ -475,19 +475,20 @@ body {
   font-weight: 700;
 }
 
+/* The *-text-emphasis colors are Bootstrap's text colors for each theme; the plain --bs-info is too light on white. */
 .git-modified,
 .git-renamed {
-  color: var(--bs-info);
+  color: var(--bs-info-text-emphasis);
 }
 
 .git-added,
 .git-untracked {
-  color: var(--bs-success);
+  color: var(--bs-success-text-emphasis);
 }
 
 .git-deleted,
 .git-conflicted {
-  color: var(--bs-danger);
+  color: var(--bs-danger-text-emphasis);
 }
 
 .git-diff {

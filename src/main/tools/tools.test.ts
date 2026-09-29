@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -141,7 +141,10 @@ describe('shell tools', () => {
   it('runs in the project root', async () => {
     const command = process.platform === 'win32' ? '(Get-Location).Path' : 'pwd';
     const result = await call(runCommandTool, { command });
-    expect(result.content.toLowerCase()).toContain(context.workspace.root.toLowerCase());
+    // The shell may print the long form of a Windows 8.3 short path (RUNNER~1) or the real path of a symlink.
+    const output = result.content.toLowerCase();
+    const candidates = [context.workspace.root, realpathSync.native(context.workspace.root)];
+    expect(candidates.some((path) => output.includes(path.toLowerCase()))).toBe(true);
   });
 
   it('stops commands that run past the timeout', async () => {

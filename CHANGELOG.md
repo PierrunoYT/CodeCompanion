@@ -8,8 +8,10 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 
 ### Fixed
 - Tools that become available while a chat is open (for example `search_code` after saving an OpenAI key) are now offered on the next turn; before, the chat had to be restarted.
-
 - The terminal panel no longer asks the main process for a shell when no project is open, which logged an error at startup; it shows "Open a project to use the terminal." instead.
+
+### Development
+- GitHub Actions workflow running typecheck, unit tests and end-to-end tests on Windows for every push and pull request.
 
 ### Architecture
 - TypeScript, electron-vite, Electron 44.

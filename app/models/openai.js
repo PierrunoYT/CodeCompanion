@@ -38,7 +38,7 @@ class OpenAIModel {
   async stream(callParams) {
     callParams.stream = true;
     log('Calling model API:', callParams);
-    const stream = this.client.beta.chat.completions.stream(callParams, {
+    const stream = this.client.chat.completions.stream(callParams, {
       signal: this.chatController.abortController.signal,
     });
     stream.on('content', (_delta, snapshot) => {

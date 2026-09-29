@@ -2,7 +2,8 @@
 
 ## Prerequisites
 - Node.js and npm
-- Build toolchain for native modules (`node-pty`): see the [node-pty dependencies](https://github.com/microsoft/node-pty?tab=readme-ov-file#dependencies) (Python, C++ compiler / Visual Studio Build Tools on Windows, Xcode CLT on macOS).
+- `node-pty` 1.1+ ships prebuilt binaries for Windows and macOS, so a compiler is normally not needed. Only if no prebuild matches your platform will it compile from source; see the [node-pty dependencies](https://github.com/microsoft/node-pty?tab=readme-ov-file#dependencies) (Python, C++ compiler / Visual Studio Build Tools, Xcode CLT). Version 1.0.x always compiled and failed on Windows with Node 24.
+- npm 11 may print an `allow-scripts` warning for `electron` and `node-pty`. Both still work here, since Electron's binary and node-pty's prebuilds were present after install.
 
 ## Run
 ```bash

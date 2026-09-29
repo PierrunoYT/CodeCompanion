@@ -47,6 +47,9 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Tools were fixed when a chat was created, so adding an OpenAI key mid-chat gave no `search_code`. The tool list is now rebuilt every turn
 - [ ] The system prompt still mentions `search_code` only if a key was set when the chat started (kept frozen for prompt caching); the tool's own description covers it
 - [x] Stop logging `terminal:start` errors when no project is open (the terminal starts only once a project is open)
+- [x] Editing an unread file failed only after the user approved the diff. The read check now also runs in the preview, so it is rejected before approval
+- [x] "Invalid input" tool errors were vague when the model left out a field. They now name the missing and received fields
+- [ ] The model sometimes drops a required field such as `new_string` in parallel `edit_file` calls; the app can only report it. Watch whether the clearer error and tool description reduce this
 
 ## Quality
 

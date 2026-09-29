@@ -91,7 +91,6 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      enableRemoteModule: true,
       webviewTag: true,
       preload: path.join(__dirname, 'preload.js'),
     },

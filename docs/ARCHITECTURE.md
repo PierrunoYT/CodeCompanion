@@ -97,4 +97,5 @@ The app talks only to the services you configure: the Anthropic/OpenAI APIs (or 
 - Claude model list and defaults updated (Sonnet 5.5, Opus 5.5, Haiku 4.5); the 3.5-Sonnet max-tokens beta header was dropped.
 - Tool definitions use `approvalRequired` consistently.
 - Platform check in `renderer.js` fixed (`win32`), so xterm's Windows mode and path separators work on Windows.
-- Telemetry and auto-updater removed. The `build.publish` block in `package.json` still targets upstream's S3 bucket and should be changed before running `npm run publish`.
+- Telemetry and auto-updater removed, along with everything tied to upstream's release pipeline: the S3 `build.publish` config, the `publish` and `set-no-cache` scripts, `appveyor.yml`, and the upstream links in the settings panel.
+- Dead config and unused dependencies dropped (`enableRemoteModule`, `electron-notarize`, `aws-sdk`).

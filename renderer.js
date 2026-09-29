@@ -18,7 +18,6 @@ const viewController = new ViewController();
 const onboardingController = new OnboardingController();
 
 const isWindows = process.platform === 'win32';
-const isDevelopment = process.env.NODE_ENV === 'development';
 let dataPath;
 
 // Register IPC events listeners

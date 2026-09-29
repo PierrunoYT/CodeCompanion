@@ -16,10 +16,8 @@ npm run debug      # NODE_ENV=development, opens DevTools
 |---|---|
 | `npm run pack` | Unpacked build (`electron-builder --dir`) |
 | `npm run dist` | Build installers (NSIS on Windows, universal DMG on macOS) |
-| `npm run publish` | Build and publish to S3 (needs AWS credentials) |
-| `npm run set-no-cache` | Runs `scripts/setNoCache.js` (cache headers for release artifacts) |
 
-macOS builds are signed and notarized via `scripts/notarize.js` (needs Apple credentials in the environment). `appveyor.yml` drives Windows CI.
+There is no publish script or CI config; releases are built locally. macOS builds are signed and notarized via `scripts/notarize.js` (needs Apple credentials in the environment).
 
 ## Conventions
 - Prettier config in `.prettierrc`; follow existing style (see also `CONTRIBUTING.md`).

@@ -63,4 +63,5 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 - [Architecture](docs/ARCHITECTURE.md) — processes, IPC contract, agent loop, providers, tools, storage, security model
 - [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
 - [Contributing](CONTRIBUTING.md)
+- [Tasks](TASKS.md) — roadmap with checkboxes
 - [AGENTS.md](AGENTS.md) — guidance for AI coding agents working on this repo

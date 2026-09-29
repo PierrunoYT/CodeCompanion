@@ -1,0 +1,48 @@
+name: Release
+
+# Push a tag such as v0.1.0 to build the Windows installer and attach it to a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # npm 11 skips install scripts unless allowed in package.json; make sure the Electron binary is there.
+      - run: node node_modules/electron/install.js
+
+      - name: Check the tag matches the package version
+        shell: bash
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:e2e
+
+      # Build the NSIS installer without publishing; the release is created below.
+      - run: npx electron-builder --win --publish never
+
+      - name: Create the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "dist/CodeCompanion-Installer.exe" --title "$GITHUB_REF_NAME" --generate-notes

@@ -32,7 +32,7 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Add a `LICENSE` file (MIT)
 - [x] Add a GitHub Actions workflow: typecheck, unit tests, end-to-end tests (Windows only)
 - [ ] Add Linux and macOS jobs to the CI workflow
-- [ ] Add a release workflow that builds the installers
+- [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [ ] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them)
 - [ ] Decide whether the repo should be public
 

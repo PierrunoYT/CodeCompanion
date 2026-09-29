@@ -10,6 +10,8 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - Settings show whether the current project's code is indexed (files and chunks) and have a Reindex button that rebuilds the index from scratch.
 
 ### Fixed
+- Editing or overwriting a file that was not read is now rejected while building the approval preview, so you are no longer asked to approve a change that then fails. The error explains that the read must finish before the edit.
+- "Invalid input" tool errors now say which fields are missing and which were received, and the `edit_file` description tells the model to read first and always send all three fields.
 - Tools that become available while a chat is open (for example `search_code` after saving an OpenAI key) are now offered on the next turn; before, the chat had to be restarted.
 - The terminal panel no longer asks the main process for a shell when no project is open, which logged an error at startup; it shows "Open a project to use the terminal." instead.
 

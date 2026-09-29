@@ -120,6 +120,7 @@ export const writeFileTool = defineTool({
   requiresApproval: true,
   async preview({ path, content }, context) {
     const file = context.workspace.resolve(path);
+    if (existsSync(file)) requireRead(file, path, context);
     const before = existsSync(file) ? await readFile(file, 'utf8') : '';
     const rel = context.workspace.relative(file);
     return { title: existsSync(file) ? `Overwrite ${rel}` : `Create ${rel}`, diff: unifiedDiff(rel, before, content) };
@@ -144,7 +145,7 @@ export const writeFileTool = defineTool({
 export const editFileTool = defineTool({
   name: 'edit_file',
   description:
-    'Replace an exact string in a file. old_string must match the file exactly (including indentation) and be unique unless replace_all is true. Read the file first. Include enough surrounding lines to make old_string unique.',
+    'Replace an exact string in a file. old_string must match the file exactly (including indentation) and be unique unless replace_all is true. Read the file first with read_file (in an earlier step, not in the same batch as the edit). Always send path, old_string and new_string. Include enough surrounding lines to make old_string unique.',
   schema: z.object({
     path: z.string().describe('File path, relative to the project root.'),
     old_string: z.string().min(1).describe('Exact text to replace.'),
@@ -155,6 +156,8 @@ export const editFileTool = defineTool({
   async preview(input, context) {
     const file = context.workspace.resolve(input.path);
     const rel = context.workspace.relative(file);
+    // Fail before asking for approval, not after the user has approved a diff that cannot be applied.
+    requireRead(file, input.path, context);
     const before = await readFile(file, 'utf8');
     return { title: `Edit ${rel}`, diff: unifiedDiff(rel, before, applyEdit(before, input)) };
   },
@@ -176,7 +179,9 @@ export const editFileTool = defineTool({
 
 function requireRead(file: string, path: string, context: ToolContext): void {
   if (!context.readFiles.has(file)) {
-    throw new ToolError(`Read ${path} with read_file before changing it.`);
+    throw new ToolError(
+      `${path} has not been read in this chat. Call read_file on it first, and wait for the result before editing (do not send the read and the edit in the same batch).`,
+    );
   }
 }
 

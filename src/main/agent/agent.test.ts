@@ -188,6 +188,17 @@ describe('agent loop', () => {
     expect(conversation.toolResults[0][0].content).toContain('Invalid input for look');
   });
 
+  it('names missing fields and the fields that were received', async () => {
+    const { session, conversation } = setup([
+      { toolCalls: [{ id: 't1', name: 'change', input: {} }] },
+      { text: 'retrying' },
+    ]);
+    await session.send({ text: 'go' });
+    const content = conversation.toolResults[0][0].content;
+    expect(content).toContain('required but missing');
+    expect(content).toContain('Received fields: (none)');
+  });
+
   it('does not run tool calls from a response cut off at the output limit', async () => {
     const { session, conversation } = setup([
       { stopReason: 'max_tokens', toolCalls: [{ id: 't1', name: 'look', input: { what: 'a' } }] },

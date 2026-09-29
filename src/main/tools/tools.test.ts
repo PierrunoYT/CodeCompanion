@@ -71,9 +71,13 @@ describe('file tools', () => {
 
   it('refuses to edit or overwrite a file that was not read', async () => {
     await expect(call(editFileTool, { path: 'src/app.ts', old_string: 'a = 1', new_string: 'a = 9' })).rejects.toThrow(
-      /Read src\/app.ts/,
+      /src\/app.ts has not been read/,
     );
-    await expect(call(writeFileTool, { path: 'src/app.ts', content: 'x' })).rejects.toThrow(/Read/);
+    await expect(call(writeFileTool, { path: 'src/app.ts', content: 'x' })).rejects.toThrow(/has not been read/);
+    // Also rejected while building the approval preview, so the user is never asked to approve it.
+    await expect(
+      editFileTool.preview?.({ path: 'src/app.ts', old_string: 'a = 1', new_string: 'a = 9' }, context),
+    ).rejects.toThrow(/has not been read/);
   });
 
   it('edits after reading and reports a diff', async () => {

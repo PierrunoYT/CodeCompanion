@@ -136,9 +136,22 @@ export class Agent {
     // Streamed tool inputs are not validated by the API, so check them here before doing anything.
     const parsed = tool.schema.safeParse(call.input);
     if (!parsed.success) {
-      const issues = parsed.error.issues.map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`).join('; ');
+      const issues = parsed.error.issues
+        .map((issue) => {
+          const name = issue.path.join('.') || 'input';
+          return /received undefined/.test(issue.message) ? `${name}: required but missing` : `${name}: ${issue.message}`;
+        })
+        .join('; ');
+      const received =
+        call.input && typeof call.input === 'object' && !Array.isArray(call.input)
+          ? ` Received fields: ${Object.keys(call.input).join(', ') || '(none)'}.`
+          : '';
       return {
-        result: { id: call.id, content: `Invalid input for ${call.name}: ${issues}. Fix the input and try again.`, isError: true },
+        result: {
+          id: call.id,
+          content: `Invalid input for ${call.name}: ${issues}.${received} Send every required field and try again.`,
+          isError: true,
+        },
       };
     }
     const input = parsed.data;

@@ -31,7 +31,8 @@ Tick a box (`- [x]`) when a task is done.
 
 - [x] Add a `LICENSE` file (MIT)
 - [x] Add a GitHub Actions workflow: typecheck, unit tests, end-to-end tests (Windows only)
-- [ ] Add Linux and macOS jobs to the CI workflow
+- [x] Add Linux and macOS jobs to the CI workflow (non-blocking until they pass; then remove `continue-on-error`)
+- [ ] Make the Linux and macOS CI jobs blocking once they pass
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them; one approval screenshot so far)
 - [ ] Add more README screenshots (settings, Git and browser panels) without local paths
@@ -60,7 +61,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Quality
 
-- [ ] Add unit tests for the panels (`browser`, `git`, `terminal`)
+- [x] Add unit tests for the panels (`browser`, `git`, `terminal`)
 - [x] Add unit tests for the code index (`src/main/search`)
 - [ ] Show indexing progress in Settings while reindexing
 - [ ] Review the security model again before the release

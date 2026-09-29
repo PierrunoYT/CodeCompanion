@@ -12,7 +12,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Works directly in your project: read, search, edit and create files, run commands
 - Every file change and command is shown first (diffs, command text) and waits for **Approve** or **Decline** — or switch to **Auto** mode
 - Decline with a note ("use pnpm instead") and the assistant adjusts
-- Semantic code search over the project (needs an OpenAI key for embeddings)
+- Semantic code search over the project (needs an OpenAI key for embeddings); Settings shows whether the project is indexed and can reindex it
 - Built-in browser the assistant uses to check web apps: console output and screenshots
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
 - Web search (Google Custom Search) and page fetching

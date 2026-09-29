@@ -13,7 +13,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Release 0.1.0
 
-- [ ] Manually test the packaged Windows build (`dist/win-unpacked/CodeCompanion.exe`)
+- [x] Manually test the packaged Windows build (`dist/win-unpacked/CodeCompanion.exe`)
 - [x] Build the NSIS installer (`npm run dist`, 119 MB, version 0.1.0); the packaged app starts cleanly
 - [x] Run the installer, then check the Start menu entry, launch, and uninstall (worked)
 - [x] Fix `npm run dist` failing with EBUSY when `dist/win-unpacked` is in use (a guard script asks you to close the app)

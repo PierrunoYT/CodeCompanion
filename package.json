@@ -25,6 +25,7 @@
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
+    "npmRebuild": false,
     "mac": {
       "target": [
         {

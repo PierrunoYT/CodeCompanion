@@ -39,6 +39,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Features
 
+- [x] Fix `run_command` hanging after the command exited while a leftover child held the output pipe
 - [x] Always inject `AGENTS.md` into the session and show in the UI that it is loaded
 - [ ] Add a stop-and-resume option for long agent runs
 - [ ] Show cost estimates next to the token usage in the status bar

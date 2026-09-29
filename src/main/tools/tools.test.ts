@@ -160,6 +160,19 @@ describe('shell tools', () => {
     expect(Date.now() - started).toBeLessThan(15_000);
   }, 20_000);
 
+  it('returns when the command exits even if a leftover child keeps the output pipe open', async () => {
+    const shell = new ShellRunner(() => tmpdir());
+    const command =
+      process.platform === 'win32'
+        ? `Start-Process node -ArgumentList '-e','setTimeout(()=>{},20000)' -NoNewWindow; Write-Output finished`
+        : 'sleep 20 & echo finished';
+    const started = Date.now();
+    const result = await shell.run(command, { timeoutSeconds: 60 });
+    expect(result.output).toContain('finished');
+    expect(result.timedOut).toBe(false);
+    expect(Date.now() - started).toBeLessThan(10_000);
+  }, 30_000);
+
   it('stops commands when the chat is stopped', async () => {
     const controller = new AbortController();
     const command = process.platform === 'win32' ? 'Start-Sleep -Seconds 30' : 'sleep 30';

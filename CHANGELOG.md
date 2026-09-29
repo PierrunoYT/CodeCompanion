@@ -11,6 +11,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - Settings show whether the current project's code is indexed (files and chunks) and have a Reindex button that rebuilds the index from scratch.
 
 ### Fixed
+- `run_command` no longer hangs (spinner until the timeout) when a command exits but leaves a child process running that keeps the output pipe open, such as a test runner's workers. It now returns shortly after the command itself exits.
 - The chat now autoscrolls to the latest agent output (the scroll position was checked on the wrong element). It follows while you are at the bottom and always after you send a message.
 - Editing or overwriting a file that was not read is now rejected while building the approval preview, so you are no longer asked to approve a change that then fails. The error explains that the read must finish before the edit.
 - "Invalid input" tool errors now say which fields are missing and which were received, and the `edit_file` description tells the model to read first and always send all three fields.

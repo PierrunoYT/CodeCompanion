@@ -5,6 +5,7 @@ import { defineTool, truncateOutput } from './types';
 const DEFAULT_TIMEOUT_SECONDS = 120;
 const MAX_TIMEOUT_SECONDS = 600;
 const MAX_BUFFERED_CHARS = 1_000_000;
+const EXIT_DRAIN_MS = 500;
 
 export interface CommandResult {
   exitCode: number | null;
@@ -70,15 +71,23 @@ export class ShellRunner {
       };
       signal?.addEventListener('abort', onAbort, { once: true });
 
+      let finished = false;
       const finish = (exitCode: number | null) => {
+        if (finished) return;
+        finished = true;
         clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
+        child.stdout?.destroy();
+        child.stderr?.destroy();
         resolve({ exitCode, output, timedOut, aborted });
       };
       child.on('error', (error) => {
         output += `\n${error.message}`;
         finish(null);
       });
+      // 'close' waits for the output pipes, which a leftover child (a test worker, a dev server the command started)
+      // can hold open long after the command itself ended. Give the pipes a moment to drain, then stop waiting.
+      child.on('exit', (code) => setTimeout(() => finish(code), EXIT_DRAIN_MS));
       child.on('close', (code) => finish(code));
     });
   }

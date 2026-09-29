@@ -68,13 +68,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
-    "@aptabase/electron": "^0.3.1",
     "@electron/notarize": "^2.3.0",
     "@langchain/openai": "^0.0.12",
     "@mozilla/readability": "^0.5.0",
     "@postlight/parser": "^2.2.3",
-    "@sentry/electron": "^4.7.0",
-    "@sentry/integrations": "^7.59.3",
     "any-text": "^1.2.0",
     "autosize": "^6.0.1",
     "axios": "^1.4.0",

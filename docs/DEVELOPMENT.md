@@ -8,7 +8,7 @@
 ```bash
 npm install        # postinstall rebuilds native deps for Electron
 npm start          # run the app
-npm run debug      # NODE_ENV=development, opens DevTools, disables Sentry
+npm run debug      # NODE_ENV=development, opens DevTools
 ```
 
 ## Scripts

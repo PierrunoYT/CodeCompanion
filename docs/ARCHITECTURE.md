@@ -9,8 +9,7 @@ main.js (Electron main)              renderer.js (renderer, index.html)
 ├─ BrowserWindow + menu + shortcuts  ├─ ChatController  ── Chat, Agent, models, tools
 ├─ node-pty shell (start-shell,…)    ├─ ViewController  ── DOM/UI helpers
 ├─ file/dir open dialogs             └─ OnboardingController
-├─ auto-updater (electron-updater)
-└─ Sentry / Aptabase telemetry       preload.js – tiny preload script
+└─ auto-updater (electron-updater)   preload.js – tiny preload script
 ```
 
 ### Main process (`main.js`)
@@ -92,4 +91,4 @@ Settings (`apiKey`, `anthropicApiKey`, `baseUrl`, `selectedModel`, `approvalRequ
 
 ## Telemetry
 
-Sentry (non-development builds) and Aptabase (usage counts) are initialised in `main.js`/`renderer.js`.
+None. The original Sentry and Aptabase integrations were removed, so the app sends no data except to the LLM, embeddings and Google APIs you configure.

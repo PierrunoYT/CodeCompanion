@@ -4,8 +4,6 @@ const path = require('path');
 const { _, debounce } = require('lodash');
 const { ipcRenderer, shell } = require('electron');
 const Store = require('electron-store');
-const Sentry = require('@sentry/electron/renderer');
-const { CaptureConsole } = require('@sentry/integrations');
 
 const ViewController = require('./app/view_controller');
 const ChatController = require('./app/chat_controller');
@@ -22,15 +20,6 @@ const onboardingController = new OnboardingController();
 const isWindows = process.platform === 'win32';
 const isDevelopment = process.env.NODE_ENV === 'development';
 let dataPath;
-
-// Add bug tracking
-
-if (!isDevelopment) {
-  Sentry.init({
-    dsn: 'https://87985c08c00b4f0c83989b182e9fbe95@o4505507137847296.ingest.sentry.io/4505507139485696',
-    integrations: [new CaptureConsole()],
-  });
-}
 
 // Register IPC events listeners
 ipcRenderer.on('read-files', async (event, file) => {

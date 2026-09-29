@@ -7,7 +7,6 @@ const Agent = require('./chat/agent');
 const Chat = require('./chat/chat');
 const TerminalSession = require('./tools/terminal_session');
 const Browser = require('./window/browser');
-const { trackEvent } = require('@aptabase/electron/renderer');
 const BackgroundTask = require('./background_task');
 const OpenAIModel = require('./models/openai');
 const AnthropicModel = require('./models/anthropic');
@@ -287,7 +286,6 @@ class ChatController {
   }
 
   async clearChat() {
-    trackEvent(`new_chat`);
     if (this.chat && this.chat.task) {
       document.getElementById('taskTitle').innerText = '';
       document.getElementById('taskContainer').innerHTML =

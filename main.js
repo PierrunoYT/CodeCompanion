@@ -17,8 +17,6 @@ const path = require('path');
 const ElectronStore = require('electron-store');
 const pty = require('node-pty');
 const { debounce } = require('lodash');
-const Sentry = require('@sentry/electron');
-const { initialize } = require('@aptabase/electron/main'); // for DAU tracking
 const WindowManager = require('./app/window/WindowManager');
 
 ElectronStore.initRenderer();
@@ -33,12 +31,7 @@ if (process.env.NODE_ENV === 'development' && !app.isPackaged) {
   setTimeout(() => {
     win.webContents.openDevTools();
   }, 3000);
-} else {
-  Sentry.init({
-    dsn: 'https://87985c08c00b4f0c83989b182e9fbe95@o4505507137847296.ingest.sentry.io/4505507139485696',
-  });
 }
-initialize('A-US-5249376059');
 
 // Setup local shortcuts
 function setupLocalShortcuts() {

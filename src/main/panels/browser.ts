@@ -47,18 +47,27 @@ export class BrowserService implements BrowserController {
     guest.on('did-navigate', onNavigate);
     guest.on('did-fail-load', onFail);
 
+    let timer: NodeJS.Timeout | undefined;
+    let onAbort: (() => void) | undefined;
     try {
+      // The chat may have been stopped while waiting for the panel, before the abort listener existed.
+      if (signal.aborted) throw new Error('Stopped.');
       await Promise.race([
         guest.loadURL(url).catch((loadError: Error) => {
           error ??= loadError.message;
         }),
-        new Promise((resolve) => setTimeout(resolve, LOAD_TIMEOUT_MS)),
-        new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('Stopped.')), { once: true })),
+        new Promise((resolve) => (timer = setTimeout(resolve, LOAD_TIMEOUT_MS))),
+        new Promise((_, reject) => {
+          onAbort = () => reject(new Error('Stopped.'));
+          signal.addEventListener('abort', onAbort, { once: true });
+        }),
       ]);
       // Let scripts that run right after load log their errors.
       await new Promise((resolve) => setTimeout(resolve, 500));
       return { url: guest.getURL(), title: guest.getTitle(), status, console: [...console], error };
     } finally {
+      clearTimeout(timer);
+      if (onAbort) signal.removeEventListener('abort', onAbort);
       guest.off('console-message', onConsole);
       guest.off('did-navigate', onNavigate);
       guest.off('did-fail-load', onFail);

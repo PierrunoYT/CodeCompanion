@@ -10,8 +10,12 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - `AGENTS.md` (or `CLAUDE.md`) from the project root is now always injected into the system prompt of every new chat, and the status bar shows "AGENTS.md loaded".
 - Settings show whether the current project's code is indexed (files and chunks) and have a Reindex button that rebuilds the index from scratch.
 
+### Development
+- Unit tests for the Git, terminal and browser panel services (the Git "not a repository" test is skipped when the temp folder is inside a repository).
+
 ### Fixed
 - `run_command` no longer hangs (spinner until the timeout) when a command exits but leaves a child process running that keeps the output pipe open, such as a test runner's workers. It now returns shortly after the command itself exits.
+- Stopping a chat while the browser tool was still waiting for the panel no longer leaves it loading until the timeout; the load timer and abort listener are also cleaned up.
 - The chat now autoscrolls to the latest agent output (the scroll position was checked on the wrong element). It follows while you are at the bottom and always after you send a message.
 - Editing or overwriting a file that was not read is now rejected while building the approval preview, so you are no longer asked to approve a change that then fails. The error explains that the read must finish before the edit.
 - "Invalid input" tool errors now say which fields are missing and which were received, and the `edit_file` description tells the model to read first and always send all three fields.

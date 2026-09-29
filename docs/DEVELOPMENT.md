@@ -30,6 +30,10 @@ Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screens
 
 Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request, on `windows-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e`. Run the same commands locally before pushing. Linux and macOS jobs are not set up yet (see `TASKS.md`).
+
 ## Where to change things
 
 | Goal | File |

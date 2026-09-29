@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # npm 11 skips install scripts unless allowed in package.json; make sure the Electron binary is there.
+      - run: node node_modules/electron/install.js
+
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:e2e

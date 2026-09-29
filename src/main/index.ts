@@ -1,8 +1,13 @@
-import { app, BrowserWindow, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
+import { ChatManager } from './chat_manager';
+import { ChatStore } from './chat_store';
+import { openInEditor, pickImages } from './files';
 import { handle, send } from './ipc';
+import { LlmService } from './llm';
 import { buildMenu } from './menu';
+import { ProjectStore } from './projects';
 import { SettingsStore } from './settings';
 import { createMainWindow } from './window';
 
@@ -23,21 +28,92 @@ function createSettings(): SettingsStore {
   });
 }
 
-function registerHandlers(settings: SettingsStore): void {
+function start(): void {
+  const userData = app.getPath('userData');
+  const settings = createSettings();
+  const projects = new ProjectStore(join(userData, 'projects.json'));
+  const chats = new ChatStore(join(userData, 'chats'));
+  const llm = new LlmService(settings);
+
+  const manager = new ChatManager({
+    settings,
+    projects,
+    chats,
+    llm,
+    browser: () => null,
+    codeSearch: () => null,
+    emit: (event, chatId) => send(mainWindow, 'chat:event', { chatId, event }),
+    onSnapshot: (snapshot) => send(mainWindow, 'chat:snapshot', snapshot),
+    onHistoryChanged: () => send(mainWindow, 'history:changed', chats.list()),
+  });
+
+  const openProject = (path: string) => {
+    const project = projects.open(path);
+    manager.projectChanged();
+    send(mainWindow, 'project:changed', project);
+    return project;
+  };
+
   handle('app:info', () => ({ version: app.getVersion(), platform: process.platform }));
+
   handle('settings:get', () => settings.view());
   handle('settings:update', (patch) => settings.update(patch));
   handle('settings:set-secret', (name, value) => {
     if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
     return settings.setSecret(name, value);
   });
-
   settings.on('change', (view) => send(mainWindow, 'settings:changed', view));
-}
 
-app.whenReady().then(() => {
-  const settings = createSettings();
-  registerHandlers(settings);
+  handle('project:choose', async () => {
+    const options = { properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };
+    const result = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+    return result.canceled || !result.filePaths[0] ? null : openProject(result.filePaths[0]);
+  });
+  handle('project:open', (path) => openProject(path));
+  handle('project:current', () => projects.current());
+  handle('project:list', () => projects.list());
+  handle('project:set-instructions', (path, instructions) => projects.setInstructions(path, instructions));
+  handle('project:remove', (path) => {
+    const wasCurrent = projects.current()?.path === path;
+    projects.remove(path);
+    if (wasCurrent) {
+      manager.projectChanged();
+      send(mainWindow, 'project:changed', null);
+    }
+    return projects.list();
+  });
+
+  handle('chat:snapshot', () => manager.snapshot());
+  handle('chat:send', (message) => {
+    // Returns once the chat has started; progress arrives as chat:event messages.
+    manager.send(message).catch(() => {});
+  });
+  handle('chat:stop', () => manager.stop());
+  handle('chat:new', () => manager.newChat());
+  handle('chat:decide', (approvalId, decision) => manager.decide(approvalId, decision));
+
+  handle('history:list', () => chats.list());
+  handle('history:open', (id) => {
+    const snapshot = manager.open(id);
+    send(mainWindow, 'project:changed', projects.current());
+    return snapshot;
+  });
+  handle('history:delete', (id) => {
+    chats.delete(id);
+    return chats.list();
+  });
+  handle('history:clear', () => {
+    chats.deleteAll();
+    return chats.list();
+  });
+
+  handle('files:pick-images', () => pickImages(mainWindow));
+  handle('files:open-in-editor', (path) => {
+    const project = projects.current();
+    if (!project) throw new Error('No project is open.');
+    openInEditor(settings.get().editorCommand, project.path, path);
+  });
+
   buildMenu(() => mainWindow);
   mainWindow = createMainWindow();
   mainWindow.on('closed', () => (mainWindow = null));
@@ -47,7 +123,10 @@ app.whenReady().then(() => {
       mainWindow = createMainWindow();
     }
   });
-});
+  app.on('before-quit', () => manager.dispose());
+}
+
+app.whenReady().then(start);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

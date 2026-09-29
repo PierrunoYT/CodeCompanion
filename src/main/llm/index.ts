@@ -6,6 +6,9 @@ import { MissingApiKeyError, type CompletionClient, type Conversation, type Seri
 
 export * from './types';
 
+// End-to-end tests point the app at a local mock API. Unset in normal use.
+const TEST_ANTHROPIC_BASE_URL = process.env.CODECOMPANION_TEST_ANTHROPIC_URL || undefined;
+
 // Creates conversations and small-model clients from the current settings and keys.
 export class LlmService {
   constructor(private readonly settings: SettingsStore) {}
@@ -26,7 +29,7 @@ export class LlmService {
     for (const provider of order) {
       if (provider === 'anthropic') {
         const key = this.settings.getSecret('anthropicApiKey');
-        if (key) return new AnthropicCompletionClient(createAnthropicClient(key), SMALL_MODELS.anthropic);
+        if (key) return new AnthropicCompletionClient(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL), SMALL_MODELS.anthropic);
       } else {
         const key = this.settings.getSecret('openaiApiKey');
         if (key) {
@@ -45,7 +48,7 @@ export class LlmService {
     if (providerForModel(model) === 'anthropic') {
       const key = this.settings.getSecret('anthropicApiKey');
       if (!key) throw new MissingApiKeyError('anthropic');
-      return new AnthropicConversation(createAnthropicClient(key), {
+      return new AnthropicConversation(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL), {
         model,
         effort: settings.effort,
         messages: messages as never,

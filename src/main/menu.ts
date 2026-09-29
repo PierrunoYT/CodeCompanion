@@ -13,7 +13,8 @@ export function buildMenu(getWindow: () => BrowserWindow | null): void {
       submenu: [
         { label: 'Open Project…', accelerator: 'CmdOrCtrl+O', click: command('open-project') },
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: command('new-chat') },
-        { label: 'Save Chat…', accelerator: 'CmdOrCtrl+S', click: command('save-chat') },
+        { type: 'separator' },
+        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: command('settings') },
         { type: 'separator' },
         { label: 'Stop', accelerator: 'CmdOrCtrl+.', click: command('stop') },
         { type: 'separator' },

@@ -4,6 +4,9 @@ const { getEncoding } = require('js-tiktoken');
 
 const tokenizer = getEncoding('cl100k_base');
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isWindows = process.platform === 'win32';
+
 async function withTimeout(promise, ms) {
   const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error(`Operation timed out after ${ms} ms`)), ms),
@@ -127,4 +130,6 @@ module.exports = {
   normalizedFilePath,
   isFileExists,
   getTokenCount,
+  isDevelopment,
+  isWindows,
 };

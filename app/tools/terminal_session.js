@@ -6,7 +6,7 @@ const { WebLinksAddon } = require('xterm-addon-web-links');
 const { Unicode11Addon } = require('xterm-addon-unicode11');
 const { ipcRenderer, shell } = require('electron');
 const { debounce } = require('lodash');
-const { withTimeout, log } = require('../utils');
+const { withTimeout, log, isWindows } = require('../utils');
 
 let FIXED_PROMPT = '\x91\x91\x91';
 const PROMPT_TIMEOUT = 1000;

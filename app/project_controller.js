@@ -7,6 +7,7 @@ const ignore = require('ignore');
 const ccignoreTemplate = require('./static/embeddings_ignore_patterns');
 const CodeEmbeddings = require('./tools/code_embeddings');
 const { EMBEDDINGS_VERSION } = require('./static/models_config');
+const { isWindows } = require('./utils');
 
 const LARGE_FILE_SIZE = 50000;
 const addInstructionsModal = new bootstrap.Modal(document.getElementById('addInstructionsModal'));

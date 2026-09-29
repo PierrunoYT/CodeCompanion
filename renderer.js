@@ -17,7 +17,6 @@ const chatController = new ChatController();
 const viewController = new ViewController();
 const onboardingController = new OnboardingController();
 
-const isWindows = process.platform === 'win32';
 let dataPath;
 
 // Register IPC events listeners

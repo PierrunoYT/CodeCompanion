@@ -9,6 +9,7 @@ class AnthropicModel {
     this.chatController = chatController;
     const config = {
       apiKey: apiKey,
+      dangerouslyAllowBrowser: true,
       maxRetries: MAX_RETRIES,
     };
     this.options = {};

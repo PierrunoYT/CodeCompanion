@@ -148,4 +148,39 @@ describe('ProjectStore', () => {
     expect(() => store.open(join(dir, 'file.txt'))).toThrow(/Folder not found/);
     expect(() => store.open(join(dir, 'missing'))).toThrow(/Folder not found/);
   });
+
+  it('persists instructions for open projects beyond the recent-project limit', () => {
+    const file = join(dir, 'projects.json');
+    const store = new ProjectStore(file);
+    for (let index = 0; index < 21; index++) {
+      const path = join(dir, `project-${index}`);
+      mkdirSync(path);
+      store.open(path);
+    }
+    const first = join(dir, 'project-0');
+    store.setInstructions(first, 'Keep the original project instructions');
+    expect(new ProjectStore(file).open(first).instructions).toBe('Keep the original project instructions');
+    expect(store.opened()).toHaveLength(21);
+  });
+
+  it('tracks open projects independently of recent order and closes without deleting history', () => {
+    const one = join(dir, 'one');
+    const two = join(dir, 'two');
+    mkdirSync(one);
+    mkdirSync(two);
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    store.open(one);
+    store.open(two);
+    store.open(one);
+    expect(store.opened().map((project) => project.name)).toEqual(['one', 'two']);
+    store.close(two);
+    expect(store.current()?.name).toBe('one');
+    store.open(two);
+    store.close(two);
+    expect(store.current()?.name).toBe('one');
+    expect(store.list()).toHaveLength(2);
+    store.close(one);
+    expect(store.current()).toBeNull();
+    expect(store.opened()).toEqual([]);
+  });
 });

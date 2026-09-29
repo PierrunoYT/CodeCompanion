@@ -50,7 +50,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [x] Show cost estimates next to the token usage in the status bar (Claude models only)
 - [x] Add verified GPT-6 prices, per-request long-context tiers, and cache-write tokens to cost estimates
 - [x] Add a setting to allow specific commands without approval
-- [ ] Support several open projects at once
+- [x] Support several open projects with separate chats and drafts (one active agent run; stop before switching)
 - [x] Add a search box for saved chats (title and project path; searching the message text is not done)
 - [x] Search the message text of saved chats, not only title and project
 - [x] Export a chat as Markdown

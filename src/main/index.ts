@@ -102,6 +102,7 @@ function start(): void {
   });
 
   const openProject = (path: string) => {
+    manager.requireIdle();
     const project = projects.open(path);
     manager.projectChanged();
     terminal.stop();
@@ -138,14 +139,23 @@ function start(): void {
   handle('project:open', (path) => openProject(path));
   handle('project:current', () => projects.current());
   handle('project:list', () => projects.list());
+  handle('project:opened', () => projects.opened());
+  handle('project:close', (path) => {
+    manager.requireIdle();
+    manager.closeProject(path);
+    projects.close(path);
+    manager.projectChanged();
+    terminal.stop();
+    send(mainWindow, 'project:changed', projects.current());
+  });
   handle('project:set-instructions', (path, instructions) => projects.setInstructions(path, instructions));
   handle('project:remove', (path) => {
-    const wasCurrent = projects.current()?.path === path;
+    manager.requireIdle();
+    manager.closeProject(path);
     projects.remove(path);
-    if (wasCurrent) {
-      manager.projectChanged();
-      send(mainWindow, 'project:changed', null);
-    }
+    manager.projectChanged();
+    terminal.stop();
+    send(mainWindow, 'project:changed', projects.current());
     return projects.list();
   });
 
@@ -169,6 +179,7 @@ function start(): void {
   handle('history:list', () => chats.list());
   handle('history:open', (id) => {
     const snapshot = manager.open(id);
+    terminal.stop();
     send(mainWindow, 'project:changed', projects.current());
     return snapshot;
   });

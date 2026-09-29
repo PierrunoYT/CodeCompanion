@@ -18,6 +18,9 @@ export class App {
   private pendingEvents: ChatEvent[] = [];
   private frame = 0;
   private welcomeGeneration = 0;
+  private projectGeneration = 0;
+  private readonly drafts = new Map<string, ReturnType<Composer['getDraft']>>();
+  private readonly projectTabs = h('nav', { class: 'project-tabs', 'aria-label': 'Open projects', hidden: true });
 
   private readonly transcript = new TranscriptView({
     decide: (id, decision) => void api.invoke('chat:decide', id, decision),
@@ -60,6 +63,7 @@ export class App {
     root.replaceChildren(this.layout());
     this.applyTheme();
     this.renderAll();
+    void this.renderProjects();
 
     api.on('settings:changed', (settings) => {
       this.settings = settings;
@@ -68,10 +72,15 @@ export class App {
       void this.renderWelcome();
     });
     api.on('project:changed', (project) => {
+      if (project?.path !== this.project?.path) {
+        if (this.project) this.drafts.set(this.project.path, this.composer.getDraft());
+        this.composer.setDraft(this.drafts.get(project?.path ?? '') ?? { text: '', images: [] });
+      }
       this.project = project;
       this.panels.projectChanged();
       this.renderHeader();
       void this.renderWelcome();
+      void this.renderProjects();
     });
     api.on('chat:snapshot', (snapshot) => {
       this.chat = snapshot;
@@ -129,6 +138,7 @@ export class App {
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Chat history', onclick: () => void this.openHistory() }, icon('clock-history')),
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() }, icon('gear')),
         ),
+        this.projectTabs,
       ),
       h(
         'main',
@@ -324,8 +334,36 @@ export class App {
   }
 
   private async newChat(): Promise<void> {
-    await api.invoke('chat:new');
-    this.composer.focus();
+    try {
+      await api.invoke('chat:new');
+      this.composer.focus();
+    } catch (error) {
+      this.toast(error);
+    }
+  }
+
+  private async renderProjects(): Promise<void> {
+    const generation = ++this.projectGeneration;
+    const projects = await api.invoke('project:opened');
+    if (generation !== this.projectGeneration) return;
+    for (const path of this.drafts.keys()) {
+      if (!projects.some((project) => project.path === path)) this.drafts.delete(path);
+    }
+    this.projectTabs.hidden = projects.length === 0;
+    this.projectTabs.replaceChildren(...projects.map((project) => h(
+      'div', { class: 'btn-group flex-shrink-0' },
+      h('button', {
+        class: `btn btn-sm ${project.path === this.project?.path ? 'btn-primary' : 'btn-outline-secondary'}`,
+        title: project.path,
+        'aria-pressed': String(project.path === this.project?.path),
+        onclick: () => void this.openProject(project.path),
+      }, project.name),
+      h('button', {
+        class: 'btn btn-sm btn-outline-secondary',
+        'aria-label': `Close project ${project.name}`,
+        onclick: () => void api.invoke('project:close', project.path).catch((error) => this.toast(error)),
+      }, icon('x-lg')),
+    )));
   }
 
   private async toggleMode(): Promise<void> {

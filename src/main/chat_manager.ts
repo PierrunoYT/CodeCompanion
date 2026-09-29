@@ -29,13 +29,21 @@ export interface ChatManagerDeps {
 
 const SAVE_DELAY_MS = 500;
 
+interface ProjectChat {
+  session: ChatSession | null;
+  workspace: Workspace | null;
+  shell: ShellRunner | null;
+}
+
 // Owns the active chat. A chat's model conversation is created on the first message, so the model and project in
 // effect at that moment are the ones the chat keeps.
 export class ChatManager {
   private session: ChatSession | null = null;
   private workspace: Workspace | null = null;
   private shell: ShellRunner | null = null;
-  private saveTimer: NodeJS.Timeout | null = null;
+  private projectPath: string | null = null;
+  private readonly parked = new Map<string, ProjectChat>();
+  private readonly saveTimers = new Map<ChatSession, NodeJS.Timeout>();
 
   constructor(private readonly deps: ChatManagerDeps) {}
 
@@ -85,6 +93,7 @@ export class ChatManager {
   }
 
   newChat(): ChatSnapshot {
+    this.requireIdle();
     this.closeSession();
     const snapshot = this.snapshot();
     this.deps.onSnapshot(snapshot);
@@ -93,25 +102,66 @@ export class ChatManager {
 
   // Reopens a saved chat and its project. The chat keeps the model and system prompt it started with.
   open(id: string): ChatSnapshot {
+    this.requireIdle();
     const saved = this.deps.chats.load(id);
     if (!saved) throw new Error('That chat could not be found.');
+    if (!saved.projectPath) throw new Error('That chat has no project.');
+    this.deps.projects.open(saved.projectPath);
+    this.projectChanged();
+    if (this.session?.id === id) return this.snapshot();
     this.closeSession();
-    if (saved.projectPath) this.deps.projects.open(saved.projectPath);
     this.session = this.createSession(saved);
     const snapshot = this.session.snapshot();
     this.deps.onSnapshot(snapshot);
     return snapshot;
   }
 
-  // Called when the user switches projects: the current chat belongs to the old project, so start fresh.
+  // Keep idle chats and their workspace-bound shell runners separate while switching the active project.
   projectChanged(): void {
-    this.closeSession();
-    this.workspace = null;
+    this.requireIdle();
+    const next = this.deps.projects.current()?.path ?? null;
+    if (next === this.projectPath) {
+      this.deps.onSnapshot(this.snapshot());
+      return;
+    }
+    if (this.projectPath) {
+      if (this.session) this.save(this.session);
+      this.parked.set(this.projectPath, { session: this.session, workspace: this.workspace, shell: this.shell });
+    }
+    const retained = next ? this.parked.get(next) : undefined;
+    if (next) this.parked.delete(next);
+    this.session = retained?.session ?? null;
+    this.workspace = retained?.workspace ?? null;
+    this.shell = retained?.shell ?? null;
+    this.projectPath = next;
     this.deps.onSnapshot(this.snapshot());
+  }
+
+  requireIdle(): void {
+    if (this.busy) throw new Error('Stop the current task and wait for it to finish before switching chats or projects.');
+  }
+
+  closeProject(path: string): void {
+    if (path === this.projectPath) {
+      this.requireIdle();
+      this.closeSession();
+      this.shell?.stopAll();
+      this.shell = null;
+      this.workspace = null;
+      this.projectPath = null;
+    } else {
+      const retained = this.parked.get(path);
+      if (retained?.session) this.save(retained.session);
+      retained?.shell?.stopAll();
+      this.parked.delete(path);
+    }
   }
 
   dispose(): void {
     this.closeSession();
+    for (const path of [...this.parked.keys()]) this.closeProject(path);
+    for (const timer of this.saveTimers.values()) clearTimeout(timer);
+    this.saveTimers.clear();
   }
 
   private createSession(saved?: SavedChat): ChatSession {
@@ -222,13 +272,13 @@ export class ChatManager {
 
   private scheduleSave(session: ChatSession): void {
     if (session.isEmpty) return;
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.save(session), SAVE_DELAY_MS);
+    clearTimeout(this.saveTimers.get(session));
+    this.saveTimers.set(session, setTimeout(() => this.save(session), SAVE_DELAY_MS));
   }
 
   private save(session: ChatSession): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = null;
+    clearTimeout(this.saveTimers.get(session));
+    this.saveTimers.delete(session);
     if (session.isEmpty) return;
     this.deps.chats.save(session.serialize());
     this.deps.onHistoryChanged();

@@ -19,6 +19,7 @@ export class Composer {
   private readonly attachmentList: HTMLElement;
   private images: ImageAttachment[] = [];
   private busy = false;
+  private draftVersion = 0;
 
   constructor(private readonly actions: ComposerActions) {
     this.input = h('textarea', {
@@ -81,11 +82,24 @@ export class Composer {
     this.input.focus();
   }
 
+  getDraft(): { text: string; images: ImageAttachment[] } {
+    return { text: this.input.value, images: [...this.images] };
+  }
+
+  setDraft(draft: { text: string; images: ImageAttachment[] }): void {
+    this.draftVersion++;
+    this.input.value = draft.text;
+    this.images = [...draft.images];
+    this.renderAttachments();
+    this.autosize();
+  }
+
   private async submit(): Promise<void> {
     const text = this.input.value.trim();
     if (this.busy || (!text && this.images.length === 0)) return;
+    const version = this.draftVersion;
     const sent = await this.actions.send(text, this.images);
-    if (sent) {
+    if (sent && version === this.draftVersion) {
       this.input.value = '';
       this.images = [];
       this.renderAttachments();
@@ -94,7 +108,10 @@ export class Composer {
   }
 
   private async attach(): Promise<void> {
-    this.images.push(...(await this.actions.pickImages()));
+    const version = this.draftVersion;
+    const images = await this.actions.pickImages();
+    if (version !== this.draftVersion) return;
+    this.images.push(...images);
     this.renderAttachments();
   }
 
@@ -102,9 +119,11 @@ export class Composer {
     const files = [...(event.clipboardData?.files ?? [])].filter((file) => PASTE_TYPES.has(file.type));
     if (files.length === 0) return;
     event.preventDefault();
+    const version = this.draftVersion;
     for (const file of files) {
       const reader = new FileReader();
       reader.onload = () => {
+        if (version !== this.draftVersion) return;
         const base64 = String(reader.result).split(',')[1] ?? '';
         this.images.push({ name: file.name || 'pasted image', mediaType: file.type as ImageAttachment['mediaType'], base64 });
         this.renderAttachments();

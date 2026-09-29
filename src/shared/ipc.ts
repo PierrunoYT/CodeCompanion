@@ -44,6 +44,8 @@ export interface InvokeApi {
   'project:open': (path: string) => ProjectInfo;
   'project:current': () => ProjectInfo | null;
   'project:list': () => ProjectInfo[];
+  'project:opened': () => ProjectInfo[];
+  'project:close': (path: string) => void;
   'project:set-instructions': (path: string, instructions: string) => ProjectInfo;
   'project:remove': (path: string) => ProjectInfo[];
 
@@ -106,6 +108,8 @@ const INVOKE: Record<InvokeChannel, true> = {
   'project:open': true,
   'project:current': true,
   'project:list': true,
+  'project:opened': true,
+  'project:close': true,
   'project:set-instructions': true,
   'project:remove': true,
   'chat:snapshot': true,

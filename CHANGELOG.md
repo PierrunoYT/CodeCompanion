@@ -6,6 +6,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 First release of the from-scratch TypeScript codebase (version numbering restarts at 0.1.0; the 6.x line is the old app). No code from 6.x remains; features were rebuilt on a new architecture. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+### Fixed
+- Tools that become available while a chat is open (for example `search_code` after saving an OpenAI key) are now offered on the next turn; before, the chat had to be restarted.
+
 ### Architecture
 - TypeScript, electron-vite, Electron 44.
 - All file, shell, network and API work runs in the main process. The UI runs sandboxed without Node.js access and talks to the main process through a typed, allow-listed IPC contract.

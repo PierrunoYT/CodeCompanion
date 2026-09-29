@@ -49,6 +49,7 @@ Handlers (`src/main/ipc.ts`, `handle` / `send`) and the preload bridge are typed
 
 1. The renderer calls `chat:send`. `ChatManager` creates a `ChatSession` on the first message, fixing the chat's project, model and system prompt, and returns as soon as the session starts. Setup errors (no project, missing key) come back immediately.
 2. `Agent.send` (`src/main/agent/agent.ts`) adds the user message and runs turns:
+   - The tool list is rebuilt at the start of every turn (`ChatManager` passes `tools: () => …`), so a tool that becomes available while a chat is open, such as `search_code` after an OpenAI key is saved, is offered from the next turn on. The system prompt is not rebuilt; it stays byte-identical for prompt caching.
    - `conversation.runTurn` streams the model's answer (text and summarized thinking are forwarded as `chat:event`s).
    - For each tool call: validate the input against the tool's Zod schema → build a preview (diff or command) → if the tool needs approval and the mode is **Ask**, wait for `chat:decide` → run it.
    - All results of a turn go back to the model together, then the next turn starts. The loop ends when the model answers without tool calls (or after 200 turns).
@@ -89,7 +90,7 @@ A chat keeps its model. Changing the model in settings applies to new chats.
 | `read_file` | no | Line-numbered, optional `offset`/`limit`; marks the file as read |
 | `list_directory` | no | Skips `.gitignore`/`.ccignore` matches, `.git`, `node_modules` |
 | `grep` | no | JavaScript regex over non-ignored text files, 200 matches max |
-| `search_code` | no | Semantic search (only when an OpenAI key is set) |
+| `search_code` | no | Semantic search (only offered while an OpenAI key is set; picked up mid-chat) |
 | `edit_file` | yes | Exact string replacement; must be unique unless `replace_all`; tolerates CRLF files |
 | `write_file` | yes | Create or overwrite; creates folders |
 | `run_command` | yes | Fresh shell per call (PowerShell on Windows, `$SHELL` elsewhere) in the project root; timeout (default 120 s, max 600 s); `background: true` for servers |

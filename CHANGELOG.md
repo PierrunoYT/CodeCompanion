@@ -21,7 +21,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - `package.json` now has an `author` field.
 - 0.1.0 is released for Windows only; macOS and Linux builds come later.
 - Unit tests use a 30 s timeout so the first shell start on a slow CI runner no longer fails the run.
-- Release workflow: pushing a `v*` tag builds the Windows installer and publishes it on GitHub Releases.
+- Release workflow: pushing a `v*` tag builds the Windows installer and publishes it on GitHub Releases, with the version's changelog section as notes and a link to the full `CHANGELOG.md`.
 - GitHub Actions workflow running typecheck, unit tests and end-to-end tests on Windows for every push and pull request.
 - End-to-end test for the OpenAI Responses API path (mock OpenAI server, `CODECOMPANION_TEST_OPENAI_URL`), including the encrypted reasoning round trip.
 - `npm run pack` / `npm run dist` stop with a clear message when the app is running from `dist/` (previously an `EBUSY` error on Windows).

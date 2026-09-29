@@ -41,8 +41,27 @@ jobs:
       # Build the NSIS installer without publishing; the release is created below.
       - run: npx electron-builder --win --publish never
 
+      # Release notes: this version's section of CHANGELOG.md plus a link to the full file at this tag.
+      - name: Write the release notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tr -d '\r' < CHANGELOG.md | awk -v v="$version" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found { print }
+          ' > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No section for version $version in CHANGELOG.md"
+            exit 1
+          fi
+          {
+            echo
+            echo "---"
+            echo "Full changelog: https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md"
+          } >> release-notes.md
+
       - name: Create the GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "dist/CodeCompanion-Installer.exe" --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" "dist/CodeCompanion-Installer.exe" --title "$GITHUB_REF_NAME" --notes-file release-notes.md

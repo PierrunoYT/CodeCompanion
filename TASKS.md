@@ -51,7 +51,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [x] Add a setting to allow specific commands without approval
 - [ ] Support several open projects at once
 - [x] Add a search box for saved chats (title and project path; searching the message text is not done)
-- [ ] Search the message text of saved chats, not only title and project
+- [x] Search the message text of saved chats, not only title and project
 - [x] Export a chat as Markdown
 
 ## Bugs

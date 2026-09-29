@@ -19,7 +19,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
 - Web search (Google Custom Search) and page fetching
 - Long chats are handled by server-side compaction (current Claude models)
-- Chats are saved automatically and can be searched by title or project, and exported as Markdown (download button in the header); per-project custom instructions
+- Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
 - `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
 - Image attachments (attach or paste)
 

@@ -239,20 +239,29 @@ export interface HistoryDialogActions {
   open(id: string): Promise<void>;
   delete(id: string): Promise<ChatSummary[]>;
   clear(): Promise<ChatSummary[]>;
+  // Also searches the messages, not only titles and projects.
+  search(query: string): Promise<ChatSummary[]>;
 }
+
+const SEARCH_DELAY_MS = 250;
 
 export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogActions): void {
   const list = h('div', { class: 'list-group history-list' });
   const search = h('input', {
     type: 'search',
     class: 'form-control mb-2',
-    placeholder: 'Search chats by title or project',
+    placeholder: 'Search chats by title, project or message',
     'aria-label': 'Search chats',
   }) as HTMLInputElement;
   let all = chats;
+  // Result of the last message search for the current query; until it arrives, titles and projects are filtered here.
+  let found: ChatSummary[] | null = null;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchGeneration = 0;
   const render = (items: ChatSummary[]) => {
     all = items;
-    const shown = filterChats(items, search.value);
+    const query = search.value.trim();
+    const shown = query && found ? found : filterChats(items, query);
     list.replaceChildren(
       ...(shown.length === 0
         ? [h('div', { class: 'text-body-secondary p-3' }, items.length === 0 ? 'No saved chats yet.' : 'No chats match your search.')]
@@ -276,17 +285,49 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
                   { class: 'small text-body-secondary text-truncate' },
                   `${new Date(chat.updatedAt).toLocaleString()}${chat.projectPath ? ` · ${chat.projectPath}` : ''}`,
                 ),
+                chat.snippet ? h('div', { class: 'small fst-italic text-body-secondary text-truncate' }, chat.snippet) : null,
               ),
               h(
                 'button',
-                { type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Delete', onclick: async () => render(await actions.delete(chat.id)) },
+                {
+                  type: 'button',
+                  class: 'btn btn-sm btn-outline-secondary',
+                  title: 'Delete',
+                  onclick: async () => {
+                    found = null;
+                    render(await actions.delete(chat.id));
+                    scheduleSearch();
+                  },
+                },
                 icon('trash'),
               ),
             ),
           )),
     );
   };
-  search.addEventListener('input', () => render(all));
+  const scheduleSearch = () => {
+    clearTimeout(searchTimer);
+    const query = search.value.trim();
+    if (!query) return;
+    const generation = ++searchGeneration;
+    searchTimer = setTimeout(async () => {
+      try {
+        const results = await actions.search(query);
+        // Ignore an answer for a query the user has already changed.
+        if (generation !== searchGeneration) return;
+        found = results;
+        render(all);
+      } catch {
+        // Keep the title and project filter if the message search fails.
+      }
+    }, SEARCH_DELAY_MS);
+  };
+  search.addEventListener('input', () => {
+    found = null;
+    searchGeneration++;
+    render(all);
+    scheduleSearch();
+  });
   // The dialog is a form: Enter in the search box must not submit it and close the dialog.
   search.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') event.preventDefault();
@@ -298,12 +339,15 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
       type: 'button',
       class: 'btn btn-outline-danger',
       onclick: async () => {
-        if (confirm('Delete all saved chats?')) render(await actions.clear());
+        if (!confirm('Delete all saved chats?')) return;
+        found = null;
+        render(await actions.clear());
       },
     },
     icon('trash'),
     ' Delete all',
   );
   const element = dialog('Chat history', h('div', {}, search, list), clearButton);
+  element.addEventListener('close', () => clearTimeout(searchTimer));
   search.focus();
 }

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ChatSummary } from '@shared/chat';
+import { searchSnippet, transcriptSearchText, type ChatSummary } from '@shared/chat';
 import type { SavedChat } from './agent/session';
 import { readJson, writeJson } from './storage/json_file';
 
@@ -9,6 +9,7 @@ const ID_PATTERN = /^[0-9a-f-]{36}$/;
 // Saved chats, one JSON file each in userData/chats, plus an index for fast listing.
 export class ChatStore {
   private index: ChatSummary[];
+  private readonly textCache = new Map<string, { updatedAt: string; text: string }>();
 
   constructor(private readonly dir: string) {
     mkdirSync(dir, { recursive: true });
@@ -32,6 +33,33 @@ export class ChatStore {
     writeJson(this.indexFile, this.index);
   }
 
+  // Chats whose title, project or messages contain every word of the query, newest first. Message text is read from
+  // the chat files the first time it is needed and kept in memory until the chat changes.
+  search(query: string): ChatSummary[] {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return this.list();
+    const results: ChatSummary[] = [];
+    for (const summary of this.list()) {
+      const head = `${summary.title} ${summary.projectPath ?? ''}`.toLowerCase();
+      if (words.every((word) => head.includes(word))) {
+        results.push(summary);
+        continue;
+      }
+      const text = this.messageText(summary);
+      const all = `${head}\n${text.toLowerCase()}`;
+      if (words.every((word) => all.includes(word))) results.push({ ...summary, snippet: searchSnippet(text, words) });
+    }
+    return results;
+  }
+
+  private messageText(summary: ChatSummary): string {
+    const cached = this.textCache.get(summary.id);
+    if (cached?.updatedAt === summary.updatedAt) return cached.text;
+    const text = transcriptSearchText(this.load(summary.id)?.transcript ?? []);
+    this.textCache.set(summary.id, { updatedAt: summary.updatedAt, text });
+    return text;
+  }
+
   load(id: string): SavedChat | null {
     if (!ID_PATTERN.test(id)) return null;
     const chat = readJson<SavedChat | null>(this.chatFile(id), null);
@@ -41,12 +69,14 @@ export class ChatStore {
   delete(id: string): void {
     if (!ID_PATTERN.test(id)) return;
     rmSync(this.chatFile(id), { force: true });
+    this.textCache.delete(id);
     this.index = this.index.filter((item) => item.id !== id);
     writeJson(this.indexFile, this.index);
   }
 
   deleteAll(): void {
     for (const item of this.index) rmSync(this.chatFile(item.id), { force: true });
+    this.textCache.clear();
     this.index = [];
     writeJson(this.indexFile, this.index);
   }

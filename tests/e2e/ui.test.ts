@@ -132,6 +132,15 @@ describe('user interface', () => {
     const items = running.page.locator('.history-list .list-group-item');
     await items.first().waitFor();
     await expect(items.count()).resolves.toBe(1);
+
+    // The search also looks inside the messages and shows where it matched.
+    const search = running.page.getByLabel('Search chats');
+    await search.fill('say something');
+    await running.page.locator('.history-list .fst-italic', { hasText: 'Say something' }).waitFor();
+    await search.fill('no-such-words-anywhere');
+    await running.page.locator('.history-list', { hasText: 'No chats match your search.' }).waitFor();
+    await search.fill('');
+    await expect(items.count()).resolves.toBe(1);
     await running.page.keyboard.press('Escape');
   });
 

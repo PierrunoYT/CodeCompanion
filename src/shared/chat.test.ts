@@ -1,7 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { applyChatEvent, filterChats, type ChatEvent, type ChatSummary, type TranscriptItem } from './chat';
+import { applyChatEvent, filterChats, searchSnippet, transcriptSearchText, type ChatEvent, type ChatSummary, type TranscriptItem } from './chat';
 
 const run = (events: ChatEvent[]) => events.reduce<TranscriptItem[]>(applyChatEvent, []);
+
+describe('transcriptSearchText and searchSnippet', () => {
+  it('collects only what the user and the assistant said', () => {
+    const items: TranscriptItem[] = [
+      { kind: 'user', id: 'u', text: 'Why does login fail?', imageCount: 0 },
+      { kind: 'tool', id: 't', name: 'read_file', status: 'done', output: 'secret tool output' },
+      { kind: 'assistant', id: 'a', text: 'The token expires.', thinking: 'private thoughts', streaming: false },
+    ];
+    expect(transcriptSearchText(items)).toBe('Why does login fail?\nThe token expires.');
+  });
+
+  it('cuts a one-line excerpt around the first match', () => {
+    const text = `${'a '.repeat(100)}the needle is here\n${'b '.repeat(100)}`;
+    const snippet = searchSnippet(text, ['needle'])!;
+    expect(snippet).toContain('the needle is here');
+    expect(snippet).not.toContain('\n');
+    expect(snippet.startsWith('…')).toBe(true);
+    expect(snippet.endsWith('…')).toBe(true);
+    expect(snippet.length).toBeLessThan(200);
+  });
+
+  it('returns nothing when no word is in the text', () => {
+    expect(searchSnippet('nothing here', ['needle'])).toBeUndefined();
+    expect(searchSnippet('short text with word', ['word'])).toBe('short text with word');
+  });
+});
 
 describe('filterChats', () => {
   const chat = (id: string, title: string, projectPath: string | null): ChatSummary => ({

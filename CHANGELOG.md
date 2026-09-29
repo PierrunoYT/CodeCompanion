@@ -7,6 +7,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 First release of the from-scratch TypeScript codebase (version numbering restarts at 0.1.0; the 6.x line is the old app). No code from 6.x remains; features were rebuilt on a new architecture. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Added
+- The chat history search now also looks inside the messages you and the assistant wrote (not tool output or thinking) and shows an excerpt of the match. New `history:search` channel; message text is read from the chat files on first use and cached in memory.
 - Settings show indexing progress ("Indexing… 120 of 480 chunks (25%)") while the code index is being built or rebuilt, including updates started by a code search. `IndexStatus` has a new `progress` field.
 - Setting "Commands allowed without asking": shell commands (one per line, matched as a whole-word prefix) that run without an approval card in Ask first mode. Commands with shell operators (`; & | > < `` ` `` `$(`) and all file edits still ask.
 - The status bar shows an estimated cost (`≈ $0.42`) next to the token usage for Claude models with a known price (`MODEL_PRICING` in `src/shared/models.ts`). Cache writes are not counted, so it is a lower bound; the OpenAI and custom models show no estimate.

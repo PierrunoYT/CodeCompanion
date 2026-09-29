@@ -59,6 +59,8 @@ export interface InvokeApi {
   'history:open': (id: string) => ChatSnapshot;
   'history:delete': (id: string) => ChatSummary[];
   'history:clear': () => ChatSummary[];
+  // Chats whose title, project or messages contain every word of the query, with an excerpt for message matches.
+  'history:search': (query: string) => ChatSummary[];
 
   'files:pick-images': () => ImageAttachment[];
   'files:open-in-editor': (path: string) => void;
@@ -115,6 +117,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'history:open': true,
   'history:delete': true,
   'history:clear': true,
+  'history:search': true,
   'files:pick-images': true,
   'files:open-in-editor': true,
   'terminal:start': true,

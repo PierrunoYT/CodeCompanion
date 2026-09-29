@@ -45,6 +45,44 @@ describe('ChatStore', () => {
     expect(new ChatStore(join(dir, 'chats')).list().map((item) => item.id)).toEqual([idA]);
   });
 
+  it('searches titles, projects and message text, and explains message matches', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    const first = {
+      ...chat(idA, '2026-01-01T00:00:00Z'),
+      title: 'Fix login',
+      transcript: [
+        { kind: 'user' as const, id: 'u1', text: 'The refresh token is rejected by the API', imageCount: 0 },
+        { kind: 'tool' as const, id: 't1', name: 'read_file', status: 'done' as const, output: 'only in tool output: zebra' },
+      ],
+    };
+    const second = { ...chat(idB, '2026-02-01T00:00:00Z'), title: 'Dark mode', projectPath: 'D:\\code\\blog' };
+    store.save(first);
+    store.save(second);
+
+    expect(store.search('   ').map((item) => item.id)).toEqual([idB, idA]);
+    // A title match has no snippet; a message match carries an excerpt.
+    expect(store.search('fix')).toEqual([expect.not.objectContaining({ snippet: expect.anything() })]);
+    const [byMessage] = store.search('refresh token');
+    expect(byMessage.id).toBe(idA);
+    expect(byMessage.snippet).toContain('refresh token is rejected');
+    // Words may be split between the title and the messages; tool output is not searched.
+    expect(store.search('login rejected').map((item) => item.id)).toEqual([idA]);
+    expect(store.search('zebra')).toEqual([]);
+    expect(store.search('blog').map((item) => item.id)).toEqual([idB]);
+  });
+
+  it('forgets cached text when a chat changes or is deleted', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    const base = chat(idA, '2026-01-01T00:00:00Z');
+    store.save({ ...base, transcript: [{ kind: 'user', id: 'u', text: 'alpha', imageCount: 0 }] });
+    expect(store.search('alpha')).toHaveLength(1);
+    store.save({ ...base, updatedAt: '2026-01-02T00:00:00Z', transcript: [{ kind: 'user', id: 'u', text: 'beta', imageCount: 0 }] });
+    expect(store.search('alpha')).toHaveLength(0);
+    expect(store.search('beta')).toHaveLength(1);
+    store.delete(idA);
+    expect(store.search('beta')).toHaveLength(0);
+  });
+
   it('rejects ids that are not UUIDs', () => {
     const store = new ChatStore(join(dir, 'chats'));
     expect(store.load('../settings')).toBeNull();

@@ -356,6 +356,7 @@ export class App {
       },
       delete: (id) => api.invoke('history:delete', id),
       clear: () => api.invoke('history:clear'),
+      search: (query) => api.invoke('history:search', query),
     });
   }
 

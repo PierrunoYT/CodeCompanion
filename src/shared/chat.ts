@@ -80,6 +80,27 @@ export interface ChatSummary {
   title: string;
   projectPath: string | null;
   updatedAt: string;
+  // Only in search results: an excerpt of a message that matched, when the title and project did not.
+  snippet?: string;
+}
+
+// What is searched in a saved chat besides its title: the user's and the assistant's messages.
+export function transcriptSearchText(transcript: TranscriptItem[]): string {
+  return transcript
+    .flatMap((item) => (item.kind === 'user' || item.kind === 'assistant' ? [item.text] : []))
+    .join('\n');
+}
+
+// A short single-line excerpt around the first query word found in the text, for showing why a chat matched.
+export function searchSnippet(text: string, words: string[], radius = 50): string | undefined {
+  const lower = text.toLowerCase();
+  const hits = words.map((word) => lower.indexOf(word)).filter((index) => index >= 0);
+  if (hits.length === 0) return undefined;
+  const at = Math.min(...hits);
+  const start = Math.max(0, at - radius);
+  const end = Math.min(text.length, at + radius * 2);
+  const excerpt = text.slice(start, end).replace(/\s+/g, ' ').trim();
+  return `${start > 0 ? '…' : ''}${excerpt}${end < text.length ? '…' : ''}`;
 }
 
 // Case-insensitive match on the title or the project path; every word of the query must appear.

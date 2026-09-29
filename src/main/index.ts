@@ -173,6 +173,7 @@ function start(): void {
     chats.delete(id);
     return chats.list();
   });
+  handle('history:search', (query) => chats.search(typeof query === 'string' ? query.slice(0, 200) : ''));
   handle('history:clear', () => {
     chats.deleteAll();
     return chats.list();

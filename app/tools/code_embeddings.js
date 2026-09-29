@@ -1,4 +1,5 @@
 const context = require('../context');
+const store = require('../store');
 const fs = require('graceful-fs');
 const pathModule = require('path');
 const CryptoJS = require('crypto-js');
@@ -238,11 +239,11 @@ Respond with a JSON array containing only the actual array indexes in order of s
   }
 
   save() {
-    localStorage.set(`project.${this.projectName}.embeddings`, JSON.stringify(this.vectorStore.memoryVectors));
+    store.set(`project.${this.projectName}.embeddings`, JSON.stringify(this.vectorStore.memoryVectors));
   }
 
   async load() {
-    const serializedVectors = localStorage.get(`project.${this.projectName}.embeddings`);
+    const serializedVectors = store.get(`project.${this.projectName}.embeddings`);
     if (!serializedVectors) return;
 
     const vectors = JSON.parse(serializedVectors);

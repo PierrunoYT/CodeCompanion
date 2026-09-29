@@ -1,4 +1,6 @@
 const context = require('./context');
+const store = require('./store');
+const { ipcRenderer, shell } = require('electron');
 const hljs = require('highlight.js/lib/common');
 const { marked } = require('marked');
 const { markedHighlight } = require('marked-highlight');
@@ -155,7 +157,7 @@ class ViewController {
   changeTheme(theme) {
     const htmlElement = document.querySelector('html');
     htmlElement.setAttribute('data-bs-theme', theme);
-    localStorage.set('theme', theme);
+    store.set('theme', theme);
 
     const stylesheet = document.querySelector('link[href^="node_modules/highlight.js/styles/"]');
     if (theme === 'light') {
@@ -210,7 +212,7 @@ class ViewController {
   }
 
   onShow() {
-    messageInput.focus();
+    document.getElementById('messageInput').focus();
   }
 
   selectDirectory() {
@@ -238,7 +240,7 @@ class ViewController {
     const resizeHandle = document.getElementById('resize_handle');
     const chatInputContainer = document.getElementById('chatInputContainer');
     let leftWidth = 50; // Initial left panel width in percentage
-    const savedRatio = localStorage.get('panelSplitRatio');
+    const savedRatio = store.get('panelSplitRatio');
     if (savedRatio) {
       leftWidth = parseFloat(savedRatio);
     }
@@ -264,7 +266,7 @@ class ViewController {
           updatePanels();
         },
         end: () => {
-          localStorage.set('panelSplitRatio', leftWidth);
+          store.set('panelSplitRatio', leftWidth);
         },
       },
     });

@@ -1,4 +1,5 @@
 const context = require('../context');
+const store = require('../store');
 const { v4: uuidv4 } = require('uuid');
 
 const saveChatModal = new bootstrap.Modal(document.getElementById('saveChatModal'));
@@ -27,27 +28,27 @@ class ChatHistory {
       selectedModel: context.chatController.settings.selectedModel,
     };
 
-    const chatHistory = localStorage.get('chatHistory', {});
+    const chatHistory = store.get('chatHistory', {});
     chatHistory[id] = record;
-    localStorage.set('chatHistory', chatHistory);
+    store.set('chatHistory', chatHistory);
     saveChatModal.hide();
     context.viewController.updateFooterMessage('Chat saved.');
   }
 
   delete(id) {
-    const chatHistory = localStorage.get('chatHistory', {});
+    const chatHistory = store.get('chatHistory', {});
     delete chatHistory[id];
-    localStorage.set('chatHistory', chatHistory);
+    store.set('chatHistory', chatHistory);
     this.load();
   }
 
   retrieveAll() {
-    const records = Object.values(localStorage.get('chatHistory', {}));
+    const records = Object.values(store.get('chatHistory', {}));
     return records.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
   async restoreChat(id) {
-    const record = localStorage.get('chatHistory', {})[id];
+    const record = store.get('chatHistory', {})[id];
     if (record) {
       context.chatController.saveSetting('selectedModel', record.selectedModel);
       Object.assign(context.chatController.chat, record.chat);
@@ -57,7 +58,7 @@ class ChatHistory {
   }
 
   deleteAll() {
-    localStorage.set('chatHistory', {});
+    store.set('chatHistory', {});
     this.load();
   }
 

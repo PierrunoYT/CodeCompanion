@@ -1,4 +1,5 @@
 const context = require('./context');
+const store = require('./store');
 const helpModal = new bootstrap.Modal(document.getElementById('helpMessage'));
 const onboardingSteps = require('./static/onboarding_steps');
 
@@ -9,11 +10,11 @@ class OnboardingController {
   }
 
   hasBeenShown(id) {
-    return localStorage.get(`onboarding.${id}`, false);
+    return store.get(`onboarding.${id}`, false);
   }
 
   markAsRead() {
-    localStorage.set(`onboarding.${this.showingId}`, true);
+    store.set(`onboarding.${this.showingId}`, true);
     this.hideModal();
     this.showingId = null;
   }

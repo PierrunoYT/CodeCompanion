@@ -3,7 +3,9 @@
 //
 //   context.chatController  - ChatController (chat, agent, models, terminal, browser)
 //   context.viewController  - ViewController (DOM helpers)
+//   context.onboardingController - OnboardingController (first-run tips)
 module.exports = {
   chatController: null,
   viewController: null,
+  onboardingController: null,
 };

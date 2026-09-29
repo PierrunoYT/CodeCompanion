@@ -1,4 +1,5 @@
 const context = require('./context');
+const store = require('./store');
 const fs = require('graceful-fs');
 const CryptoJS = require('crypto-js');
 const pathModule = require('path');
@@ -63,30 +64,30 @@ class ProjectController {
 
   getProjects() {
     this.projects = [];
-    const projects = localStorage.get('projects', []);
+    const projects = store.get('projects', []);
     projects.forEach((project) => {
       if (fs.existsSync(pathModule.normalize(project.path))) {
         this.projects.push(project);
       } else {
-        localStorage.set(`project.${project.name}.embeddings`, '[]');
+        store.set(`project.${project.name}.embeddings`, '[]');
       }
     });
     this.projects = this.projects.sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened));
-    localStorage.set('projects', this.projects);
+    store.set('projects', this.projects);
     return this.projects;
   }
 
   saveProject(name, path, filesHash) {
     const project = { name, path, lastOpened: new Date(), filesHash };
     this.projects.push(project);
-    localStorage.set('projects', this.projects);
+    store.set('projects', this.projects);
     return project;
   }
 
   updateProject(project) {
     project.lastOpened = new Date();
     this.projects = this.projects.map((p) => (p.path === project.path ? project : p));
-    localStorage.set('projects', this.projects);
+    store.set('projects', this.projects);
   }
 
   updateListOfFiles() {
@@ -100,7 +101,7 @@ class ProjectController {
 
     if (project) {
       addInstructionsModal.show();
-      let instructions = localStorage.get(`project.${project.name}.instructions`, '');
+      let instructions = store.get(`project.${project.name}.instructions`, '');
       document.getElementById('customInstructions').value = instructions;
       this.instructionsProjectName = project.name;
     } else {
@@ -110,7 +111,7 @@ class ProjectController {
 
   saveInstructions() {
     const instructions = document.getElementById('customInstructions').value;
-    localStorage.set(`project.${this.instructionsProjectName}.instructions`, instructions);
+    store.set(`project.${this.instructionsProjectName}.instructions`, instructions);
     context.viewController.updateFooterMessage('Instructions updated');
     addInstructionsModal.hide();
   }
@@ -118,7 +119,7 @@ class ProjectController {
   getCustomInstructions() {
     if (!this.currentProject) return;
 
-    const instructions = localStorage.get(`project.${this.currentProject.name}.instructions`, '');
+    const instructions = store.get(`project.${this.currentProject.name}.instructions`, '');
     return instructions ? '\n\n' + instructions : '';
   }
 

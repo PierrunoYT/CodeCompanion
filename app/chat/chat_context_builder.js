@@ -1,4 +1,7 @@
 const context = require('../context');
+const _ = require('lodash');
+const fs = require('graceful-fs');
+const path = require('path');
 const ignore = require('ignore');
 const { getTokenCount } = require('../utils');
 

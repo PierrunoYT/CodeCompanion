@@ -1,4 +1,7 @@
 const context = require('./context');
+const os = require('os');
+const fs = require('graceful-fs');
+const path = require('path');
 const isTextOrBinary = require('istextorbinary');
 const readChunkSync = require('read-chunk').sync;
 const { getEncoding } = require('js-tiktoken');

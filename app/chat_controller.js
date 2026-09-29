@@ -1,4 +1,5 @@
 const context = require('./context');
+const store = require('./store');
 const os = require('os');
 const Parser = require('@postlight/parser');
 const _ = require('lodash');
@@ -111,7 +112,7 @@ class ChatController {
   }
 
   loadSetting(key) {
-    const storedValue = localStorage.get(key);
+    const storedValue = store.get(key);
     this.settings[key] = storedValue === undefined ? DEFAULT_SETTINGS[key] : storedValue;
     return this.settings[key];
   }
@@ -121,7 +122,7 @@ class ChatController {
     if (value === null) {
       element.type === 'checkbox' ? (value = element.checked) : (value = element.value);
     }
-    localStorage.set(key, value);
+    store.set(key, value);
     this.settings[key] = value;
     this.renderSettingValueInUI(key, value);
 
@@ -319,7 +320,7 @@ class ChatController {
       requirementsChecklist: '',
     };
 
-    onboardingController.showAllTips();
+    context.onboardingController.showAllTips();
     context.viewController.onShow();
   }
 }

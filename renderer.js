@@ -22,6 +22,7 @@ const viewController = new ViewController();
 context.chatController = chatController;
 context.viewController = viewController;
 const onboardingController = new OnboardingController();
+context.onboardingController = onboardingController;
 
 let dataPath;
 

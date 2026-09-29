@@ -13,6 +13,20 @@ npm 11 runs dependency install scripts only for packages listed under `allowScri
 
 `node-pty` ships prebuilt binaries for Windows and macOS (x64 and arm64), so no compiler is needed there. On Linux it compiles from source; see the [node-pty prerequisites](https://github.com/microsoft/node-pty#dependencies).
 
+### Amp orbs
+
+`.agents/setup` prepares Debian-based Amp orbs with native build tools, Electron libraries, Xvfb and locked npm dependencies. It uses the orb's Node.js toolchain (Node 22.12+, 24.x or 26+, as required by Vitest 5), ensures the Electron binary is downloaded and checks `node-pty` loads. No API keys or backing services are needed for tests.
+
+Amp snapshots the prepared environment. When setup runs again on a stale snapshot, it skips apt for installed packages and reuses `node_modules` when the package files, setup script, Node/npm versions and platform match. Changed inputs trigger `npm ci`; deleting `node_modules/.amp-setup-fingerprint` forces a reinstall. `.agents/resume` only checks dependency readiness, without installing anything or authenticating services.
+
+```bash
+.agents/setup             # also repairs missing dependencies
+npm run typecheck
+xvfb-run -a npm test       # unit tests, build and headless Electron tests
+```
+
+Both lifecycle scripts must be executable. They become available to future project orbs after reaching the project's default branch; a local commit alone does not activate them. No persistent server or shell-profile changes are required.
+
 ## Scripts
 
 | Script | Purpose |

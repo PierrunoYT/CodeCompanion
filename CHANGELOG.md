@@ -2,6 +2,11 @@
 
 All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
+## [Unreleased]
+
+### Development
+- Add executable Amp orb setup and resume scripts: install Linux build/Electron test prerequisites and locked npm dependencies, reuse matching snapshot dependencies, and check readiness on wake without reinstalling.
+
 ## [0.1.0] - 2026-09-29
 
 First release of the from-scratch TypeScript codebase (version numbering restarts at 0.1.0; the 6.x line is the old app). No code from 6.x remains; features were rebuilt on a new architecture. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

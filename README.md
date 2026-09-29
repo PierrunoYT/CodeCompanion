@@ -40,6 +40,8 @@ Then:
 
 To build an installer: `npm run dist` (Windows NSIS installer or macOS DMG in `dist/`).
 
+For development in Amp orbs, the repository includes setup and resume scripts to prepare and reuse dependencies. See [orb setup](docs/DEVELOPMENT.md#amp-orbs) for requirements and headless test commands.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |

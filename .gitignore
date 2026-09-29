@@ -12,3 +12,6 @@ yarn.lock
 .DS_Store
 out/
 .env
+
+# Orb portal metadata
+.amp/portals/*

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+SECONDS=0
+echo 'Checking the orb Node.js toolchain'
+# Vitest 5 requires these versions; use the toolchain supplied by the orb image.
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 22 && minor >= 12) || major === 24 || major >= 26)) throw new Error("Use Node 22.12+, 24.x, or 26+")'
+node --version
+npm --version
+
+echo 'Checking Linux build and Electron test prerequisites'
+packages=(build-essential python3 git ca-certificates libgtk-3-0 libnss3 libasound2 libgbm1 libatk-bridge2.0-0 libxss1 xvfb xauth)
+missing=()
+for package in "${packages[@]}"; do
+  if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+    missing+=("$package")
+  fi
+done
+if ((${#missing[@]})); then
+  sudo -n apt-get update -qq
+  sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+fi
+echo "System prerequisites ready (${SECONDS}s elapsed)"
+
+# Even a warm npm ci removes and reinstalls every dependency (~12s measured).
+# Keep snapshot dependencies only when the inputs and toolchain are unchanged.
+fingerprint=$({
+  sha256sum package.json package-lock.json .agents/setup
+  node -p 'JSON.stringify([process.version, process.platform, process.arch])'
+  npm --version
+} | sha256sum | cut -d ' ' -f 1)
+stamp=node_modules/.amp-setup-fingerprint
+if [[ -f "$stamp" && "$(cat "$stamp")" == "$fingerprint" && -x node_modules/.bin/tsc && -x node_modules/.bin/vitest ]] &&
+  node -e 'require("node-pty"); require("node:fs").accessSync(require("electron"), require("node:fs").constants.X_OK)' 2>/dev/null; then
+  echo 'Reusing matching snapshot dependencies'
+else
+  echo 'Installing locked npm dependencies'
+  npm ci --include=dev --no-audit --no-fund
+  # npm configurations that skip lifecycle scripts can leave Electron absent.
+  node node_modules/electron/install.js
+  if ! node -e 'require("node-pty")' 2>/dev/null; then
+    npm rebuild node-pty --ignore-scripts=false
+  fi
+  node -e 'require("node-pty"); require("node:fs").accessSync(require("electron"), require("node:fs").constants.X_OK)'
+  printf '%s\n' "$fingerprint" > "$stamp"
+fi
+echo "Orb setup ready (${SECONDS}s total). Run xvfb-run -a npm test for headless Electron tests."

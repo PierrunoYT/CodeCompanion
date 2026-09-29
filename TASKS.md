@@ -31,6 +31,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 
 ## Project setup
 
+- [x] Prepare Amp orb lifecycle scripts with snapshot dependency reuse and headless Electron test prerequisites
 - [x] Add a `LICENSE` file (MIT)
 - [x] Add a GitHub Actions workflow: typecheck, unit tests, end-to-end tests (Windows only)
 - [x] Add Linux and macOS jobs to the CI workflow (non-blocking until they pass; then remove `continue-on-error`)

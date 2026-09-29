@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+# No services or credentials to restore. Never install dependencies on wake.
+if ! node -e 'require("typescript"); require("node-pty"); require("node:fs").accessSync(require("electron"), require("node:fs").constants.X_OK)' ; then
+  echo 'Orb dependencies are missing or incompatible; run .agents/setup to repair them.' >&2
+  exit 1
+fi
+echo 'Orb dependencies ready'

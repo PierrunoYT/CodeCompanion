@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyEdit, editFileTool, grepTool, listDirectoryTool, readFileTool, writeFileTool } from './files';
+import { browserTool } from './browser';
 import { availableTools } from './registry';
 import { commandOutputTool, runCommandTool, ShellRunner } from './shell';
 import { ToolError, truncateOutput, type AgentTool, type ToolContext } from './types';
@@ -125,6 +127,31 @@ describe('applyEdit', () => {
 
   it('does not interpret $ patterns in the replacement', () => {
     expect(applyEdit('price', { old_string: 'price', new_string: '$&$1' })).toBe('$&$1');
+  });
+});
+
+describe('browser tool', () => {
+  const opened: string[] = [];
+  const browser = {
+    open: async (url: string) => (opened.push(url), { url, title: 'T', status: 200, console: [] }),
+    screenshot: async () => '',
+  };
+
+  it('opens http pages and files inside the project', async () => {
+    opened.length = 0;
+    writeFileSync(join(root, 'index.html'), '<p>hi</p>');
+    const ctx = { ...context, browser };
+    await call(browserTool, { url: 'http://localhost:3000' }, ctx);
+    await call(browserTool, { url: pathToFileURL(join(root, 'index.html')).href }, ctx);
+    expect(opened[0]).toBe('http://localhost:3000');
+    expect(opened[1].toLowerCase()).toContain('index.html');
+  });
+
+  it('refuses file URLs outside the project', async () => {
+    opened.length = 0;
+    const outside = pathToFileURL(join(root, '..', 'secret.txt')).href;
+    await expect(call(browserTool, { url: outside }, { ...context, browser })).rejects.toThrow('outside the project');
+    expect(opened).toEqual([]);
   });
 });
 

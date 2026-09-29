@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, shell, type WebContents } from 'electron';
+import { BrowserWindow, screen, session, shell, type WebContents } from 'electron';
 import { join } from 'node:path';
 
 export function createMainWindow(onBrowserAttached: (guest: WebContents) => void): BrowserWindow {
@@ -22,6 +22,12 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
   });
 
   hardenWebContents(window, onBrowserAttached);
+  // Electron grants every permission request (camera, microphone, location, notifications) unless told otherwise.
+  // Neither the app page nor pages in the browser panel need any.
+  for (const target of [session.defaultSession, session.fromPartition('persist:browser')]) {
+    target.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+    target.setPermissionCheckHandler(() => false);
+  }
   window.once('ready-to-show', () => window.show());
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -52,7 +58,12 @@ function hardenWebContents(window: BrowserWindow, onBrowserAttached: (guest: Web
     }
   });
 
-  window.webContents.on('will-attach-webview', (_event, webPreferences, params) => {
+  window.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    // The panel starts on about:blank and the app navigates it itself; never attach a guest to anything else.
+    if (params.src && params.src !== 'about:blank' && !/^https?:\/\//i.test(params.src)) {
+      event.preventDefault();
+      return;
+    }
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = false;

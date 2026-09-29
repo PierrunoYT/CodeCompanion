@@ -68,5 +68,6 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [x] Add unit tests for the panels (`browser`, `git`, `terminal`)
 - [x] Add unit tests for the code index (`src/main/search`)
 - [x] Show indexing progress in Settings while reindexing
-- [ ] Review the security model again before the release
+- [x] Review the security model again before the release (findings fixed or documented under "Known limits" in `docs/ARCHITECTURE.md`)
+- [ ] Require approval for `fetch_url` and the `browser` tool on hosts outside an allow-list (prompt-injection exfiltration)
 - [ ] Check for accessibility problems (keyboard navigation, contrast)

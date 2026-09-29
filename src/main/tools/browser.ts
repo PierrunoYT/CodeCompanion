@@ -1,5 +1,7 @@
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { defineTool, ToolError, truncateOutput } from './types';
+import type { Workspace } from './workspace';
 
 export interface PageLoadResult {
   url: string;
@@ -15,10 +17,24 @@ export interface BrowserController {
   screenshot(): Promise<string>; // base64 PNG
 }
 
+// The browser tool needs no approval, so a file:// URL must not reach outside the project (for example a private key
+// that the model could then screenshot). Returns the URL unchanged for http(s) and for files inside the project.
+export function confineFileUrl(url: string, workspace: Workspace): string {
+  if (!/^file:/i.test(url)) return url;
+  let path: string;
+  try {
+    path = fileURLToPath(url);
+  } catch {
+    throw new ToolError('Invalid file:// URL.');
+  }
+  const inside = workspace.resolve(path);
+  return pathToFileURL(inside).href;
+}
+
 export const browserTool = defineTool({
   name: 'browser',
   description:
-    "Open a URL in the app's built-in browser, which the user can see. Returns the page title, HTTP status and console messages; optionally a screenshot. Use it to check web apps you build (start the dev server first with run_command background=true). Local files: use a file:// URL with an absolute path.",
+    "Open a URL in the app's built-in browser, which the user can see. Returns the page title, HTTP status and console messages; optionally a screenshot. Use it to check web apps you build (start the dev server first with run_command background=true). Local files inside the project: use a file:// URL with an absolute path (files outside the project are refused).",
   schema: z.object({
     url: z.string().min(1),
     screenshot: z.boolean().optional().describe('Attach a screenshot. Only when you need to see the page.'),
@@ -27,6 +43,7 @@ export const browserTool = defineTool({
   async run({ url, screenshot }, context) {
     if (!context.browser) throw new ToolError('The browser panel is not available.');
     if (!/^(https?|file):\/\//i.test(url)) throw new ToolError('Use a full URL including http://, https:// or file://.');
+    url = confineFileUrl(url, context.workspace);
 
     const page = await context.browser.open(url, context.signal);
     const lines = [

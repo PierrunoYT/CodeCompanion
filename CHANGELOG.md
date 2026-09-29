@@ -15,6 +15,12 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - `AGENTS.md` (or `CLAUDE.md`) from the project root is now always injected into the system prompt of every new chat, and the status bar shows "AGENTS.md loaded".
 - Settings show whether the current project's code is indexed (files and chunks) and have a Reindex button that rebuilds the index from scratch.
 
+### Security
+- The `browser` tool no longer opens `file://` URLs outside the project. It needs no approval, so a prompt-injected model could otherwise open and screenshot any local file.
+- All permission requests (camera, microphone, location, notifications) are denied for the app page and the browser panel; Electron grants them by default.
+- The webview can only be attached to `about:blank` or an `http(s)` URL.
+- Known limits of the security model (unapproved network tools, editor command, `AGENTS.md` as prompt text) are documented in `docs/ARCHITECTURE.md`.
+
 ### Fixed
 - `run_command` no longer hangs (spinner until the timeout) when a command exits but leaves a child process running that keeps the output pipe open, such as a test runner's workers. It now returns shortly after the command itself exits.
 - Stopping a chat while the browser tool was still waiting for the panel no longer leaves it loading until the timeout; the load timer and abort listener are also cleaned up.

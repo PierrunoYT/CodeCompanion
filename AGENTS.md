@@ -26,6 +26,16 @@ Run `npm run typecheck` and `npm run test:unit` before finishing a change. Run `
 
 `docs/DEVELOPMENT.md` has a "Where to change things" table (models, tools, settings, IPC channels, chat events).
 
+## Workflow (always)
+
+After every change, fix or feature:
+
+1. Update the docs the change affects: `README.md`, `docs/`, `CHANGELOG.md` and `TASKS.md` (tick finished tasks, add new ones).
+2. Run `npm run typecheck` and `npm run test:unit` (and `npm test` for user-visible changes).
+3. Make a commit for that change, with a Conventional Commit message. One change per commit; don't batch unrelated work.
+
+Don't leave a finished change uncommitted or its docs stale.
+
 ## Rules
 
 - Renderer code builds DOM with `h()`; use `trustedHtml` only for output of `renderMarkdown`/`renderDiff`. Never send API keys or unsanitized model output to the renderer.

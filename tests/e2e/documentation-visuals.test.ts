@@ -132,9 +132,10 @@ describe('documentation visuals and text contrast', () => {
     });
 
     for (const theme of ['light', 'dark'] as const) {
+      await running.page.mouse.move(0, 0);
+      await running.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
       await running.page.evaluate((value) => window.api.invoke('settings:update', { theme: value }), theme);
       await running.page.locator(`html[data-bs-theme="${theme}"]`).waitFor();
-      await running.page.waitForTimeout(100);
       expect(await running.page.locator('html').getAttribute('data-bs-theme')).toBe(theme);
       const samples = await measureContrast(running, [
         ['footer status', '.app-footer'],
@@ -167,6 +168,10 @@ describe('documentation visuals and text contrast', () => {
 });
 
 async function measureContrast(running: RunningApp, targets: [string, string][]): Promise<ContrastSample[]> {
+  // Measure settled states, not intermediate colors in Bootstrap's theme/focus transitions.
+  await running.page.waitForFunction(() =>
+    !document.getAnimations().some((animation) => animation instanceof CSSTransition && animation.playState === 'running'),
+  );
   return running.page.evaluate((entries) => {
     const parse = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
     const blend = (foreground: number[], background: number[]) => {

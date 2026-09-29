@@ -18,6 +18,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 - Recent projects keep the most recently opened folder first even when opens share a timestamp, including after reopening the app.
 
 ### Development
+- Reset focus between theme checks and wait for CSS transitions before measuring rendered contrast.
 - Add reproducible Settings, Git and Browser README captures and rendered text-contrast checks for both themes.
 - Add executable Amp orb setup and resume scripts: install Linux build/Electron test prerequisites and locked npm dependencies, reuse matching snapshot dependencies, and check readiness on wake without reinstalling.
 

@@ -57,6 +57,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 
 ## Bugs
 
+- [x] Keep recent-project ordering deterministic when opens share a timestamp, including reopening and reload
 - [x] Tools were fixed when a chat was created, so adding an OpenAI key mid-chat gave no `search_code`. The tool list is now rebuilt every turn
 - [ ] The system prompt still mentions `search_code` only if a key was set when the chat started (kept frozen for prompt caching); the tool's own description covers it
 - [x] Stop logging `terminal:start` errors when no project is open (the terminal starts only once a project is open)

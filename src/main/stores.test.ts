@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SavedChat } from './agent/session';
 import { ChatStore } from './chat_store';
 import { ProjectStore } from './projects';
@@ -12,7 +12,10 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'cc-stores-'));
 });
 
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  vi.useRealTimers();
+  rmSync(dir, { recursive: true, force: true });
+});
 
 function chat(id: string, updatedAt: string): SavedChat {
   return {
@@ -113,6 +116,30 @@ describe('ProjectStore', () => {
     expect(reloaded.list().map((project) => project.name)).toEqual(['two', 'one']);
     expect(reloaded.list()[0].instructions).toBe('Use pnpm.');
     expect(reloaded.current()).toBeNull();
+  });
+
+  it('orders tied timestamps by the newest open, including reopening and reload', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
+    const one = join(dir, 'one');
+    const two = join(dir, 'two');
+    mkdirSync(one);
+    mkdirSync(two);
+    const file = join(dir, 'projects.json');
+
+    const store = new ProjectStore(file);
+    store.open(one);
+    store.open(two);
+    expect(store.list().map((project) => project.name)).toEqual(['two', 'one']);
+    expect(store.list().map((project) => project.lastOpened)).toEqual([
+      '2026-03-01T12:00:00.000Z',
+      '2026-03-01T12:00:00.000Z',
+    ]);
+    expect(new ProjectStore(file).list().map((project) => project.name)).toEqual(['two', 'one']);
+
+    store.open(one);
+    expect(store.list().map((project) => project.name)).toEqual(['one', 'two']);
+    expect(new ProjectStore(file).list().map((project) => project.name)).toEqual(['one', 'two']);
   });
 
   it('rejects paths that are not folders', () => {

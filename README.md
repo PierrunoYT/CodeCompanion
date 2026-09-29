@@ -38,6 +38,8 @@ Then:
 2. Open **Settings** (gear icon, `Ctrl+,`) and add your Anthropic API key (and optionally an OpenAI key for code search, and a Google API key + search engine id for web search).
 3. Describe a task, e.g. *"Add input validation to the signup form and a test for it."*
 
+Recent projects are ordered by the latest open, including folders opened within the same millisecond.
+
 To build an installer: `npm run dist` (Windows NSIS installer or macOS DMG in `dist/`).
 
 For development in Amp orbs, the repository includes setup and resume scripts to prepare and reuse dependencies. See [orb setup](docs/DEVELOPMENT.md#amp-orbs) for requirements and headless test commands.

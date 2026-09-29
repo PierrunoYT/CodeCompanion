@@ -31,9 +31,11 @@ export class ProjectStore {
     let project = this.projects.find((candidate) => candidate.path === real);
     if (!project) {
       project = { path: real, name: basename(real) || real, instructions: '', lastOpened: '' };
-      this.projects.push(project);
+    } else {
+      this.projects = this.projects.filter((candidate) => candidate !== project);
     }
     project.lastOpened = new Date().toISOString();
+    this.projects.unshift(project);
     this.currentPath = real;
     this.projects = this.list().slice(0, MAX_RECENT);
     this.persist();

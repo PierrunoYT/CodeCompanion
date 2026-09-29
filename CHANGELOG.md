@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Fixed
+- Recent projects keep the most recently opened folder first even when opens share a timestamp, including after reopening the app.
+
 ### Development
 - Add executable Amp orb setup and resume scripts: install Linux build/Electron test prerequisites and locked npm dependencies, reuse matching snapshot dependencies, and check readiness on wake without reinstalling.
 

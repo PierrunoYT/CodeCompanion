@@ -1,7 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { applyChatEvent, type ChatEvent, type TranscriptItem } from './chat';
+import { applyChatEvent, filterChats, type ChatEvent, type ChatSummary, type TranscriptItem } from './chat';
 
 const run = (events: ChatEvent[]) => events.reduce<TranscriptItem[]>(applyChatEvent, []);
+
+describe('filterChats', () => {
+  const chat = (id: string, title: string, projectPath: string | null): ChatSummary => ({
+    id,
+    title,
+    projectPath,
+    updatedAt: '2026-09-30T00:00:00.000Z',
+  });
+  const chats = [chat('1', 'Fix login bug', 'D:\\code\\shop'), chat('2', 'Add dark mode', 'D:\\code\\blog'), chat('3', 'Notes', null)];
+
+  it('returns everything for a blank query', () => {
+    expect(filterChats(chats, '  ')).toBe(chats);
+  });
+
+  it('matches the title or project path, ignoring case', () => {
+    expect(filterChats(chats, 'LOGIN').map((c) => c.id)).toEqual(['1']);
+    expect(filterChats(chats, 'blog').map((c) => c.id)).toEqual(['2']);
+  });
+
+  it('requires every word to match', () => {
+    expect(filterChats(chats, 'fix shop').map((c) => c.id)).toEqual(['1']);
+    expect(filterChats(chats, 'fix blog')).toEqual([]);
+  });
+});
 
 describe('applyChatEvent', () => {
   it('builds a streamed assistant message and finalizes it', () => {

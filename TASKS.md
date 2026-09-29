@@ -47,7 +47,8 @@ Tick a box (`- [x]`) when a task is done.
 - [ ] Show cost estimates next to the token usage in the status bar
 - [ ] Add a setting to allow specific commands without approval
 - [ ] Support several open projects at once
-- [ ] Add a search box for saved chats
+- [x] Add a search box for saved chats (title and project path; searching the message text is not done)
+- [ ] Search the message text of saved chats, not only title and project
 - [ ] Export a chat as Markdown
 
 ## Bugs

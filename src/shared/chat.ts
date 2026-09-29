@@ -82,6 +82,16 @@ export interface ChatSummary {
   updatedAt: string;
 }
 
+// Case-insensitive match on the title or the project path; every word of the query must appear.
+export function filterChats(chats: ChatSummary[], query: string): ChatSummary[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return chats;
+  return chats.filter((chat) => {
+    const haystack = `${chat.title} ${chat.projectPath ?? ''}`.toLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
+}
+
 export interface UserMessage {
   text: string;
   images?: Array<{ mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'; base64: string }>;

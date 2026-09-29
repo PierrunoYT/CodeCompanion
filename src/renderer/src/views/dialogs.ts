@@ -1,4 +1,4 @@
-import type { ChatSummary } from '@shared/chat';
+import { filterChats, type ChatSummary } from '@shared/chat';
 import { MODEL_OPTIONS, type Effort } from '@shared/models';
 import type { IndexStatus } from '@shared/ipc';
 import type { ProjectInfo } from '@shared/project';
@@ -221,11 +221,20 @@ export interface HistoryDialogActions {
 
 export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogActions): void {
   const list = h('div', { class: 'list-group history-list' });
+  const search = h('input', {
+    type: 'search',
+    class: 'form-control mb-2',
+    placeholder: 'Search chats by title or project',
+    'aria-label': 'Search chats',
+  }) as HTMLInputElement;
+  let all = chats;
   const render = (items: ChatSummary[]) => {
+    all = items;
+    const shown = filterChats(items, search.value);
     list.replaceChildren(
-      ...(items.length === 0
-        ? [h('div', { class: 'text-body-secondary p-3' }, 'No saved chats yet.')]
-        : items.map((chat) =>
+      ...(shown.length === 0
+        ? [h('div', { class: 'text-body-secondary p-3' }, items.length === 0 ? 'No saved chats yet.' : 'No chats match your search.')]
+        : shown.map((chat) =>
             h(
               'div',
               { class: 'list-group-item list-group-item-action d-flex align-items-center gap-2' },
@@ -255,6 +264,11 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
           )),
     );
   };
+  search.addEventListener('input', () => render(all));
+  // The dialog is a form: Enter in the search box must not submit it and close the dialog.
+  search.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') event.preventDefault();
+  });
   render(chats);
   const clearButton = h(
     'button',
@@ -268,5 +282,6 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
     icon('trash'),
     ' Delete all',
   );
-  const element = dialog('Chat history', list, clearButton);
+  const element = dialog('Chat history', h('div', {}, search, list), clearButton);
+  search.focus();
 }

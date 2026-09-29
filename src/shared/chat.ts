@@ -71,6 +71,8 @@ export interface ChatSnapshot {
   transcript: TranscriptItem[];
   busy: boolean;
   usage: UsageTotals;
+  // Name of the project instruction file (AGENTS.md) that is part of the system prompt, if any.
+  agentFile: string | null;
 }
 
 export interface ChatSummary {

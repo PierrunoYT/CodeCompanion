@@ -18,6 +18,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Web search (Google Custom Search) and page fetching
 - Long chats are handled by server-side compaction (current Claude models)
 - Chats are saved automatically; per-project custom instructions
+- `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
 - Image attachments (attach or paste)
 
 ## Getting started

@@ -1,5 +1,6 @@
 import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
+import { loadAgentFile } from './agent/agent_file';
 import { buildSystemPrompt } from './agent/system_prompt';
 import { ChatSession, type SavedChat } from './agent/session';
 import type { ChatStore } from './chat_store';
@@ -46,6 +47,7 @@ export class ChatManager {
         transcript: [],
         busy: false,
         usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+        agentFile: this.pendingAgentFile(),
       }
     );
   }
@@ -126,6 +128,8 @@ export class ChatManager {
     const conversation = saved
       ? this.deps.llm.restoreConversation(saved.conversation)
       : this.deps.llm.createConversation();
+    // A saved chat keeps the system prompt it started with, including the agent file as it was then.
+    const agentFile = saved ? null : loadAgentFile(workspace);
     const system =
       saved?.system ??
       buildSystemPrompt({
@@ -134,6 +138,7 @@ export class ChatManager {
         platform: platform(),
         date: new Date().toISOString().slice(0, 10),
         customInstructions: project.instructions,
+        agentFile,
         hasCodeSearch: Boolean(initial.codeSearch),
         hasBrowser: Boolean(initial.browser),
       });
@@ -145,6 +150,7 @@ export class ChatManager {
       projectPath: project.path,
       conversation,
       system,
+      agentFile: saved ? (saved.agentFile ?? null) : (agentFile?.name ?? null),
       tools: () => {
         const { codeSearch, browser, webSearch } = capabilities();
         return availableTools({ browser, codeSearch: codeSearch?.search ?? null, webSearch }, codeSearch?.tools ?? []);
@@ -162,6 +168,17 @@ export class ChatManager {
       onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),
     });
     return session;
+  }
+
+  // The agent file a new chat in the current project would start with, shown before the first message.
+  private pendingAgentFile(): string | null {
+    const project = this.deps.projects.current();
+    if (!project) return null;
+    try {
+      return loadAgentFile(new Workspace(project.path))?.name ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private currentWorkspace(path: string): Workspace {

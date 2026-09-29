@@ -23,6 +23,7 @@ function input(overrides: Partial<SystemPromptInput> = {}): SystemPromptInput {
     platform: 'win32',
     date: '2026-09-29',
     customInstructions: '',
+    agentFile: null,
     hasCodeSearch: false,
     hasBrowser: false,
     ...overrides,
@@ -46,6 +47,14 @@ describe('buildSystemPrompt', () => {
   it('appends project instructions', () => {
     const prompt = buildSystemPrompt(input({ customInstructions: 'Use tabs.' }));
     expect(prompt.endsWith('# Project instructions from the user\nUse tabs.')).toBe(true);
+  });
+
+  it('injects the agent file before the user instructions', () => {
+    const prompt = buildSystemPrompt(
+      input({ agentFile: { name: 'AGENTS.md', content: 'Run tests.', truncated: false }, customInstructions: 'Use tabs.' }),
+    );
+    expect(prompt).toContain('# Instructions from AGENTS.md in the project\nRun tests.');
+    expect(prompt.indexOf('Run tests.')).toBeLessThan(prompt.indexOf('Use tabs.'));
   });
 
   it('is deterministic for the same input so the prefix stays cached', () => {

@@ -33,6 +33,7 @@ export class App {
   private readonly projectButton = h('button', { class: 'btn btn-sm btn-outline-secondary project-button', onclick: () => this.toggleProjectMenu() });
   private readonly projectMenu = h('div', { class: 'dropdown-menu project-menu' });
   private readonly modelLabel = h('span', { class: 'status-item' });
+  private readonly agentLabel = h('span', { class: 'status-item' });
   private readonly modeButton = h('button', { class: 'btn btn-sm mode-button', onclick: () => this.toggleMode() });
   private readonly titleLabel = h('span', { class: 'chat-title text-truncate' });
   private readonly usageLabel = h('span', { class: 'status-item ms-auto' });
@@ -132,7 +133,7 @@ export class App {
         h('section', { class: 'chat-pane' }, h('div', { class: 'chat-scroll-wrap' }, this.chatScroll), this.composer.element),
         this.panelHost,
       ),
-      h('footer', { class: 'app-footer' }, this.modelLabel, this.usageLabel),
+      h('footer', { class: 'app-footer' }, this.modelLabel, this.agentLabel, this.usageLabel),
       this.toastArea,
     );
   }
@@ -179,6 +180,11 @@ export class App {
     const model = this.chat.transcript.length > 0 ? this.chat.model : this.settings.model;
     const label = MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model;
     this.modelLabel.replaceChildren(icon('cpu'), ` ${label}`, this.settings.approvalMode === 'ask' ? '' : ' · auto');
+
+    const agentFile = this.chat.agentFile;
+    this.agentLabel.hidden = !agentFile;
+    this.agentLabel.title = agentFile ? `${agentFile} from the project is included in this chat's instructions` : '';
+    this.agentLabel.replaceChildren(...(agentFile ? [icon('file-earmark-check'), ` ${agentFile} loaded`] : []));
 
     const { inputTokens, outputTokens, cacheReadTokens } = this.chat.usage;
     this.usageLabel.textContent =

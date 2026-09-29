@@ -79,6 +79,7 @@ function setup(steps: Step[], { mode = 'ask' as ApprovalMode, tools = () => [loo
     projectPath: '/project',
     conversation,
     system: 'system prompt',
+    agentFile: null,
     tools,
     approvalMode: () => mode,
     toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,

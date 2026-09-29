@@ -26,6 +26,7 @@ export interface SavedChat {
   usage: UsageTotals;
   conversation: SerializedConversation;
   readFiles: string[];
+  agentFile?: string | null;
 }
 
 export interface ChatSessionOptions {
@@ -35,6 +36,7 @@ export interface ChatSessionOptions {
   projectPath: string | null;
   conversation: Conversation;
   system: string;
+  agentFile: string | null;
   tools: () => AgentTool[];
   transcript?: TranscriptItem[];
   usage?: UsageTotals;
@@ -95,6 +97,7 @@ export class ChatSession {
       transcript: this.transcript,
       busy: this.busy,
       usage: this.agent.totals,
+      agentFile: this.options.agentFile,
     };
   }
 
@@ -147,6 +150,7 @@ export class ChatSession {
       usage: this.agent.totals,
       conversation: this.options.conversation.serialize(),
       readFiles: [...this.readFiles],
+      agentFile: this.options.agentFile,
     };
   }
 

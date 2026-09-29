@@ -35,6 +35,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Features
 
+- [x] Always inject `AGENTS.md` into the session and show in the UI that it is loaded
 - [ ] Add a stop-and-resume option for long agent runs
 - [ ] Show cost estimates next to the token usage in the status bar
 - [ ] Add a setting to allow specific commands without approval

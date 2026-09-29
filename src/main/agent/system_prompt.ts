@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Workspace } from '../tools/workspace';
+import type { AgentFile } from './agent_file';
 
 export interface SystemPromptInput {
   workspace: Workspace;
@@ -8,6 +9,7 @@ export interface SystemPromptInput {
   platform: string;
   date: string;
   customInstructions: string;
+  agentFile: AgentFile | null;
   hasCodeSearch: boolean;
   hasBrowser: boolean;
 }
@@ -35,6 +37,10 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `# Project overview (top level)\n${topLevelListing(input.workspace)}`,
   ];
 
+  if (input.agentFile) {
+    const { name, content, truncated } = input.agentFile;
+    sections.push(`# Instructions from ${name} in the project\n${content}${truncated ? '\n(truncated)' : ''}`);
+  }
   if (input.customInstructions.trim()) {
     sections.push(`# Project instructions from the user\n${input.customInstructions.trim()}`);
   }

@@ -14,6 +14,7 @@ describe('chat end to end (mock Claude API)', () => {
   beforeAll(async () => {
     project = mkdtempSync(join(tmpdir(), 'cc-e2e-project-'));
     writeFileSync(join(project, 'notes.txt'), 'The secret word is pineapple.\n');
+    writeFileSync(join(project, 'AGENTS.md'), 'Always answer in lowercase.\n');
     claude = new MockClaude();
     const url = await claude.start();
     running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: url });
@@ -86,6 +87,10 @@ describe('chat end to end (mock Claude API)', () => {
 
     // The system prompt describes the project.
     expect(claude.agentRequests[0].system[0].text).toContain(project.split(/[\\/]/).pop());
+
+    // AGENTS.md is injected into the system prompt and reported to the UI.
+    expect(claude.agentRequests[0].system[0].text).toContain('Always answer in lowercase.');
+    expect(snapshot.agentFile).toBe('AGENTS.md');
 
     // Saved automatically, with a generated title.
     let history: any[] = [];

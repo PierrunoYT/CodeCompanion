@@ -53,7 +53,7 @@ describe('user interface', () => {
 
   it('sends a message with Enter and renders the streamed answer as markdown', async () => {
     claude.script({ blocks: [{ type: 'text', text: 'Here is **bold** and `code`.' }], stopReason: 'end_turn' });
-    const input = running.page.getByLabel('Message');
+    const input = running.page.getByLabel('Message', { exact: true });
     await input.fill('Say something');
     await input.press('Enter');
 
@@ -72,7 +72,7 @@ describe('user interface', () => {
       ],
       stopReason: 'end_turn',
     });
-    const input = running.page.getByLabel('Message');
+    const input = running.page.getByLabel('Message', { exact: true });
     await input.fill('Show me something');
     await input.press('Enter');
     await running.page.locator('.message.assistant', { hasText: 'done' }).waitFor();
@@ -108,7 +108,7 @@ describe('user interface', () => {
       },
       { blocks: [{ type: 'text', text: 'Updated the greeting.' }], stopReason: 'end_turn' },
     );
-    const input = running.page.getByLabel('Message');
+    const input = running.page.getByLabel('Message', { exact: true });
     await input.fill('Change the greeting');
     await input.press('Enter');
 

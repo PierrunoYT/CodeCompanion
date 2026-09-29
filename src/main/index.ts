@@ -11,6 +11,9 @@ import { CodeIndex, openAIEmbedder, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { SettingsStore } from './settings';
+import { BrowserService } from './panels/browser';
+import { GitService } from './panels/git';
+import { TerminalService } from './panels/terminal';
 import { createMainWindow } from './window';
 
 app.setName('CodeCompanion');
@@ -36,6 +39,16 @@ function start(): void {
   const projects = new ProjectStore(join(userData, 'projects.json'));
   const chats = new ChatStore(join(userData, 'chats'));
   const llm = new LlmService(settings);
+  const browser = new BrowserService(() => send(mainWindow, 'panel:show', 'browser'));
+  const terminal = new TerminalService(
+    (data) => send(mainWindow, 'terminal:data', data),
+    () => send(mainWindow, 'terminal:exit', null),
+  );
+  const git = () => {
+    const project = projects.current();
+    if (!project) throw new Error('No project is open.');
+    return new GitService(project.path);
+  };
   const codeIndexes = new Map<string, CodeIndex>();
   // A changed key or endpoint means new embeddings; drop cached indexes so they are rebuilt with the new client.
   settings.on('change', () => codeIndexes.clear());
@@ -45,7 +58,7 @@ function start(): void {
     projects,
     chats,
     llm,
-    browser: () => null,
+    browser: () => browser,
     codeSearch: (workspace) => {
       // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
       const key = settings.getSecret('openaiApiKey');
@@ -66,6 +79,7 @@ function start(): void {
   const openProject = (path: string) => {
     const project = projects.open(path);
     manager.projectChanged();
+    terminal.stop();
     send(mainWindow, 'project:changed', project);
     return project;
   };
@@ -130,16 +144,34 @@ function start(): void {
     openInEditor(settings.get().editorCommand, project.path, path);
   });
 
+  handle('terminal:start', (cols, rows) => {
+    const project = projects.current();
+    if (!project) throw new Error('Open a project to use the terminal.');
+    terminal.start(project.path, cols, rows);
+  });
+  handle('terminal:write', (data) => terminal.write(data));
+  handle('terminal:resize', (cols, rows) => terminal.resize(cols, rows));
+
+  handle('git:status', () => git().status());
+  handle('git:diff', (path) => git().diff(path));
+  handle('git:commit', (message) => git().commit(message));
+  handle('git:discard', (path) => git().discard(path));
+  handle('git:init', () => git().init());
+
+  const openWindow = () => createMainWindow((guest) => browser.attach(guest));
   buildMenu(() => mainWindow);
-  mainWindow = createMainWindow();
+  mainWindow = openWindow();
   mainWindow.on('closed', () => (mainWindow = null));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createMainWindow();
+      mainWindow = openWindow();
     }
   });
-  app.on('before-quit', () => manager.dispose());
+  app.on('before-quit', () => {
+    manager.dispose();
+    terminal.stop();
+  });
 }
 
 app.whenReady().then(start);

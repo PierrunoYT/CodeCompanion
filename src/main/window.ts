@@ -1,7 +1,7 @@
-import { BrowserWindow, screen, shell } from 'electron';
+import { BrowserWindow, screen, shell, type WebContents } from 'electron';
 import { join } from 'node:path';
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(onBrowserAttached: (guest: WebContents) => void): BrowserWindow {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
   const window = new BrowserWindow({
@@ -21,7 +21,7 @@ export function createMainWindow(): BrowserWindow {
     },
   });
 
-  hardenWebContents(window);
+  hardenWebContents(window, onBrowserAttached);
   window.once('ready-to-show', () => window.show());
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -35,7 +35,7 @@ export function createMainWindow(): BrowserWindow {
 
 // The app page is the only content the main window may show. Links open in the system browser, and pages
 // loaded in the built-in browser (<webview>) never get a preload script or Node access.
-function hardenWebContents(window: BrowserWindow): void {
+function hardenWebContents(window: BrowserWindow, onBrowserAttached: (guest: WebContents) => void): void {
   const openExternally = ({ url }: { url: string }) => {
     if (/^https?:\/\//i.test(url)) {
       shell.openExternal(url);
@@ -62,6 +62,11 @@ function hardenWebContents(window: BrowserWindow): void {
   });
 
   window.webContents.on('did-attach-webview', (_event, guest) => {
-    guest.setWindowOpenHandler(openExternally);
+    // Popups from pages in the browser panel open in the panel itself.
+    guest.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) guest.loadURL(url);
+      return { action: 'deny' };
+    });
+    onBrowserAttached(guest);
   });
 }

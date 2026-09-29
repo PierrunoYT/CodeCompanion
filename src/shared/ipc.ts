@@ -5,6 +5,7 @@
 //
 // Both sides are typed from these maps, so a renamed channel or changed payload is a compile error.
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, ChatSummary, UserMessage } from './chat';
+import type { GitStatus, PanelName } from './panels';
 import type { ProjectInfo } from './project';
 import type { SecretName, Settings, SettingsView } from './settings';
 
@@ -44,6 +45,16 @@ export interface InvokeApi {
 
   'files:pick-images': () => ImageAttachment[];
   'files:open-in-editor': (path: string) => void;
+
+  'terminal:start': (cols: number, rows: number) => void;
+  'terminal:write': (data: string) => void;
+  'terminal:resize': (cols: number, rows: number) => void;
+
+  'git:status': () => GitStatus;
+  'git:diff': (path: string | null) => string;
+  'git:commit': (message: string) => GitStatus;
+  'git:discard': (path: string) => GitStatus;
+  'git:init': () => GitStatus;
 }
 
 export interface EventMap {
@@ -54,6 +65,9 @@ export interface EventMap {
   'chat:event': { chatId: string; event: ChatEvent };
   'chat:snapshot': ChatSnapshot;
   'history:changed': ChatSummary[];
+  'terminal:data': string;
+  'terminal:exit': null;
+  'panel:show': PanelName;
 }
 
 export type InvokeChannel = keyof InvokeApi;
@@ -83,6 +97,14 @@ const INVOKE: Record<InvokeChannel, true> = {
   'history:clear': true,
   'files:pick-images': true,
   'files:open-in-editor': true,
+  'terminal:start': true,
+  'terminal:write': true,
+  'terminal:resize': true,
+  'git:status': true,
+  'git:diff': true,
+  'git:commit': true,
+  'git:discard': true,
+  'git:init': true,
 };
 
 const EVENTS: Record<EventChannel, true> = {
@@ -93,6 +115,9 @@ const EVENTS: Record<EventChannel, true> = {
   'chat:event': true,
   'chat:snapshot': true,
   'history:changed': true,
+  'terminal:data': true,
+  'terminal:exit': true,
+  'panel:show': true,
 };
 
 export const INVOKE_CHANNELS = Object.keys(INVOKE) as InvokeChannel[];

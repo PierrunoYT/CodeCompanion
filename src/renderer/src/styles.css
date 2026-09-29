@@ -363,3 +363,135 @@ body {
 .composer-row .btn {
   white-space: nowrap;
 }
+
+/* Side panels */
+.panel-host[hidden] {
+  display: none;
+}
+
+.panels {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.panel-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem 0;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.panel-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  color: var(--bs-secondary-color);
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px 6px 0 0;
+}
+
+.panel-tab.active {
+  color: var(--bs-body-color);
+  border-color: var(--bs-border-color);
+  background: var(--bs-body-bg);
+  margin-bottom: -1px;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.panel-body > * {
+  position: absolute;
+  inset: 0;
+}
+
+.panel-body > [hidden] {
+  display: none !important;
+}
+
+.terminal-panel {
+  background: #1e1e1e;
+  padding: 0.4rem;
+}
+
+.browser-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.browser-toolbar {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.browser-view {
+  flex: 1;
+  background: #fff;
+}
+
+.git-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.git-commit-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.git-split {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.git-files {
+  max-height: 35%;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.git-file {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.9em;
+}
+
+.git-status {
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.git-modified,
+.git-renamed {
+  color: var(--bs-info);
+}
+
+.git-added,
+.git-untracked {
+  color: var(--bs-success);
+}
+
+.git-deleted,
+.git-conflicted {
+  color: var(--bs-danger);
+}
+
+.git-diff {
+  flex: 1;
+  overflow: auto;
+  font-size: 0.85em;
+}

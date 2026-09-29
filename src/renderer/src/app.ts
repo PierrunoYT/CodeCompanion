@@ -6,6 +6,7 @@ import type { SettingsView } from '@shared/settings';
 import { h, icon, setChildren } from './dom';
 import { Composer } from './views/composer';
 import { openHistoryDialog, openInstructionsDialog, openSettingsDialog } from './views/dialogs';
+import { Panels } from './views/panels';
 import { TranscriptView } from './views/transcript';
 
 const api = window.api;
@@ -38,7 +39,12 @@ export class App {
   private readonly chatScroll = h('div', { class: 'chat-scroll' });
   private readonly welcome = h('div', { class: 'welcome' });
   private readonly toastArea = h('div', { class: 'toast-area' });
-  readonly panelHost = h('div', { class: 'panel-host' });
+  private readonly panels = new Panels(
+    () => this.settings.theme,
+    (error) => this.toast(error),
+  );
+  private readonly panelHost = h('div', { class: 'panel-host' }, this.panels.element);
+  private readonly panelButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Show or hide the side panel', onclick: () => this.togglePanel() }, icon('layout-sidebar-reverse'));
 
   async start(root: HTMLElement): Promise<void> {
     [this.settings, this.project, this.chat] = await Promise.all([
@@ -59,6 +65,7 @@ export class App {
     });
     api.on('project:changed', (project) => {
       this.project = project;
+      this.panels.projectChanged();
       this.renderHeader();
       void this.renderWelcome();
     });
@@ -71,6 +78,7 @@ export class App {
     api.on('chat:event', ({ chatId, event }) => {
       if (chatId !== this.chat.id) return;
       this.pendingEvents.push(event);
+      if (event.type === 'tool-end') this.panels.filesChanged();
       // Stream deltas arrive quickly; apply them in batches once per frame.
       this.frame ||= requestAnimationFrame(() => this.flushEvents());
     });
@@ -80,6 +88,12 @@ export class App {
       else if (command === 'stop') void api.invoke('chat:stop');
       else if (command === 'settings') this.openSettings();
     });
+    api.on('panel:show', (name) => {
+      this.setPanelVisible(true);
+      this.panels.show(name);
+    });
+    this.setPanelVisible(readPreference('panelVisible') !== 'false');
+    this.panels.show('terminal');
     document.addEventListener('click', (event) => {
       if (!this.projectMenu.contains(event.target as Node) && !this.projectButton.contains(event.target as Node)) {
         this.projectMenu.classList.remove('show');
@@ -105,6 +119,7 @@ export class App {
           'div',
           { class: 'header-actions' },
           this.modeButton,
+          this.panelButton,
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'New chat (Ctrl+N)', onclick: () => void this.newChat() }, icon('plus-lg'), ' New chat'),
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Chat history', onclick: () => void this.openHistory() }, icon('clock-history')),
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() }, icon('gear')),
@@ -329,6 +344,16 @@ export class App {
     });
   }
 
+  private togglePanel(): void {
+    this.setPanelVisible(this.panelHost.hidden);
+  }
+
+  private setPanelVisible(visible: boolean): void {
+    this.panelHost.hidden = !visible;
+    this.panelButton.classList.toggle('active', visible);
+    writePreference('panelVisible', String(visible));
+  }
+
   private applyTheme(): void {
     document.documentElement.dataset.bsTheme = this.settings.theme;
   }
@@ -343,4 +368,21 @@ export class App {
 
 function format(tokens: number): string {
   return tokens >= 1000 ? `${(tokens / 1000).toFixed(tokens >= 100_000 ? 0 : 1)}k` : String(tokens);
+}
+
+// UI conveniences only (panel visibility); the app works the same when storage is unavailable.
+function readPreference(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writePreference(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore.
+  }
 }

@@ -19,8 +19,8 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Fix `npm run dist` failing with EBUSY when `dist/win-unpacked` is in use (a guard script asks you to close the app)
 - [x] Add an end-to-end test for the OpenAI Responses path
 - [x] Reset the version to `0.1.0` (new codebase)
-- [ ] Update the `CHANGELOG.md` date on release
-- [ ] Tag the release and publish the Windows installer on GitHub Releases (0.1.0 is Windows only)
+- [x] Update the `CHANGELOG.md` date on release (2026-09-29)
+- [x] Tag the release and publish the Windows installer on GitHub Releases (0.1.0 is Windows only)
 
 ## Later: other platforms (after the Windows release)
 

@@ -33,8 +33,14 @@ export class TranscriptView {
   constructor(private readonly actions: TranscriptActions) {}
 
   render(items: TranscriptItem[]): void {
-    const container = this.element.parentElement;
-    const stick = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+    // The scrolling element is the wrapper around the transcript's parent, not the direct parent.
+    const container = this.element.closest<HTMLElement>('.chat-scroll-wrap');
+    const last = items[items.length - 1];
+    // Always follow when the user just sent a message; otherwise only if already near the bottom.
+    const stick =
+      !container ||
+      last?.kind === 'user' ||
+      container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
     const seen = new Set<string>();
     let previous: HTMLElement | null = null;

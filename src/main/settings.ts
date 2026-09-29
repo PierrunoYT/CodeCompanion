@@ -99,6 +99,7 @@ function sanitize(settings: Settings): Settings {
   }
   if (!['ask', 'auto'].includes(result.approvalMode)) result.approvalMode = DEFAULT_SETTINGS.approvalMode;
   if (!['dark', 'light'].includes(result.theme)) result.theme = DEFAULT_SETTINGS.theme;
+  if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(result.effort)) result.effort = DEFAULT_SETTINGS.effort;
   result.maxIndexedFiles = Math.max(1, Math.floor(result.maxIndexedFiles));
   result.model = result.model.trim() || DEFAULT_SETTINGS.model;
   return result;

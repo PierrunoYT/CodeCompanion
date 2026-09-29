@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL } from './models';
+import { DEFAULT_MODEL, type Effort } from './models';
 
 export type Theme = 'dark' | 'light';
 
@@ -7,6 +7,8 @@ export type ApprovalMode = 'ask' | 'auto';
 
 export interface Settings {
   model: string;
+  // How much the model thinks before acting (Claude models that support effort).
+  effort: Effort;
   approvalMode: ApprovalMode;
   theme: Theme;
   // Base URL for an OpenAI-compatible API. Empty means api.openai.com.
@@ -19,6 +21,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   model: DEFAULT_MODEL,
+  effort: 'high',
   approvalMode: 'ask',
   theme: 'dark',
   openaiBaseUrl: '',

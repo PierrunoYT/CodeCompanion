@@ -77,5 +77,10 @@
   "allowScripts": {
     "electron": true,
     "esbuild": true
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "openai": "^7.23.0",
+    "zod": "^4.6.5"
   }
 }

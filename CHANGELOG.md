@@ -18,6 +18,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - The terminal panel no longer asks the main process for a shell when no project is open, which logged an error at startup; it shows "Open a project to use the terminal." instead.
 
 ### Development
+- README shows a screenshot of the approval card (`docs/images/approval.png`), cropped from the end-to-end screenshots.
 - `package.json` now has an `author` field.
 - 0.1.0 is released for Windows only; macOS and Linux builds come later.
 - Unit tests use a 30 s timeout so the first shell start on a slow CI runner no longer fails the run.

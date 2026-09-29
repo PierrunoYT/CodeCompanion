@@ -1,3 +1,4 @@
+const context = require('../context');
 const fs = require('graceful-fs');
 const path = require('path');
 const ProjectController = require('../project_controller');
@@ -14,26 +15,26 @@ class Agent {
   }
 
   async runAgent(apiResponseMessage) {
-    if (chatController.stopProcess || !apiResponseMessage) {
+    if (context.chatController.stopProcess || !apiResponseMessage) {
       return;
     }
 
     try {
       const toolCalls = apiResponseMessage.tool_calls;
       if (apiResponseMessage.content) {
-        chatController.chat.addFrontendMessage('assistant', apiResponseMessage.content);
+        context.chatController.chat.addFrontendMessage('assistant', apiResponseMessage.content);
       }
-      chatController.chat.addBackendMessage('assistant', apiResponseMessage.content, toolCalls);
+      context.chatController.chat.addBackendMessage('assistant', apiResponseMessage.content, toolCalls);
 
       if (toolCalls && toolCalls.length > 0) {
         const { decision, reflectMessage } = await this.runTools(toolCalls);
 
         if (decision !== 'reject') {
-          await chatController.process('', false, reflectMessage);
+          await context.chatController.process('', false, reflectMessage);
         }
       }
     } catch (error) {
-      chatController.handleError(error);
+      context.chatController.handleError(error);
     }
   }
 
@@ -54,14 +55,14 @@ class Agent {
       if (decision === 'approve') {
         const functionCallResult = await this.callFunction(toolCall);
         if (functionCallResult) {
-          chatController.chat.addBackendMessage('tool', functionCallResult, null, functionName, toolCall.id);
+          context.chatController.chat.addBackendMessage('tool', functionCallResult, null, functionName, toolCall.id);
         } else {
-          viewController.updateLoadingIndicator(false);
+          context.viewController.updateLoadingIndicator(false);
         }
       } else if (decision === 'reject') {
         isUserRejected = true;
-        chatController.chat.addFrontendMessage('error', 'Action was rejected');
-        chatController.chat.addBackendMessage(
+        context.chatController.chat.addFrontendMessage('error', 'Action was rejected');
+        context.chatController.chat.addBackendMessage(
           'tool',
           `User rejected tool call: \n ${JSON.stringify(toolCall, null, 2)}`,
           null,
@@ -97,13 +98,13 @@ class Agent {
     }
 
     // check if file is in chat context
-    const chatContextFiles = chatController.chat.chatContextBuilder.taskRelevantFiles;
+    const chatContextFiles = context.chatController.chat.chatContextBuilder.taskRelevantFiles;
     const fileInChatContext = chatContextFiles.includes(filePath);
 
     if (fileInChatContext === false) {
       console.error('Tool rejected', toolCall);
       if (fileExists) {
-        chatController.chat.chatContextBuilder.taskRelevantFiles.push(filePath);
+        context.chatController.chat.chatContextBuilder.taskRelevantFiles.push(filePath);
       }
     }
 
@@ -120,7 +121,7 @@ class Agent {
   async waitForDecision(functionName, toolCall) {
     if (
       this.isToolCallRepeated(toolCall) ||
-      (chatController.settings.approvalRequired &&
+      (context.chatController.settings.approvalRequired &&
         toolDefinitions.find((tool) => tool.name === functionName).approvalRequired)
     ) {
       document.getElementById('messageInput').disabled = true;
@@ -145,7 +146,7 @@ class Agent {
   }
 
   async callFunction(toolCall) {
-    viewController.updateLoadingIndicator(true);
+    context.viewController.updateLoadingIndicator(true);
     const functionName = toolCall.function.name;
     const args = this.parseArguments(toolCall.function.arguments);
     let result = '';
@@ -159,10 +160,10 @@ class Agent {
       }
     } catch (error) {
       console.error(error);
-      chatController.chat.addFrontendMessage('error', `Error occurred. ${error.message}`);
+      context.chatController.chat.addFrontendMessage('error', `Error occurred. ${error.message}`);
       result = `Error: ${error.message}`;
     } finally {
-      viewController.updateLoadingIndicator(false);
+      context.viewController.updateLoadingIndicator(false);
       return result;
     }
   }
@@ -190,7 +191,7 @@ class Agent {
     const args = this.parseArguments(toolCall.function.arguments);
     const preview = await previewMessageMapping(functionName, args);
 
-    chatController.chat.addFrontendMessage('assistant', `${preview.message}\n${preview.code}`);
+    context.chatController.chat.addFrontendMessage('assistant', `${preview.message}\n${preview.code}`);
   }
 }
 

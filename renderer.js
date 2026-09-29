@@ -13,8 +13,14 @@ const { processFile, handleDrop } = require('./app/chat/file_handler');
 const { modelOptions, defaultModel } = require('./app/static/models_config');
 
 const localStorage = new Store();
+const context = require('./app/context');
+
+// chatController and viewController stay top-level bindings because inline onclick handlers in the
+// rendered HTML resolve them by name. Modules reach them through app/context instead.
 const chatController = new ChatController();
 const viewController = new ViewController();
+context.chatController = chatController;
+context.viewController = viewController;
 const onboardingController = new OnboardingController();
 
 let dataPath;

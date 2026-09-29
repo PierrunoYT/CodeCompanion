@@ -1,3 +1,4 @@
+const context = require('./context');
 const os = require('os');
 const Parser = require('@postlight/parser');
 const _ = require('lodash');
@@ -171,7 +172,7 @@ class ChatController {
     }
 
     if (this.stopProcess) {
-      viewController.updateLoadingIndicator(false);
+      context.viewController.updateLoadingIndicator(false);
       return;
     }
 
@@ -190,7 +191,7 @@ class ChatController {
 
     try {
       this.isProcessing = true;
-      viewController.updateLoadingIndicator(true, '');
+      context.viewController.updateLoadingIndicator(true, '');
       const messages = await this.chat.chatContextBuilder.buildMessages(query, reflectMessage);
       const tools = this.chat.chatContextBuilder.taskNeedsPlan ? planningTools() : allEnabledTools();
       apiResponse = await this.model.call({ messages, model: this.settings.selectedModel, tools });
@@ -199,7 +200,7 @@ class ChatController {
       this.handleError(error);
     } finally {
       this.isProcessing = false;
-      viewController.updateLoadingIndicator(false);
+      context.viewController.updateLoadingIndicator(false);
     }
 
     await this.agent.runAgent(apiResponse);
@@ -213,11 +214,11 @@ class ChatController {
       output_tokens: usage.output_tokens,
       total_tokens: this.usage.total_tokens + usage.input_tokens + usage.output_tokens,
     };
-    viewController.updateFooterMessage();
+    context.viewController.updateFooterMessage();
   }
 
   async fetchAndParseUrl(url) {
-    viewController.updateLoadingIndicator(true);
+    context.viewController.updateLoadingIndicator(true);
     try {
       const parsedResult = await Parser.parse(url, { contentType: 'text' });
       if (parsedResult.failed) {
@@ -308,8 +309,8 @@ class ChatController {
       output_tokens: 0,
       total_tokens: 0,
     };
-    viewController.updateFooterMessage();
-    viewController.showWelcomeContent();
+    context.viewController.updateFooterMessage();
+    context.viewController.showWelcomeContent();
 
     this.agent.projectState = {
       complexity: '',
@@ -319,7 +320,7 @@ class ChatController {
     };
 
     onboardingController.showAllTips();
-    viewController.onShow();
+    context.viewController.onShow();
   }
 }
 

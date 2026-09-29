@@ -1,3 +1,4 @@
+const context = require('../context');
 const path = require('path');
 const fs = require('graceful-fs');
 const GoogleSearch = require('./google_search');
@@ -212,7 +213,7 @@ async function previewMessageMapping(functionName, args) {
 }
 
 function taskPlanningDone() {
-  chatController.chat.chatContextBuilder.taskNeedsPlan = false;
+  context.chatController.chat.chatContextBuilder.taskNeedsPlan = false;
   return 'Task planning is done.';
 }
 
@@ -220,17 +221,17 @@ async function browser({ include_screenshot, url }) {
   let userScreenshotMessage = '';
   let assistantScreenshotMessage = '';
 
-  viewController.updateLoadingIndicator(true, 'Waiting for the page to load...');
-  viewController.activateTab('browser-tab');
-  const consoleOutput = await chatController.browser.loadUrl(url);
+  context.viewController.updateLoadingIndicator(true, 'Waiting for the page to load...');
+  context.viewController.activateTab('browser-tab');
+  const consoleOutput = await context.chatController.browser.loadUrl(url);
 
   if (include_screenshot) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    await chatController.browser.handleSreenshot();
+    await context.chatController.browser.handleSreenshot();
     userScreenshotMessage = ` and took a screenshot of`;
     assistantScreenshotMessage = `\nScreenshot of the webpage was taken and attached in the user message`;
   }
-  chatController.chat.addFrontendMessage('function', `Opened URL ${userScreenshotMessage}: ${url}`);
+  context.chatController.chat.addFrontendMessage('function', `Opened URL ${userScreenshotMessage}: ${url}`);
   return `Browser loaded URL: ${url}\n<console_output>${consoleOutput}</console_output>${assistantScreenshotMessage}`;
 }
 
@@ -244,7 +245,7 @@ async function createFile({ targetFile, createText }) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
   }
   fs.writeFileSync(filePath, createText);
-  chatController.chat.addFrontendMessage('function', `File ${await openFileLink(filePath)} created successfully`);
+  context.chatController.chat.addFrontendMessage('function', `File ${await openFileLink(filePath)} created successfully`);
 
   return `File '${targetFile}' created successfully`;
 }
@@ -257,13 +258,13 @@ async function replaceInFile({ targetFile, startLineNumber, endLineNumber, repla
   const filePath = await normalizedFilePath(targetFile);
   if (!fs.existsSync(filePath)) {
     const doesntExistMessage = `File with filepath '${targetFile}' does not exist`;
-    chatController.chat.addFrontendMessage('function', doesntExistMessage);
+    context.chatController.chat.addFrontendMessage('function', doesntExistMessage);
     return doesntExistMessage;
   }
 
   if (startLineNumber < 1 || startLineNumber > endLineNumber) {
     const invalidRangeMessage = `Invalid line range: ${startLineNumber}-${endLineNumber}`;
-    chatController.chat.addFrontendMessage('function', invalidRangeMessage);
+    context.chatController.chat.addFrontendMessage('function', invalidRangeMessage);
     return invalidRangeMessage;
   }
 
@@ -276,7 +277,7 @@ async function replaceInFile({ targetFile, startLineNumber, endLineNumber, repla
   const codeDiff = generateDiff(oldContent, newContent, filePath, filePath);
   fs.writeFileSync(filePath, newContent);
   const successMessage = `File ${await openFileLink(filePath)} updated successfully.`;
-  chatController.chat.addFrontendMessage('function', successMessage);
+  context.chatController.chat.addFrontendMessage('function', successMessage);
 
   return `File ${filePath} updated successfully.\n<code diff>${codeDiff}</code diff>`;
 }
@@ -303,23 +304,23 @@ async function readFile({ targetFile }) {
   const filePath = await normalizedFilePath(targetFile);
   if (!fs.existsSync(filePath)) {
     const doesntExistMessage = `File with filepath '${targetFile}' does not exist`;
-    chatController.chat.addFrontendMessage('function', doesntExistMessage);
+    context.chatController.chat.addFrontendMessage('function', doesntExistMessage);
     return doesntExistMessage;
   }
 
-  chatController.chat.addFrontendMessage('function', `Read ${await openFileLink(filePath)} file`);
+  context.chatController.chat.addFrontendMessage('function', `Read ${await openFileLink(filePath)} file`);
 
   return `File "${filePath}" was read.`;
 }
 
 async function shell({ command, background }) {
-  viewController.updateLoadingIndicator(true, 'Executing shell command ...  (click Stop to cancel or use Ctrl+C)');
+  context.viewController.updateLoadingIndicator(true, 'Executing shell command ...  (click Stop to cancel or use Ctrl+C)');
   let commandResult;
   if (background === true) {
-    chatController.terminalSession.executeShellCommand(command);
+    context.chatController.terminalSession.executeShellCommand(command);
     return 'Command started in the background';
   } else {
-    commandResult = await chatController.terminalSession.executeShellCommand(command);
+    commandResult = await context.chatController.terminalSession.executeShellCommand(command);
   }
   // Preserve first 5 lines and last 95 lines if more than 100 lines
   const lines = commandResult.split('\n');
@@ -334,7 +335,7 @@ async function shell({ command, background }) {
   }
   commandResult = commandResult.replace(command, '');
   commandResult = `Command executed: '${command}'\nOutput:\n'${commandResult ? commandResult : 'command executed successfully. Terminal command output was empty.'}'`;
-  viewController.updateLoadingIndicator(false);
+  context.viewController.updateLoadingIndicator(false);
 
   return commandResult;
 }
@@ -344,19 +345,19 @@ async function searchCode({ query, rerank = true, count = 10 }) {
   let backendMessage = '';
   let uniqueFiles = [];
 
-  let results = await chatController.agent.projectController.searchEmbeddings({ query, count, rerank });
+  let results = await context.chatController.agent.projectController.searchEmbeddings({ query, count, rerank });
 
   if (results && results.length > 0) {
     const files = results.map((result) => result.filePath);
     uniqueFiles = [...new Set(files)];
     frontendMessage = `Checked ${uniqueFiles.length} files:<br>${await Promise.all(uniqueFiles.map(async (filePath) => await openFileLink(filePath))).then((fileLinks) => fileLinks.join('<br>'))}`;
     backendMessage = JSON.stringify(results);
-    chatController.chat.addFrontendMessage('function', frontendMessage);
+    context.chatController.chat.addFrontendMessage('function', frontendMessage);
     return backendMessage;
   }
 
   const noResultsMessage = `No results found`;
-  chatController.chat.addFrontendMessage('function', noResultsMessage);
+  context.chatController.chat.addFrontendMessage('function', noResultsMessage);
   return noResultsMessage;
 }
 
@@ -382,7 +383,7 @@ async function googleSearch({ query }) {
 
     // return first result if it meets the condition
     if (await checkIfAnswersQuery(query, compressedResult)) {
-      chatController.chat.addFrontendMessage(
+      context.chatController.chat.addFrontendMessage(
         'function',
         `Checked websites:<br>${results.map((result) => `<a href="${result.link}" class="text-truncate ms-2">${result.link}</a>`).join('<br>')}`,
       );
@@ -391,7 +392,7 @@ async function googleSearch({ query }) {
   }
 
   // Return first compressed result if no result meets the condition
-  chatController.chat.addFrontendMessage(
+  context.chatController.chat.addFrontendMessage(
     'function',
     `Checked websites:<br>${results.map((result) => `<a href="${result.link}" class="text-truncate ms-2">${result.link}</a>`).join('<br>')}`,
   );
@@ -403,18 +404,18 @@ async function openFileLink(filepath) {
     let absolutePath = path.normalize(filepath);
 
     if (!path.isAbsolute(absolutePath)) {
-      if (chatController.agent.projectController.currentProject) {
-        absolutePath = path.join(chatController.agent.projectController.currentProject.path, absolutePath);
+      if (context.chatController.agent.projectController.currentProject) {
+        absolutePath = path.join(context.chatController.agent.projectController.currentProject.path, absolutePath);
       } else {
         absolutePath = await normalizedFilePath(absolutePath);
       }
     }
 
     let filename;
-    if (chatController.agent.projectController.currentProject) {
-      filename = path.relative(chatController.agent.projectController.currentProject.path, absolutePath);
+    if (context.chatController.agent.projectController.currentProject) {
+      filename = path.relative(context.chatController.agent.projectController.currentProject.path, absolutePath);
     } else {
-      filename = path.relative(chatController.agent.currentWorkingDir, absolutePath);
+      filename = path.relative(context.chatController.agent.currentWorkingDir, absolutePath);
     }
 
     return `<a href="#" onclick="event.preventDefault(); viewController.openFileInIDE('${absolutePath.replace(/\\/g, '\\\\')}')">${filename}</a>`;
@@ -471,7 +472,7 @@ ${JSON.stringify(searchResult)}
 
 Does this result answer the search query question?
 Respond with a boolean value: "true" or "false"`;
-  const result = await chatController.backgroundTask.run({ prompt, format });
+  const result = await context.chatController.backgroundTask.run({ prompt, format });
 
   return result !== false;
 }
@@ -490,7 +491,7 @@ async function unifiedSearch({ type, query }) {
 }
 
 function respondTargetFileNotProvided() {
-  chatController.chat.addFrontendMessage('function', 'File name was not provided.');
+  context.chatController.chat.addFrontendMessage('function', 'File name was not provided.');
 
   return 'Please provide a target file name in a correct format.';
 }

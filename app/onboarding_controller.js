@@ -1,3 +1,4 @@
+const context = require('./context');
 const helpModal = new bootstrap.Modal(document.getElementById('helpMessage'));
 const onboardingSteps = require('./static/onboarding_steps');
 
@@ -46,7 +47,7 @@ class OnboardingController {
       const step = this.steps.find((step) => step.id === id);
       if (step && this.isValidStep(step, true)) {
         this.showingId = step.id;
-        chatController.chat.addFrontendMessage('onboarding', step.description);
+        context.chatController.chat.addFrontendMessage('onboarding', step.description);
         this.markAsRead();
       }
     }

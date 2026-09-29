@@ -1,3 +1,4 @@
+const context = require('./context');
 const hljs = require('highlight.js/lib/common');
 const { marked } = require('marked');
 const { markedHighlight } = require('marked-highlight');
@@ -176,7 +177,7 @@ class ViewController {
   }
 
   getUsageMessage(formatTokens) {
-    const { input_tokens, output_tokens, total_tokens } = chatController.usage;
+    const { input_tokens, output_tokens, total_tokens } = context.chatController.usage;
     if (total_tokens > 0) {
       return `Last input: ${formatTokens(input_tokens)}, output: ${formatTokens(output_tokens)}. Total this task: ${formatTokens(total_tokens)} tokens`;
     }
@@ -221,8 +222,8 @@ class ViewController {
   }
 
   openFileInIDE(filePath) {
-    const terminalCommand = `${chatController.settings.commandToOpenFile} "${filePath.replace(/\\/g, '/')}"`;
-    chatController.terminalSession.executeCommandWithoutOutput(terminalCommand);
+    const terminalCommand = `${context.chatController.settings.commandToOpenFile} "${filePath.replace(/\\/g, '/')}"`;
+    context.chatController.terminalSession.executeCommandWithoutOutput(terminalCommand);
   }
 
   activateTab(tabId) {
@@ -282,7 +283,7 @@ class ViewController {
   }
 
   showWelcomeContent() {
-    const chat = chatController.chat;
+    const chat = context.chatController.chat;
     if (chat.frontendMessages.length !== 0 || chat.task !== null) {
       document.getElementById('projectsCard').innerHTML = '';
       return;
@@ -290,7 +291,7 @@ class ViewController {
 
     let recentProjectsContent = '';
     let currentProjectContent = '';
-    const projectController = chatController.agent.projectController;
+    const projectController = context.chatController.agent.projectController;
     const recentProjects = projectController.getProjects().slice(0, 10);
 
     recentProjects.forEach((project) => {

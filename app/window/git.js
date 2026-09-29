@@ -1,3 +1,4 @@
+const context = require('../context');
 const simpleGit = require('simple-git');
 const fs = require('graceful-fs');
 const path = require('path');
@@ -98,7 +99,7 @@ class Git {
       drawFileList: false,
       highlight: true,
       matching: 'lines',
-      colorScheme: chatController.settings.theme,
+      colorScheme: context.chatController.settings.theme,
       showDiffOnly: false,
       fileContentToggle: true,
     };
@@ -180,9 +181,9 @@ class Git {
       `;
     }
 
-    viewController.activateTab('git-tab');
+    context.viewController.activateTab('git-tab');
     document.getElementById('git_output').innerHTML = html;
-    viewController.activateTooltips();
+    context.viewController.activateTooltips();
     await this.showChanges();
     this.updateTabIcon();
   }

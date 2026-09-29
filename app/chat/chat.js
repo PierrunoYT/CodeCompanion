@@ -1,3 +1,4 @@
+const context = require('../context');
 const { clipboard } = require('electron');
 const marked = require('marked');
 
@@ -42,7 +43,7 @@ class Chat {
     this.renderTask();
     await this.createTaskTitle();
     this.renderTask();
-    viewController.activateTab('task-tab');
+    context.viewController.activateTab('task-tab');
   }
 
   renderTask() {
@@ -72,7 +73,7 @@ class Chat {
     };
 
     try {
-      taskTitle = await chatController.backgroundTask.run({ prompt, format });
+      taskTitle = await context.chatController.backgroundTask.run({ prompt, format });
     } catch (error) {
       taskTitle = this.task.split(' ').slice(0, 4).join(' ') + (this.task.split(' ').length > 4 ? '...' : ''); // Fallback task title
     }
@@ -177,19 +178,19 @@ class Chat {
   }
 
   updateUI() {
-    viewController.updateLoadingIndicator(false);
+    context.viewController.updateLoadingIndicator(false);
     document.getElementById('streaming_output').innerHTML = '';
-    const formattedMessages = this.frontendMessages.map((msg) => viewController.formatResponse(msg)).join('');
+    const formattedMessages = this.frontendMessages.map((msg) => context.viewController.formatResponse(msg)).join('');
     document.getElementById('output').innerHTML = formattedMessages;
-    viewController.scrollToBottom();
-    viewController.addCopyCodeButtons();
+    context.viewController.scrollToBottom();
+    context.viewController.addCopyCodeButtons();
     this.renderTask();
-    viewController.showWelcomeContent();
-    viewController.activateTooltips();
+    context.viewController.showWelcomeContent();
+    context.viewController.activateTooltips();
   }
 
   updateStreamingMessage(message) {
-    const formattedMessage = viewController.formatResponse({ role: 'assistant', content: message });
+    const formattedMessage = context.viewController.formatResponse({ role: 'assistant', content: message });
     document.getElementById('streaming_output').innerHTML = formattedMessage;
   }
 }

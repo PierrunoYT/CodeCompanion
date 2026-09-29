@@ -1,3 +1,4 @@
+const context = require('../context');
 const { v4: uuidv4 } = require('uuid');
 
 const saveChatModal = new bootstrap.Modal(document.getElementById('saveChatModal'));
@@ -15,22 +16,22 @@ class ChatHistory {
       title,
       date,
       chat: {
-        frontendMessages: chatController.chat.frontendMessages,
-        backendMessages: chatController.chat.backendMessages,
-        currentId: chatController.chat.currentId,
-        lastBackendMessageId: chatController.chat.lastBackendMessageId,
-        taskTitle: chatController.chat.taskTitle,
-        task: chatController.chat.task,
+        frontendMessages: context.chatController.chat.frontendMessages,
+        backendMessages: context.chatController.chat.backendMessages,
+        currentId: context.chatController.chat.currentId,
+        lastBackendMessageId: context.chatController.chat.lastBackendMessageId,
+        taskTitle: context.chatController.chat.taskTitle,
+        task: context.chatController.chat.task,
       },
-      workingDir: chatController.agent.currentWorkingDir,
-      selectedModel: chatController.settings.selectedModel,
+      workingDir: context.chatController.agent.currentWorkingDir,
+      selectedModel: context.chatController.settings.selectedModel,
     };
 
     const chatHistory = localStorage.get('chatHistory', {});
     chatHistory[id] = record;
     localStorage.set('chatHistory', chatHistory);
     saveChatModal.hide();
-    viewController.updateFooterMessage('Chat saved.');
+    context.viewController.updateFooterMessage('Chat saved.');
   }
 
   delete(id) {
@@ -48,10 +49,10 @@ class ChatHistory {
   async restoreChat(id) {
     const record = localStorage.get('chatHistory', {})[id];
     if (record) {
-      chatController.saveSetting('selectedModel', record.selectedModel);
-      Object.assign(chatController.chat, record.chat);
-      chatController.chat.updateUI();
-      chatController.agent.projectController.openProject(record.workingDir);
+      context.chatController.saveSetting('selectedModel', record.selectedModel);
+      Object.assign(context.chatController.chat, record.chat);
+      context.chatController.chat.updateUI();
+      context.chatController.agent.projectController.openProject(record.workingDir);
     }
   }
 
@@ -94,13 +95,13 @@ class ChatHistory {
   }
 
   showModal() {
-    if (chatController.chat.isEmpty()) {
-      viewController.updateFooterMessage('Nothing to save.');
+    if (context.chatController.chat.isEmpty()) {
+      context.viewController.updateFooterMessage('Nothing to save.');
       return;
     }
     saveChatModal.show();
     const chatTitleInput = document.getElementById('chatTitle');
-    chatTitleInput.value = chatController.chat.taskTitle || '';
+    chatTitleInput.value = context.chatController.chat.taskTitle || '';
     chatTitleInput.focus();
   }
 }

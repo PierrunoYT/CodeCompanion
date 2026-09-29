@@ -1,3 +1,4 @@
+const context = require('../context');
 const { google } = require('googleapis');
 const customsearch = google.customsearch('v1');
 
@@ -76,7 +77,7 @@ Respond with a JSON array containing only the actual array indexes in order of r
         },
       };
 
-      const rankings = await chatController.backgroundTask.run({ prompt, format });
+      const rankings = await context.chatController.backgroundTask.run({ prompt, format });
       const rankedResults = rankings.filter((index) => index in searchResults).map((index) => searchResults[index]);
       return rankedResults;
     } catch (error) {

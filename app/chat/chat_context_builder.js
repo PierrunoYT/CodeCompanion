@@ -1,3 +1,4 @@
+const context = require('../context');
 const ignore = require('ignore');
 const { getTokenCount } = require('../utils');
 
@@ -98,7 +99,7 @@ class ChatContextBuilder {
 
     systemMessage += this.addProjectCustomInstructionsMessage();
     systemMessage = this.fromTemplate(systemMessage, '{osName}', getSystemInfo());
-    systemMessage = this.fromTemplate(systemMessage, '{shellType}', chatController.terminalSession.shellType);
+    systemMessage = this.fromTemplate(systemMessage, '{shellType}', context.chatController.terminalSession.shellType);
 
     return {
       role: 'system',
@@ -117,10 +118,10 @@ class ChatContextBuilder {
       result: 'true or false',
     };
 
-    const result = await chatController.backgroundTask.run({
+    const result = await context.chatController.backgroundTask.run({
       prompt,
       format,
-      model: chatController.settings.selectedModel,
+      model: context.chatController.settings.selectedModel,
     });
 
     return result;
@@ -131,7 +132,7 @@ class ChatContextBuilder {
   }
 
   addProjectCustomInstructionsMessage() {
-    const projectCustomInstructions = chatController.agent.projectController.getCustomInstructions();
+    const projectCustomInstructions = context.chatController.agent.projectController.getCustomInstructions();
     if (!projectCustomInstructions) {
       return '';
     } else {
@@ -239,10 +240,10 @@ class ChatContextBuilder {
       type: 'string',
       result: 'Summary of the conversation',
     };
-    let summary = await chatController.backgroundTask.run({
+    let summary = await context.chatController.backgroundTask.run({
       prompt,
       format,
-      model: chatController.settings.selectedModel,
+      model: context.chatController.settings.selectedModel,
     });
 
     if (summary) {
@@ -289,7 +290,7 @@ class ChatContextBuilder {
       limit: 10,
       filenamesOnly: true,
     };
-    const projectController = chatController.agent.projectController;
+    const projectController = context.chatController.agent.projectController;
     if (!projectController.currentProject) {
       return '';
     }
@@ -323,7 +324,7 @@ class ChatContextBuilder {
 
   async getListOfRelevantFiles() {
     const chatInteractionFiles = await this.getChatInteractionFiles();
-    const editedFiles = chatController.agent.projectController.getRecentModifiedFiles(this.lastEditedFilesTimestamp);
+    const editedFiles = context.chatController.agent.projectController.getRecentModifiedFiles(this.lastEditedFilesTimestamp);
     this.lastEditedFilesTimestamp = Date.now();
     const combinedFiles = [...new Set([...chatInteractionFiles, ...this.taskRelevantFiles, ...editedFiles])].slice(
       0,
@@ -341,7 +342,7 @@ class ChatContextBuilder {
       .flatMap((message) =>
         message.tool_calls
           .map((toolCall) => {
-            const parsedArguments = chatController.agent.parseArguments(toolCall.function.arguments);
+            const parsedArguments = context.chatController.agent.parseArguments(toolCall.function.arguments);
             return parsedArguments.hasOwnProperty('targetFile') ? parsedArguments.targetFile : undefined;
           })
           .filter((file) => file !== undefined),
@@ -411,10 +412,10 @@ class ChatContextBuilder {
       },
     };
 
-    const result = await chatController.backgroundTask.run({
+    const result = await context.chatController.backgroundTask.run({
       prompt,
       format,
-      model: chatController.settings.selectedModel,
+      model: context.chatController.settings.selectedModel,
     });
 
     return result;
@@ -474,11 +475,11 @@ class ChatContextBuilder {
   }
 
   async projectStateToText() {
-    const dirName = path.basename(await chatController.terminalSession.getCurrentDirectory());
+    const dirName = path.basename(await context.chatController.terminalSession.getCurrentDirectory());
 
     let projectStateText = '';
-    projectStateText += `Current directory is '${dirName}'. The full path to this directory is '${chatController.agent.currentWorkingDir}'`;
-    if (chatController.agent.projectController.currentProject) {
+    projectStateText += `Current directory is '${dirName}'. The full path to this directory is '${context.chatController.agent.currentWorkingDir}'`;
+    if (context.chatController.agent.projectController.currentProject) {
       const filesInFolder = await withErrorHandling(this.getFolderStructure.bind(this));
       if (filesInFolder) {
         projectStateText += `\nThe contents of this directory (excluding files from .gitignore): \n${filesInFolder}`;
@@ -490,7 +491,7 @@ class ChatContextBuilder {
 
   async getFolderStructure() {
     const ig = ignore().add(ignorePatterns);
-    const rootDir = chatController.agent.currentWorkingDir;
+    const rootDir = context.chatController.agent.currentWorkingDir;
 
     // Recursive function to list files
     const listFiles = async (dir, allFiles = [], currentPath = '') => {
@@ -544,7 +545,7 @@ class ChatContextBuilder {
         return folderStructure.join('\n');
       }
     } catch (error) {
-      chatController.chat.addFrontendMessage(
+      context.chatController.chat.addFrontendMessage(
         'error',
         `Error occurred while checking directory structure in ${rootDir}.
        <br>Please change directory where app can read/write files or update permissions for current directory.`,

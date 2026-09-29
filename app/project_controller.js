@@ -1,3 +1,4 @@
+const context = require('./context');
 const fs = require('graceful-fs');
 const CryptoJS = require('crypto-js');
 const pathModule = require('path');
@@ -30,7 +31,7 @@ class ProjectController {
     this.filesList = [];
 
     if (!fs.existsSync(path)) {
-      chatController.chat.addFrontendMessage('error', `The path '${path}' does not exist.`);
+      context.chatController.chat.addFrontendMessage('error', `The path '${path}' does not exist.`);
       return;
     }
 
@@ -48,15 +49,15 @@ class ProjectController {
     } else {
       this.updateProject(project);
     }
-    if (chatController.terminalSession.terminal) {
-      chatController.terminalSession.navigateToDirectory(path);
-      chatController.terminalSession.clearTerminal();
+    if (context.chatController.terminalSession.terminal) {
+      context.chatController.terminalSession.navigateToDirectory(path);
+      context.chatController.terminalSession.clearTerminal();
     } else {
       console.error('No terminal session');
     }
     this.currentProject = project;
     document.title = project.name + ' - CodeCompanion.AI';
-    viewController.showWelcomeContent();
+    context.viewController.showWelcomeContent();
     this.git = new Git(project.path);
   }
 
@@ -103,14 +104,14 @@ class ProjectController {
       document.getElementById('customInstructions').value = instructions;
       this.instructionsProjectName = project.name;
     } else {
-      viewController.updateFooterMessage('Project not found');
+      context.viewController.updateFooterMessage('Project not found');
     }
   }
 
   saveInstructions() {
     const instructions = document.getElementById('customInstructions').value;
     localStorage.set(`project.${this.instructionsProjectName}.instructions`, instructions);
-    viewController.updateFooterMessage('Instructions updated');
+    context.viewController.updateFooterMessage('Instructions updated');
     addInstructionsModal.hide();
   }
 
@@ -122,7 +123,7 @@ class ProjectController {
   }
 
   async createEmbeddings() {
-    const openAIApiKey = chatController.settings.apiKey;
+    const openAIApiKey = context.chatController.settings.apiKey;
     if (!openAIApiKey) {
       return;
     }
@@ -137,10 +138,10 @@ class ProjectController {
       return;
     }
 
-    const maxFilesToEmbed = chatController.settings.maxFilesToEmbed;
+    const maxFilesToEmbed = context.chatController.settings.maxFilesToEmbed;
     if (this.filesList.length > maxFilesToEmbed) {
       console.error(`Too many files to index with vector embeddings. (${this.filesList.length})`);
-      chatController.chat.addFrontendMessage(
+      context.chatController.chat.addFrontendMessage(
         'error',
         `Too many files to index with vector embeddings.
         <br>Trying to index ${this.filesList.length} files:
@@ -161,16 +162,16 @@ class ProjectController {
 
   async searchEmbeddings({ query, count = 10, rerank = true, filenamesOnly = false }) {
     if (!this.currentProject) {
-      chatController.chat.addFrontendMessage('error', `No project is open. To use search, open a project first.`);
+      context.chatController.chat.addFrontendMessage('error', `No project is open. To use search, open a project first.`);
       return;
     }
 
-    if (!chatController.settings.apiKey) {
+    if (!context.chatController.settings.apiKey) {
       const embeddingsErrorMessage = `Unable to calculate embeddings. Please add OpenAI API key under settings. Embeddings are required for code search and enable providing relevant source code for better chat context.`;
-      if (chatController.chat.frontendMessages.find((message) => message.content === embeddingsErrorMessage)) {
+      if (context.chatController.chat.frontendMessages.find((message) => message.content === embeddingsErrorMessage)) {
         return;
       }
-      chatController.chat.addFrontendMessage('error', embeddingsErrorMessage);
+      context.chatController.chat.addFrontendMessage('error', embeddingsErrorMessage);
       return;
     }
 
@@ -284,7 +285,7 @@ class ProjectController {
     return (
       CryptoJS.SHA256(hashes.join('')).toString() +
       EMBEDDINGS_VERSION +
-      chatController.settings.maxFilesToEmbed.toString()
+      context.chatController.settings.maxFilesToEmbed.toString()
     );
   }
 

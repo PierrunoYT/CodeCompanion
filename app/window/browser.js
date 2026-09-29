@@ -1,3 +1,4 @@
+const context = require('../context');
 class Browser {
   constructor() {
     this.currentUrl = '';
@@ -172,7 +173,7 @@ class Browser {
 
     const base64Image = await this.getScreenshot();
     if (!base64Image) {
-      chatController.chat.addFrontendMessage('error', 'Failed to capture screenshot');
+      context.chatController.chat.addFrontendMessage('error', 'Failed to capture screenshot');
       return;
     }
 
@@ -190,8 +191,8 @@ class Browser {
       },
     ];
 
-    chatController.chat.addBackendMessage('user', content);
-    chatController.chat.addFrontendMessage(
+    context.chatController.chat.addBackendMessage('user', content);
+    context.chatController.chat.addFrontendMessage(
       'file',
       `<div class="d-flex justify-content-center"><img src="${base64Image}" class="img-fluid m-3 bg-white" alt="image preview" style="max-height: 350px;"></div>`,
     );

@@ -1,3 +1,4 @@
+const context = require('../context');
 const { fromBuffer } = require('file-type');
 const reader = require('any-text');
 const { isTextFile } = require('../utils');
@@ -31,8 +32,8 @@ async function readFile(filepath) {
           },
         },
       ];
-      chatController.chat.addBackendMessage('user', content);
-      chatController.chat.addFrontendMessage(
+      context.chatController.chat.addBackendMessage('user', content);
+      context.chatController.chat.addFrontendMessage(
         'file',
         `<div class="d-flex justify-content-center"><img src="${base64Image}" class="img-fluid m-3 bg-white" alt="image preview" style="max-height: 350px;"></div>`,
       );
@@ -41,7 +42,7 @@ async function readFile(filepath) {
     }
 
     if (isTextFile(filepath)) {
-      chatController.chat.addFrontendMessage(
+      context.chatController.chat.addFrontendMessage(
         'error',
         `Don't upload code files directly. Open project where this file is located.`,
       );
@@ -49,9 +50,9 @@ async function readFile(filepath) {
       return null;
     }
 
-    chatController.chat.addFrontendMessage('error', `File type is not supported: (${basename})`);
+    context.chatController.chat.addFrontendMessage('error', `File type is not supported: (${basename})`);
   } catch (err) {
-    chatController.chat.addFrontendMessage('error', `An error occurred reading the file: ${err.message}`);
+    context.chatController.chat.addFrontendMessage('error', `An error occurred reading the file: ${err.message}`);
     console.error(err);
   }
 }
@@ -63,8 +64,8 @@ async function processFile(filepath) {
 
   const formattedData = `Content of the file ${basename}:\n\n${fileTextContent}\n\nUse content above of the file ${basename} to answer questions from user below`;
 
-  chatController.chat.addBackendMessage('user', formattedData);
-  chatController.chat.addFrontendMessage('file', `${basename} uploaded`);
+  context.chatController.chat.addBackendMessage('user', formattedData);
+  context.chatController.chat.addFrontendMessage('file', `${basename} uploaded`);
 }
 
 function readTextFile(filePath) {
@@ -81,14 +82,14 @@ function readTextFile(filePath) {
 }
 
 async function handleDrop(event) {
-  viewController.updateLoadingIndicator(true);
+  context.viewController.updateLoadingIndicator(true);
   event.preventDefault();
   const { files } = event.dataTransfer;
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     await processFile(file.path);
   }
-  viewController.updateLoadingIndicator(false);
+  context.viewController.updateLoadingIndicator(false);
 }
 
 module.exports = {

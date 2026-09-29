@@ -1,3 +1,4 @@
+const context = require('../context');
 const { Diff2HtmlUI } = require('diff2html/lib/ui/js/diff2html-ui');
 const diff = require('diff');
 
@@ -17,7 +18,7 @@ function drawDiff(targetElement, diffString) {
     drawFileList: false,
     highlight: true,
     matching: 'lines',
-    colorScheme: chatController.settings.theme,
+    colorScheme: context.chatController.settings.theme,
     showDiffOnly: false,
     fileContentToggle: false,
   };

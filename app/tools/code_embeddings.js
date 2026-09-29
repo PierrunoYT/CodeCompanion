@@ -1,3 +1,4 @@
+const context = require('../context');
 const fs = require('graceful-fs');
 const pathModule = require('path');
 const CryptoJS = require('crypto-js');
@@ -86,7 +87,7 @@ class CodeEmbeddings {
       )
     ).filter((filePath) => filePath !== null);
 
-    viewController.updateLoadingIndicator(
+    context.viewController.updateLoadingIndicator(
       true,
       `Indexing ${filesNeedingReembedding.length} files with vector embeddings...`,
     );
@@ -226,7 +227,7 @@ Respond with a JSON array containing only the actual array indexes in order of s
         },
       };
 
-      const parsedRankings = await chatController.backgroundTask.run({ prompt, format });
+      const parsedRankings = await context.chatController.backgroundTask.run({ prompt, format });
       const rankedResults = parsedRankings
         .filter((index) => index in searchResults)
         .map((index) => searchResults[index]);

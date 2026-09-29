@@ -1,3 +1,4 @@
+const context = require('../context');
 async function contextualCompress(query, text) {
   const prompt = `
   Given the following query and text, extract the most relevant information that directly answers or relates to the query. Do not modify or paraphrase the extracted information. Maintain the original wording and context.
@@ -21,10 +22,10 @@ async function contextualCompress(query, text) {
     type: 'string',
     result: 'Extracted information',
   };
-  const result = await chatController.backgroundTask.run({
+  const result = await context.chatController.backgroundTask.run({
     prompt,
     format,
-    model: chatController.settings.selectedModel,
+    model: context.chatController.settings.selectedModel,
   });
   return result ? result : text;
 }

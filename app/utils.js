@@ -1,3 +1,4 @@
+const context = require('./context');
 const isTextOrBinary = require('istextorbinary');
 const readChunkSync = require('read-chunk').sync;
 const { getEncoding } = require('js-tiktoken');
@@ -26,7 +27,7 @@ async function withErrorHandling(fn, ...args) {
           ? JSON.stringify(error)
           : String(error);
 
-    chatController.chat.addFrontendMessage('error', `Error occurred. ${errorMessage}`);
+    context.chatController.chat.addFrontendMessage('error', `Error occurred. ${errorMessage}`);
   }
 }
 
@@ -97,8 +98,8 @@ async function normalizedFilePath(targetFile) {
   if (path.isAbsolute(targetFile)) {
     return targetFile;
   }
-  await chatController.terminalSession.getCurrentDirectory();
-  return path.join(chatController.agent.currentWorkingDir, targetFile);
+  await context.chatController.terminalSession.getCurrentDirectory();
+  return path.join(context.chatController.agent.currentWorkingDir, targetFile);
 }
 
 async function isFileExists(filePath) {
@@ -114,7 +115,7 @@ function log(...args) {
   if (isDevelopment) {
     console.log(...args);
   }
-  chatController.chatLogs.push(args);
+  context.chatController.chatLogs.push(args);
 }
 
 function getTokenCount(content) {

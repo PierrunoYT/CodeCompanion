@@ -1,3 +1,4 @@
+const context = require('../context');
 const path = require('path');
 const fs = require('graceful-fs');
 const { Terminal } = require('xterm');
@@ -76,7 +77,7 @@ class TerminalSession {
     this.terminal.unicode.activeVersion = '11';
 
     ipcRenderer.send('start-shell', {
-      cwd: chatController.agent.currentWorkingDir,
+      cwd: context.chatController.agent.currentWorkingDir,
     });
     ipcRenderer.on('shell-type', (event, data) => {
       this.shellType = data;
@@ -217,7 +218,7 @@ class TerminalSession {
   }
 
   async executeShellCommand(command) {
-    viewController.activateTab('shell-tab');
+    context.viewController.activateTab('shell-tab');
     this.resizeTerminalWindow();
     await this.interruptShellSession();
 
@@ -257,13 +258,13 @@ class TerminalSession {
 
   async navigateToDirectory(dir) {
     await this.executeShellCommand(`cd "${dir}"`);
-    chatController.agent.currentWorkingDir = dir;
+    context.chatController.agent.currentWorkingDir = dir;
     this.needToUpdateWorkingDir = false;
   }
 
   async getCurrentDirectory() {
     if (!this.needToUpdateWorkingDir) {
-      return chatController.agent.currentWorkingDir;
+      return context.chatController.agent.currentWorkingDir;
     }
 
     let dir;
@@ -278,7 +279,7 @@ class TerminalSession {
         try {
           this.setPrompt(true);
         } catch (error) {
-          chatController.chat.addFrontendMessage('error', 'Error occured when checking current directory path');
+          context.chatController.chat.addFrontendMessage('error', 'Error occured when checking current directory path');
           return;
         }
       }
@@ -287,13 +288,13 @@ class TerminalSession {
     const lines = dir.split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {
       if (this.directoryExists(lines[i])) {
-        chatController.agent.currentWorkingDir = lines[i];
+        context.chatController.agent.currentWorkingDir = lines[i];
         this.needToUpdateWorkingDir = false;
-        return chatController.agent.currentWorkingDir;
+        return context.chatController.agent.currentWorkingDir;
       }
     }
 
-    chatController.chat.addFrontendMessage('error', 'Error occured when checking current directory path');
+    context.chatController.chat.addFrontendMessage('error', 'Error occured when checking current directory path');
   }
 
   directoryExists(dirPath) {

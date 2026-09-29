@@ -39,6 +39,11 @@ Tick a box (`- [x]`) when a task is done.
 - [ ] Add a search box for saved chats
 - [ ] Export a chat as Markdown
 
+## Bugs
+
+- [ ] Tools are fixed when a chat is created, so adding an OpenAI key mid-chat gives no `search_code` (saved chats also keep their old system prompt). Rebuild the tool list and prompt each turn, or show "Start a new chat to use this" after saving a key
+- [ ] Stop logging `terminal:start` errors when no project is open (start the terminal only once a project is open)
+
 ## Quality
 
 - [ ] Add unit tests for the panels (`browser`, `git`, `terminal`)

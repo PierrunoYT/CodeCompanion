@@ -12,7 +12,6 @@ const {
 const electronLocalShortcut = require('electron-localshortcut');
 
 app.setName('CodeCompanion.AI');
-const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const ElectronStore = require('electron-store');
 const pty = require('node-pty');
@@ -23,7 +22,6 @@ ElectronStore.initRenderer();
 const localStorage = new ElectronStore();
 
 let win;
-let isUpdateInProgress = false;
 let terminal;
 let windowManager;
 
@@ -149,31 +147,6 @@ function createWindow() {
           },
         },
         {
-          label: 'Check for Updates',
-          click: () => {
-            if (isUpdateInProgress) return;
-            isUpdateInProgress = true;
-            autoUpdater
-              .checkForUpdates()
-              .then((updateCheckResult) => {
-                if (updateCheckResult && updateCheckResult.updateAvailable) {
-                  win.webContents.executeJavaScript(
-                    "viewController.updateFooterMessage('Update available. Downloading...')",
-                  );
-                } else {
-                  isUpdateInProgress = false;
-                  win.webContents.executeJavaScript("viewController.updateFooterMessage('App is up to date')");
-                }
-              })
-              .catch((error) => {
-                console.error(error);
-                win.webContents.executeJavaScript(
-                  `viewController.updateFooterMessage('Error occured when updating app. ${error.toString()}')`,
-                );
-              });
-          },
-        },
-        {
           label: 'Quit',
           accelerator: 'CmdOrCtrl+Q',
           click() {
@@ -223,10 +196,6 @@ function createWindow() {
 
   win.on('show', () => {
     win.webContents.executeJavaScript('viewController.onShow()');
-    if (!isUpdateInProgress) {
-      isUpdateInProgress = true;
-      autoUpdater.checkForUpdates();
-    }
   });
 
   win.on('focus', () => {
@@ -267,53 +236,6 @@ function createWindow() {
     win.webContents.send('app-info', { version, userDataPath });
     win.webContents.executeJavaScript('viewController.onShow()');
   });
-
-  // Autoupdater
-
-  autoUpdater.on('checking-for-update', () => {
-    win.webContents.executeJavaScript("viewController.updateFooterMessage('Checking for update...')");
-  });
-
-  autoUpdater.on('update-available', () => {
-    isUpdateInProgress = true;
-    win.webContents.executeJavaScript("viewController.updateFooterMessage('Update available. Downloading...')");
-  });
-
-  autoUpdater.on('update-not-available', () => {
-    isUpdateInProgress = false;
-    win.webContents.executeJavaScript("viewController.updateFooterMessage('App is up to date')");
-  });
-
-  autoUpdater.on('update-downloaded', () => {
-    isUpdateInProgress = true;
-    win.webContents.executeJavaScript("viewController.updateFooterMessage('Restart to install updates')");
-
-    dialog
-      .showMessageBox({
-        type: 'info',
-        title: 'Update downloaded',
-        message: 'Update downloaded. Would you like to install now?',
-        buttons: ['Restart', 'Later'],
-      })
-      .then((buttonIndex) => {
-        if (buttonIndex.response === 0) {
-          autoUpdater.quitAndInstall();
-        }
-      });
-  });
-
-  autoUpdater.on('error', (error) => {
-    isUpdateInProgress = false;
-    console.error(error);
-    if (error.message.includes('net::ERR_INTERNET_DISCONNECTED')) {
-      win.webContents.executeJavaScript("viewController.updateFooterMessage('Internet connection is not available.')");
-    }
-  });
-
-  autoUpdater.on('download-progress', (progressObj) => {
-    const log_message = `Update downloading ${Math.round(progressObj.percent)}%`;
-    win.webContents.executeJavaScript(`viewController.updateFooterMessage('${log_message}')`);
-  });
 }
 
 app.whenReady().then(() => {
@@ -349,8 +271,6 @@ async function openFile(sender) {
 }
 
 app.on('window-all-closed', () => {
-  autoUpdater.removeAllListeners();
-
   if (process.platform !== 'darwin') {
     app.quit();
   }

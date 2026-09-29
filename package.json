@@ -82,7 +82,6 @@
     "diff2html": "^3.4.48",
     "electron-localshortcut": "^3.2.1",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.1.7",
     "file-type": "^16.5.3",
     "googleapis": "^126.0.1",
     "graceful-fs": "^4.2.11",

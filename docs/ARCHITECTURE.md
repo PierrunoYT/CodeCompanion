@@ -9,14 +9,13 @@ main.js (Electron main)              renderer.js (renderer, index.html)
 ├─ BrowserWindow + menu + shortcuts  ├─ ChatController  ── Chat, Agent, models, tools
 ├─ node-pty shell (start-shell,…)    ├─ ViewController  ── DOM/UI helpers
 ├─ file/dir open dialogs             └─ OnboardingController
-└─ auto-updater (electron-updater)   preload.js – tiny preload script
+└─ (no auto-updater)                 preload.js – tiny preload script
 ```
 
 ### Main process (`main.js`)
-- Creates the window (bounds persisted in `electron-store` as `windowBounds`), the application menu (Open Project, New Chat, Save Chat, Stop, Download Chat Logs, Check for Updates) and local shortcuts (`app/window/WindowManager.js`).
+- Creates the window (bounds persisted in `electron-store` as `windowBounds`), the application menu (Open Project, New Chat, Save Chat, Stop, Download Chat Logs) and local shortcuts (`app/window/WindowManager.js`).
 - Owns the PTY. IPC channels: `start-shell`, `kill-shell`, `write-shell`, `resize-shell`, `execute-command` (one-shot), and replies `shell-data`, `shell-type`, `command-output`, `command-exit`. Shell is `powershell.exe` on Windows, `zsh` on macOS, `bash` on Linux.
 - Other IPC: `open-file-dialog` → `read-files`, `open-directory` → `directory-data`, `theme-change`; pushes `app-info`, `save-shortcut-triggered`, `download-logs`.
-- Auto-update status is surfaced through `viewController.updateFooterMessage(...)`.
 
 ### Renderer (`renderer.js`)
 Instantiates the three controllers, wires IPC listeners, the message input (debounced Enter handling) and the approve / reject / reflect buttons (which set `chatController.agent.userDecision`).

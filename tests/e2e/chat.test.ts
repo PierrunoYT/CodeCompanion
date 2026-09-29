@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer, type Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatSnapshot } from '../../src/shared/chat';
 import { launchApp, type RunningApp } from './app';
@@ -10,6 +11,9 @@ describe('chat end to end (mock Claude API)', () => {
   let running: RunningApp;
   let claude: MockClaude;
   let project: string;
+  let web: Server;
+  let webUrl: string;
+  let webRequests = 0;
 
   beforeAll(async () => {
     project = mkdtempSync(join(tmpdir(), 'cc-e2e-project-'));
@@ -18,11 +22,19 @@ describe('chat end to end (mock Claude API)', () => {
     claude = new MockClaude();
     const url = await claude.start();
     running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: url });
+    web = createServer((_request, response) => {
+      webRequests++;
+      response.setHeader('content-type', 'text/html');
+      response.end('<html><head><title>Network test</title></head><body>Approved page</body></html>');
+    });
+    await new Promise<void>((resolve) => web.listen(0, '127.0.0.1', resolve));
+    webUrl = `http://127.0.0.1:${(web.address() as { port: number }).port}/`;
   });
 
   afterAll(async () => {
     await running?.close();
     await claude?.stop();
+    await new Promise<void>((resolve) => web?.close(() => resolve()));
     rmSync(project, { recursive: true, force: true });
   });
 
@@ -139,6 +151,37 @@ describe('chat end to end (mock Claude API)', () => {
     const reopened = (await running.page.evaluate((id) => window.api.invoke('history:open', id), before.id)) as ChatSnapshot;
     expect(reopened.transcript.map((item) => item.kind)).toEqual(before.transcript.map((item) => item.kind));
     expect(existsSync(join(running.userData, 'chats', `${before.id}.json`))).toBe(true);
+  });
+
+  it.each(['fetch_url', 'browser'])('asks before %s contacts an unlisted host', async (name) => {
+    await running.page.evaluate(() => window.api.invoke('settings:update', { approvalMode: 'ask', allowedNetworkHosts: '' }));
+    const before = webRequests;
+    claude.script({ blocks: [{ type: 'tool_use', id: `network-${name}`, name, input: { url: webUrl } }], stopReason: 'tool_use' });
+    await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Open the test page' }));
+    const pending = await waitFor((current) => current.transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval'));
+    expect(pending).toMatchObject({ preview: { title: expect.stringContaining(webUrl) } });
+    expect(webRequests).toBe(before);
+    if (process.env.E2E_SCREENSHOTS) {
+      await running.page.screenshot({ path: join(process.env.E2E_SCREENSHOTS, `${name}-approval.png`) });
+    }
+    await running.page.evaluate((id) => window.api.invoke('chat:decide', id, { approved: false }), pending.id);
+    await waitFor((current) => !current.busy);
+    expect(webRequests).toBe(before);
+  });
+
+  it.each(['ask', 'auto'] as const)('runs allowed network calls in %s mode', async (approvalMode) => {
+    await running.page.evaluate((mode) => window.api.invoke('settings:update', {
+      approvalMode: mode, allowedNetworkHosts: mode === 'ask' ? '127.0.0.1' : '',
+    }), approvalMode);
+    const before = webRequests;
+    claude.script(
+      { blocks: [{ type: 'tool_use', id: `allowed-${approvalMode}`, name: 'fetch_url', input: { url: webUrl } }], stopReason: 'tool_use' },
+      { blocks: [{ type: 'text', text: `Network ${approvalMode} complete` }], stopReason: 'end_turn' },
+    );
+    await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Fetch the test page' }));
+    const current = await waitForIdle();
+    expect(webRequests).toBe(before + 1);
+    expect(current.transcript.at(-1)).toMatchObject({ text: `Network ${approvalMode} complete` });
   });
 
   it('runs without renderer errors', () => {

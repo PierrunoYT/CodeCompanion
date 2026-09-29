@@ -95,9 +95,9 @@ A chat keeps its model. Changing the model in settings applies to new chats.
 | `write_file` | yes | Create or overwrite; creates folders |
 | `run_command` | yes | Fresh shell per call (PowerShell on Windows, `$SHELL` elsewhere) in the project root; timeout (default 120 s, max 600 s); `background: true` for servers |
 | `command_output` | no | Read or stop a background command |
-| `fetch_url` | no | Main text via Readability |
+| `fetch_url` | yes, unless host allowed | Main text via Readability; cross-host redirects are blocked |
 | `web_search` | no | Google Custom Search (only when configured) |
-| `browser` | no | Opens a URL in the browser panel; returns title, status, console messages, optional screenshot |
+| `browser` | yes, unless host allowed or project file | Opens a URL in the browser panel; returns title, status, console messages, optional screenshot |
 
 Rules enforced in code, not only in the prompt:
 
@@ -139,7 +139,7 @@ Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses
 - **Renderer isolation**: `contextIsolation`, `sandbox`, no `nodeIntegration`. Strict CSP (`script-src 'self'`, no remote images or connections).
 - **Preload**: exposes only `invoke`/`on` for allow-listed channels.
 - **Navigation**: the app window cannot navigate; `http(s)` links and `window.open` go to the system browser.
-- **Browser panel**: guests get no preload, no Node, sandboxed, in their own session partition; popups load in the panel. A guest can only be attached to `about:blank` or an `http(s)` URL. Every permission request (camera, microphone, location, notifications) is denied for the app page and for the panel; Electron would grant them by default. The `browser` tool needs no approval, so `file://` URLs it opens must be inside the project (`confineFileUrl`).
+- **Browser panel**: guests get no preload, no Node, sandboxed, in their own session partition; popups are denied. A guest can only be attached to `about:blank` or an `http(s)` URL. Every permission request (camera, microphone, location, notifications) is denied. Browser-tool top-level redirects and later page navigation stay on the approved hostname; cross-host destinations need a new tool call. Project `file://` URLs are preapproved only after `confineFileUrl` checks confinement.
 - **Model output**: rendered markdown and diffs pass through DOMPurify; images, embeds, forms and styles are removed from model output (an image URL is a common data-exfiltration channel for prompt injection). Generated UI never uses inline handlers.
 - **Secrets**: keys are encrypted at rest and never sent to the renderer.
 - **Agent**: path confinement, read-before-write, approval for edits and commands by default. Commands still run with the user's permissions; **Auto** mode trusts the model with your shell. Commands on the "allowed without asking" list skip approval only when they contain no shell operator.
@@ -148,7 +148,7 @@ Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses
 
 These are accepted for 0.1.0; each is a trade-off, not an oversight.
 
-- **Network tools are not approved.** `fetch_url`, `web_search` and `browser` (http/https) run without asking and can reach any host, including `localhost` and the local network. A prompt injection in a fetched page could therefore send project content to a URL the model chooses. Keep projects with secrets out of chats that read untrusted pages. A later change could require approval for hosts outside a list.
+- **Network approvals are not a sandbox.** In Ask mode, `fetch_url` and `browser` require approval unless the exact URL hostname matches `allowedNetworkHosts` (empty by default, all ports, subdomains listed separately). Auto mode skips approvals. Fetch and browser top-level cross-host redirects are blocked even in Auto mode; the model must request the destination separately. Browser subresources, manually entered browser URLs, and Google `web_search` are not filtered by this policy. Approved hosts and search queries can still receive private data. Keep projects with secrets out of chats that read untrusted pages.
 - **Editor command.** `editorCommand` is run through a shell with the file path quoted. It is the user's own setting; a compromised renderer could change it, but the same renderer can already write to the terminal panel.
 - **IPC handlers trust the renderer's arguments.** The renderer is sandboxed, has a strict CSP and only shows sanitized model output, and pages in the browser panel have no preload, so they cannot call IPC. Handlers that take paths (`git:*`, file tools) still confine them to the project with `Workspace.resolve`.
 - **Project instructions and `AGENTS.md`** are prompt text, not trusted configuration: they are added to the system prompt, so a malicious repository can steer the model. Approvals still apply to edits and commands.

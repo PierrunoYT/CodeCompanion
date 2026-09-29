@@ -5,6 +5,7 @@ import { defineTool, ToolError, truncateOutput } from './types';
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_PAGE_CHARS = 20_000;
+const MAX_REDIRECTS = 10;
 
 export const webSearchTool = defineTool({
   name: 'web_search',
@@ -37,14 +38,14 @@ export const fetchUrlTool = defineTool({
   name: 'fetch_url',
   description: 'Fetch a web page and return its main text content (for documentation, articles, issues).',
   schema: z.object({ url: z.string().url() }),
-  requiresApproval: false,
+  requiresApproval: true,
+  async preview({ url }) {
+    return { title: `Fetch ${url}` };
+  },
   async run({ url }, context) {
     const parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new ToolError('Only http and https URLs can be fetched.');
-    const response = await fetch(parsed, {
-      signal: withTimeout(context.signal),
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; CodeCompanion)' },
-    });
+    const response = await fetchWithoutCrossHostRedirect(parsed, context.signal);
     if (!response.ok) throw new ToolError(`HTTP ${response.status} for ${url}`);
     const type = response.headers.get('content-type') ?? '';
     const body = await response.text();
@@ -52,6 +53,29 @@ export const fetchUrlTool = defineTool({
     return { content: truncateOutput(text, MAX_PAGE_CHARS), summary: `Fetched ${url}` };
   },
 });
+
+export async function fetchWithoutCrossHostRedirect(initial: URL, signal: AbortSignal): Promise<Response> {
+  let current = initial;
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+    const response = await fetch(current, {
+      redirect: 'manual',
+      signal: withTimeout(signal),
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; CodeCompanion)' },
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get('location');
+    if (!location) return response;
+    await response.body?.cancel();
+    const destination = new URL(location, current);
+    if (!['http:', 'https:'].includes(destination.protocol) || destination.hostname !== initial.hostname) {
+      throw new ToolError(
+        `Blocked redirect to ${destination.href}. The destination host was not approved; request that URL separately.`,
+      );
+    }
+    current = destination;
+  }
+  throw new ToolError(`Too many redirects for ${initial.href}`);
+}
 
 export function extractArticle(html: string): string {
   const { document } = parseHTML(html);

@@ -17,6 +17,7 @@ describe('settings over IPC', () => {
   it('returns defaults with no secrets set', async () => {
     const view = await running.page.evaluate(() => window.api.invoke('settings:get'));
     expect(view.approvalMode).toBe('ask');
+    expect(view.allowedNetworkHosts).toBe('');
     expect(Object.values(view.secrets).every((set) => set === false)).toBe(true);
   });
 

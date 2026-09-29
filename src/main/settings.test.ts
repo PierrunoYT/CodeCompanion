@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -36,6 +36,12 @@ describe('SettingsStore', () => {
     const store = new SettingsStore(file, reversingCipher);
     expect(store.get()).toEqual(DEFAULT_SETTINGS);
     expect(store.view().secrets).toEqual({ anthropicApiKey: false, openaiApiKey: false, googleApiKey: false });
+    expect(store.get().allowedNetworkHosts).toBe('');
+  });
+
+  it('uses the safe network default for older settings files', () => {
+    writeFileSync(file, JSON.stringify({ settings: { allowedCommands: 'npm test' }, secrets: {} }));
+    expect(new SettingsStore(file, reversingCipher).get().allowedNetworkHosts).toBe('');
   });
 
   it('persists updates and ignores unknown keys', () => {

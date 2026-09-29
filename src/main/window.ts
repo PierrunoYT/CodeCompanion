@@ -73,11 +73,9 @@ function hardenWebContents(window: BrowserWindow, onBrowserAttached: (guest: Web
   });
 
   window.webContents.on('did-attach-webview', (_event, guest) => {
-    // Popups from pages in the browser panel open in the panel itself.
-    guest.setWindowOpenHandler(({ url }) => {
-      if (/^https?:\/\//i.test(url)) guest.loadURL(url);
-      return { action: 'deny' };
-    });
+    // Programmatic loadURL bypasses will-navigate. Deny popups rather than letting a page escape the
+    // browser tool's approved-host policy through window.open or a target=_blank link.
+    guest.setWindowOpenHandler(() => ({ action: 'deny' }));
     onBrowserAttached(guest);
   });
 }

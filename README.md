@@ -62,7 +62,7 @@ For development in Amp orbs, the repository includes setup and resume scripts to
 - API keys are encrypted with the operating system's keychain (Electron `safeStorage`) and never reach the UI process.
 - The assistant's file access is confined to the open project folder. Commands run in your shell with your permissions — keep **Ask first** mode on unless you trust the task. In Settings, "Commands allowed without asking" lists commands (one per line, for example `npm test`) that skip the approval card in Ask first mode; a line also allows the command with arguments. Commands containing `;`, `&`, `|`, `>`, `<`, a backtick or `$(` are always asked about, and file edits always wait for you. Only allow commands you would run yourself: `npm run` would let the assistant run any script in `package.json`.
 - The UI runs sandboxed without Node.js access; model output is sanitized before display.
-- Web tools (page fetching, the built-in browser) run without asking and can reach any site, so a malicious web page the assistant reads could try to make it send project content elsewhere. Avoid pointing the assistant at untrusted pages in projects with secrets.
+- In **Ask first** mode, page fetching and browser tools require approval unless their exact hostname is listed in Settings → "Network hosts allowed without asking". The list starts empty and does not include subdomains automatically. Cross-host redirects require a separate tool call; browser popups are denied. **Auto** mode skips tool approvals. This is not a network sandbox: browser subresources and Google search are not covered, and approved hosts may receive private data. Avoid untrusted pages in projects with secrets.
 
 Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 

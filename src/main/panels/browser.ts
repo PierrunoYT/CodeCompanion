@@ -11,11 +11,23 @@ const MAX_CONSOLE_MESSAGES = 200;
 export class BrowserService implements BrowserController {
   private guest: WebContents | null = null;
   private waiters: Array<() => void> = [];
+  private isNavigationAllowed: (url: string) => boolean = () => false;
+  private blockedNavigation: string | null = null;
 
   constructor(private readonly show: () => void) {}
 
   attach(guest: WebContents): void {
     this.guest = guest;
+    const guard = (event: Electron.Event, url: string) => {
+      if (!this.isNavigationAllowed(url)) {
+        event.preventDefault();
+        this.blockedNavigation = url;
+      }
+    };
+    // These cancellable events cover page-initiated top-level navigations and HTTP redirects. The listeners stay
+    // attached after open() returns so later navigations cannot escape the policy established by the tool call.
+    guest.on('will-navigate', guard);
+    guest.on('will-redirect', guard);
     guest.once('destroyed', () => {
       if (this.guest === guest) this.guest = null;
     });
@@ -26,12 +38,18 @@ export class BrowserService implements BrowserController {
     return this.guest !== null && !this.guest.isDestroyed();
   }
 
-  async open(url: string, signal: AbortSignal): Promise<PageLoadResult> {
+  async open(
+    url: string,
+    signal: AbortSignal,
+    isNavigationAllowed: (url: string) => boolean = (destination) => destination === url,
+  ): Promise<PageLoadResult> {
     this.show();
     const guest = await this.waitForGuest();
     const console: string[] = [];
     let status: number | null = null;
     let error: string | undefined;
+    this.isNavigationAllowed = isNavigationAllowed;
+    this.blockedNavigation = null;
 
     const onConsole = (event: Electron.Event<Electron.WebContentsConsoleMessageEventParams>) => {
       if (console.length < MAX_CONSOLE_MESSAGES) console.push(`[${event.level}] ${event.message}`);
@@ -64,6 +82,7 @@ export class BrowserService implements BrowserController {
       ]);
       // Let scripts that run right after load log their errors.
       await new Promise((resolve) => setTimeout(resolve, 500));
+      if (this.blockedNavigation) error = `Blocked navigation to unapproved URL: ${this.blockedNavigation}`;
       return { url: guest.getURL(), title: guest.getTitle(), status, console: [...console], error };
     } finally {
       clearTimeout(timer);

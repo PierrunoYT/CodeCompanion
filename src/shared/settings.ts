@@ -13,6 +13,8 @@ export interface Settings {
   // Commands that run without approval in 'ask' mode, one per line; a line also allows the command with arguments
   // ("npm test" allows "npm test -- foo"). Commands with shell operators (; & | > < ` $() are never allowed this way.
   allowedCommands: string;
+  // Exact http(s) URL hostnames that network tools may contact without asking, one per line.
+  allowedNetworkHosts: string;
   theme: Theme;
   // Base URL for an OpenAI-compatible API. Empty means api.openai.com.
   openaiBaseUrl: string;
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: 'high',
   approvalMode: 'ask',
   allowedCommands: '',
+  allowedNetworkHosts: '',
   theme: 'dark',
   openaiBaseUrl: '',
   editorCommand: 'code',

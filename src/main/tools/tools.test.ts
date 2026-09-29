@@ -8,7 +8,7 @@ import { browserTool } from './browser';
 import { availableTools } from './registry';
 import { commandOutputTool, runCommandTool, ShellRunner } from './shell';
 import { ToolError, truncateOutput, type AgentTool, type ToolContext } from './types';
-import { extractArticle } from './web';
+import { extractArticle, fetchUrlTool, fetchWithoutCrossHostRedirect } from './web';
 import { Workspace } from './workspace';
 
 let root: string;
@@ -132,8 +132,13 @@ describe('applyEdit', () => {
 
 describe('browser tool', () => {
   const opened: string[] = [];
+  let navigationPolicy: ((url: string) => boolean) | undefined;
   const browser = {
-    open: async (url: string) => (opened.push(url), { url, title: 'T', status: 200, console: [] }),
+    open: async (url: string, _signal: AbortSignal, policy?: (url: string) => boolean) => {
+      opened.push(url);
+      navigationPolicy = policy;
+      return { url, title: 'T', status: 200, console: [] };
+    },
     screenshot: async () => '',
   };
 
@@ -147,11 +152,65 @@ describe('browser tool', () => {
     expect(opened[1].toLowerCase()).toContain('index.html');
   });
 
+  it('confines later browser navigation to the approved exact hostname', async () => {
+    await call(browserTool, { url: 'https://EXAMPLE.test/start' }, { ...context, browser });
+    expect(navigationPolicy?.('https://example.test/next')).toBe(true);
+    expect(navigationPolicy?.('https://sub.example.test/')).toBe(false);
+    expect(navigationPolicy?.('https://example.test.evil/')).toBe(false);
+    expect(navigationPolicy?.('https://example.test@evil.test/')).toBe(false);
+  });
+
+  it('is approval gated and previews the complete URL', async () => {
+    const url = 'https://example.test/private?token=value';
+    expect(browserTool.requiresApproval).toBe(true);
+    expect((await browserTool.preview!({ url }, context)).title).toContain(url);
+    expect(fetchUrlTool.requiresApproval).toBe(true);
+    expect((await fetchUrlTool.preview!({ url }, context)).title).toContain(url);
+  });
+
   it('refuses file URLs outside the project', async () => {
     opened.length = 0;
     const outside = pathToFileURL(join(root, '..', 'secret.txt')).href;
     await expect(call(browserTool, { url: outside }, { ...context, browser })).rejects.toThrow('outside the project');
     expect(opened).toEqual([]);
+  });
+});
+
+describe('fetch redirects', () => {
+  it('blocks a cross-host redirect before contacting its destination', async () => {
+    const originalFetch = globalThis.fetch;
+    const contacted: string[] = [];
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      contacted.push(String(input));
+      return new Response(null, { status: 302, headers: { location: 'https://evil.test/secret' } });
+    }) as typeof fetch;
+    try {
+      await expect(
+        fetchWithoutCrossHostRedirect(new URL('https://allowed.test/start'), new AbortController().signal),
+      ).rejects.toThrow(/Blocked redirect.*request that URL separately/);
+      expect(contacted).toEqual(['https://allowed.test/start']);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('follows same-host redirects', async () => {
+    const originalFetch = globalThis.fetch;
+    const contacted: string[] = [];
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      contacted.push(String(input));
+      return contacted.length === 1
+        ? new Response(null, { status: 302, headers: { location: '/next' } })
+        : new Response('ok');
+    }) as typeof fetch;
+    try {
+      expect(
+        await (await fetchWithoutCrossHostRedirect(new URL('https://allowed.test/start'), new AbortController().signal)).text(),
+      ).toBe('ok');
+      expect(contacted).toEqual(['https://allowed.test/start', 'https://allowed.test/next']);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

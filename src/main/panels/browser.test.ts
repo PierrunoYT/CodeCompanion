@@ -67,6 +67,22 @@ describe('BrowserService', () => {
     expect(result.error).toBe('ERR_NAME_NOT_RESOLVED (-105)');
   });
 
+  it('blocks redirects and later navigations outside the approved policy', async () => {
+    const service = new BrowserService(() => {});
+    const guest = new FakeGuest();
+    attach(service, guest);
+    const result = await service.open('https://allowed.test/start', new AbortController().signal, (url) =>
+      url.startsWith('https://allowed.test/'),
+    );
+    const redirectEvent = { preventDefault: vi.fn() };
+    guest.emit('will-redirect', redirectEvent, 'https://evil.test/redirect');
+    expect(redirectEvent.preventDefault).toHaveBeenCalled();
+    const laterEvent = { preventDefault: vi.fn() };
+    guest.emit('will-navigate', laterEvent, 'https://evil.test/later');
+    expect(laterEvent.preventDefault).toHaveBeenCalled();
+    expect(result.error).toBeUndefined();
+  });
+
   it('reports the error when loadURL rejects', async () => {
     const service = new BrowserService(() => {});
     const guest = new FakeGuest();

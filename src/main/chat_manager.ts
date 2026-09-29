@@ -2,6 +2,7 @@ import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
+import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
 import { buildSystemPrompt } from './agent/system_prompt';
 import { ChatSession, type SavedChat } from './agent/session';
 import type { ChatStore } from './chat_store';
@@ -10,7 +11,7 @@ import type { ProjectStore } from './projects';
 import type { SettingsStore } from './settings';
 import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
-import type { BrowserController } from './tools/browser';
+import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
 import { Workspace } from './tools/workspace';
 
@@ -160,11 +161,24 @@ export class ChatManager {
       usage: saved?.usage,
       readFiles: saved?.readFiles,
       approvalMode: () => this.deps.settings.get().approvalMode,
-      // Only shell commands can be allowed in advance; file edits always wait for the user in 'ask' mode.
-      isPreApproved: (toolName, input) =>
-        toolName === 'run_command' &&
-        typeof (input as { command?: unknown })?.command === 'string' &&
-        isCommandAllowed((input as { command: string }).command, this.deps.settings.get().allowedCommands),
+      isPreApproved: (toolName, input) => {
+        if (toolName === 'run_command' && typeof (input as { command?: unknown })?.command === 'string') {
+          return isCommandAllowed((input as { command: string }).command, this.deps.settings.get().allowedCommands);
+        }
+        if ((toolName === 'fetch_url' || toolName === 'browser') && typeof (input as { url?: unknown })?.url === 'string') {
+          const url = (input as { url: string }).url;
+          if (toolName === 'browser' && /^file:/i.test(url)) {
+            try {
+              confineFileUrl(url, workspace);
+              return true;
+            } catch {
+              return false;
+            }
+          }
+          return isNetworkUrlAllowed(url, this.deps.settings.get().allowedNetworkHosts);
+        }
+        return false;
+      },
       toolContext: (base): ToolContext => {
         const { codeSearch, browser, webSearch } = capabilities();
         return { ...base, workspace, shell, browser, codeSearch: codeSearch?.search ?? null, webSearch };

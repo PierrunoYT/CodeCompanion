@@ -13,12 +13,11 @@ export interface PageLoadResult {
 
 // Drives the built-in browser panel. Implemented in the main process on the <webview> guest's webContents.
 export interface BrowserController {
-  open(url: string, signal: AbortSignal): Promise<PageLoadResult>;
+  open(url: string, signal: AbortSignal, isNavigationAllowed?: (url: string) => boolean): Promise<PageLoadResult>;
   screenshot(): Promise<string>; // base64 PNG
 }
 
-// The browser tool needs no approval, so a file:// URL must not reach outside the project (for example a private key
-// that the model could then screenshot). Returns the URL unchanged for http(s) and for files inside the project.
+// A file:// URL must not reach outside the project (for example a private key that the model could then screenshot).
 export function confineFileUrl(url: string, workspace: Workspace): string {
   if (!/^file:/i.test(url)) return url;
   let path: string;
@@ -39,13 +38,29 @@ export const browserTool = defineTool({
     url: z.string().min(1),
     screenshot: z.boolean().optional().describe('Attach a screenshot. Only when you need to see the page.'),
   }),
-  requiresApproval: false,
+  requiresApproval: true,
+  async preview({ url }) {
+    return { title: `Open ${url}` };
+  },
   async run({ url, screenshot }, context) {
     if (!context.browser) throw new ToolError('The browser panel is not available.');
     if (!/^(https?|file):\/\//i.test(url)) throw new ToolError('Use a full URL including http://, https:// or file://.');
     url = confineFileUrl(url, context.workspace);
 
-    const page = await context.browser.open(url, context.signal);
+    const approved = new URL(url);
+    const page = await context.browser.open(url, context.signal, (destination) => {
+      try {
+        const next = new URL(destination);
+        if (approved.protocol === 'file:') {
+          if (next.protocol !== 'file:') return false;
+          confineFileUrl(next.href, context.workspace);
+          return true;
+        }
+        return ['http:', 'https:'].includes(next.protocol) && next.hostname === approved.hostname;
+      } catch {
+        return false;
+      }
+    });
     const lines = [
       `URL: ${page.url}`,
       `Title: ${page.title || '(none)'}`,

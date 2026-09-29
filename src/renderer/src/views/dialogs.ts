@@ -113,6 +113,12 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     value: settings.allowedCommands,
     placeholder: 'npm test\nnpm run lint\ngit status',
   });
+  const allowedNetworkHosts = h('textarea', {
+    class: 'form-control font-monospace',
+    rows: 4,
+    value: settings.allowedNetworkHosts,
+    placeholder: 'api.example.com\nlocalhost',
+  });
   const theme = h(
     'select',
     { class: 'form-select' },
@@ -179,6 +185,11 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
       allowedCommands,
       'One per line, used in "Ask" mode. "npm test" also allows "npm test -- foo". Commands with ; & | > < ` or $( are always asked about. File edits are always asked about.',
     ),
+    field(
+      'Network hosts allowed without asking',
+      allowedNetworkHosts,
+      'Exact URL hostnames, one per line, used in "Ask" mode. Subdomains must be listed separately.',
+    ),
     h('h3', { class: 'h6 text-body-secondary mt-4' }, 'Other'),
     field('Theme', theme),
     field('Editor command', editor, 'Opens files from the chat, e.g. code, cursor, subl.'),
@@ -203,6 +214,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
         effort: effort.value as Effort,
         approvalMode: approval.value as Settings['approvalMode'],
         allowedCommands: allowedCommands.value.trim(),
+        allowedNetworkHosts: allowedNetworkHosts.value.trim(),
         theme: theme.value as Settings['theme'],
         openaiBaseUrl: baseUrl.value.trim(),
         googleSearchEngineId: searchEngine.value.trim(),

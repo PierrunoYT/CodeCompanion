@@ -9,7 +9,7 @@ class Agent {
     this.currentWorkingDir = os.homedir();
     this.projectState = {};
     this.projectController = new ProjectController(currentProject);
-    this.userDecision = null;
+    this.pendingDecision = null;
     this.lastToolCall = null;
   }
 
@@ -27,7 +27,6 @@ class Agent {
 
       if (toolCalls && toolCalls.length > 0) {
         const { decision, reflectMessage } = await this.runTools(toolCalls);
-        this.userDecision = null;
 
         if (decision !== 'reject') {
           await chatController.process('', false, reflectMessage);
@@ -111,8 +110,14 @@ class Agent {
     return fileInChatContext;
   }
 
+  // Called by the approve / reject / reflect buttons.
+  decide(decision) {
+    if (this.pendingDecision) {
+      this.pendingDecision(decision);
+    }
+  }
+
   async waitForDecision(functionName, toolCall) {
-    this.userDecision = null;
     if (
       this.isToolCallRepeated(toolCall) ||
       (chatController.settings.approvalRequired &&
@@ -121,16 +126,13 @@ class Agent {
       document.getElementById('messageInput').disabled = true;
       document.getElementById('approval_buttons').removeAttribute('hidden');
       return new Promise((resolve) => {
-        const checkDecision = setInterval(() => {
-          if (this.userDecision !== null) {
-            clearInterval(checkDecision);
-            document.getElementById('approval_buttons').setAttribute('hidden', true);
-            document.getElementById('messageInput').disabled = false;
-            document.getElementById('messageInput').focus();
-            resolve(this.userDecision);
-            this.userDecision = null;
-          }
-        }, 200);
+        this.pendingDecision = (decision) => {
+          this.pendingDecision = null;
+          document.getElementById('approval_buttons').setAttribute('hidden', true);
+          document.getElementById('messageInput').disabled = false;
+          document.getElementById('messageInput').focus();
+          resolve(decision);
+        };
       });
     } else {
       return Promise.resolve('approve');

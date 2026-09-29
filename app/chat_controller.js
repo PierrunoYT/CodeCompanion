@@ -295,7 +295,6 @@ class ChatController {
     this.agent = new Agent(this.agent.projectController.currentProject);
     this.initializeModel();
     this.chatLogs = [];
-    this.agent.userDecision = null;
     this.terminalSession.createShellSession();
     document.getElementById('output').innerHTML = '';
     document.getElementById('retry_button').setAttribute('hidden', true);

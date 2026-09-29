@@ -16,7 +16,6 @@ class Chat {
     this.task = null;
     this.shellType = null;
     this.startTimestamp = Date.now();
-    this.userDecision = null;
   }
 
   isEmpty() {

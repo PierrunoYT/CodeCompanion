@@ -18,11 +18,14 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Run the installer, then check the Start menu entry, launch, and uninstall (worked)
 - [x] Fix `npm run dist` failing with EBUSY when `dist/win-unpacked` is in use (a guard script asks you to close the app)
 - [x] Add an end-to-end test for the OpenAI Responses path
-- [ ] Test on macOS: build the DMG, check signing and notarization
-- [ ] Test on Linux (`node-pty` compiles from source there) and add a Linux build target
 - [x] Reset the version to `0.1.0` (new codebase)
 - [ ] Update the `CHANGELOG.md` date on release
-- [ ] Tag the release and publish the installers on GitHub Releases
+- [ ] Tag the release and publish the Windows installer on GitHub Releases (0.1.0 is Windows only)
+
+## Later: other platforms (after the Windows release)
+
+- [ ] Test on macOS: build the DMG, check signing and notarization
+- [ ] Test on Linux (`node-pty` compiles from source there) and add a Linux build target
 
 ## Project setup
 

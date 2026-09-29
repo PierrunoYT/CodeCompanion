@@ -19,6 +19,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 
 ### Development
 - `package.json` now has an `author` field.
+- 0.1.0 is released for Windows only; macOS and Linux builds come later.
 - GitHub Actions workflow running typecheck, unit tests and end-to-end tests on Windows for every push and pull request.
 - End-to-end test for the OpenAI Responses API path (mock OpenAI server, `CODECOMPANION_TEST_OPENAI_URL`), including the encrypted reasoning round trip.
 - `npm run pack` / `npm run dist` stop with a clear message when the app is running from `dist/` (previously an `EBUSY` error on Windows).

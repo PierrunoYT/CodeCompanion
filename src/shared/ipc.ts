@@ -14,6 +14,16 @@ export interface AppInfo {
   platform: string;
 }
 
+export interface IndexStatus {
+  // False when there is no project open or no OpenAI key (embeddings need one).
+  available: boolean;
+  reason?: string;
+  indexed: boolean;
+  indexing: boolean;
+  files: number;
+  chunks: number;
+}
+
 export type MenuCommand = 'open-project' | 'new-chat' | 'stop' | 'settings';
 
 export type ImageAttachment = NonNullable<UserMessage['images']>[number] & { name: string };
@@ -24,6 +34,9 @@ export interface InvokeApi {
   'settings:get': () => SettingsView;
   'settings:update': (patch: Partial<Settings>) => SettingsView;
   'settings:set-secret': (name: SecretName, value: string) => SettingsView;
+
+  'index:status': () => IndexStatus;
+  'index:rebuild': () => IndexStatus;
 
   'project:choose': () => ProjectInfo | null;
   'project:open': (path: string) => ProjectInfo;
@@ -80,6 +93,8 @@ const INVOKE: Record<InvokeChannel, true> = {
   'settings:get': true,
   'settings:update': true,
   'settings:set-secret': true,
+  'index:status': true,
+  'index:rebuild': true,
   'project:choose': true,
   'project:open': true,
   'project:current': true,

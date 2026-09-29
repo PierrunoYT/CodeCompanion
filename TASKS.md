@@ -51,6 +51,7 @@ Tick a box (`- [x]`) when a task is done.
 ## Quality
 
 - [ ] Add unit tests for the panels (`browser`, `git`, `terminal`)
-- [ ] Add unit tests for the code index (`src/main/search`)
+- [x] Add unit tests for the code index (`src/main/search`)
+- [ ] Show indexing progress in Settings while reindexing
 - [ ] Review the security model again before the release
 - [ ] Check for accessibility problems (keyboard navigation, contrast)

@@ -319,6 +319,8 @@ export class App {
     openSettingsDialog(this.settings, {
       update: (patch) => api.invoke('settings:update', patch),
       setSecret: (name, value) => api.invoke('settings:set-secret', name, value),
+      indexStatus: () => api.invoke('index:status'),
+      rebuildIndex: () => api.invoke('index:rebuild'),
     });
   }
 

@@ -109,7 +109,7 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 
 ## Code search (`src/main/search/`)
 
-`CodeIndex` walks the project (respecting ignore rules, up to *Maximum files to index*), splits text files into overlapping 60-line chunks, embeds them with OpenAI `text-embedding-3-small` and stores Float32 vectors in `userData/indexes/<sha1 of path>.json`. Updates re-embed only files whose size or modification time changed. The index is built on the first `search_code` call, never in the background. Search ranks by cosine similarity, at most two snippets per file. Changing `INDEX_VERSION` or the embedding model rebuilds indexes.
+`CodeIndex` walks the project (respecting ignore rules, up to *Maximum files to index*), splits text files into overlapping 60-line chunks, embeds them with OpenAI `text-embedding-3-small` and stores Float32 vectors in `userData/indexes/<sha1 of path>.json`. Updates re-embed only files whose size or modification time changed. The index is built on the first `search_code` call, never in the background. Search ranks by cosine similarity, at most two snippets per file. Changing `INDEX_VERSION` or the embedding model rebuilds indexes. Settings shows the current project's index status (`index:status`: files and chunks, or why it is unavailable) and a Reindex button (`index:rebuild`, `CodeIndex.rebuild()`), which clears the index and embeds everything again.
 
 ## Panels (`src/main/panels/`, `src/renderer/src/views/panels.ts`)
 

@@ -11,6 +11,8 @@ import { CodeIndex, openAIEmbedder, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { SettingsStore } from './settings';
+import { Workspace } from './tools/workspace';
+import type { IndexStatus } from '@shared/ipc';
 import { BrowserService } from './panels/browser';
 import { GitService } from './panels/git';
 import { TerminalService } from './panels/terminal';
@@ -53,6 +55,29 @@ function start(): void {
   // A changed key or endpoint means new embeddings; drop cached indexes so they are rebuilt with the new client.
   settings.on('change', () => codeIndexes.clear());
 
+  const indexFor = (workspace: Workspace): CodeIndex | null => {
+    // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
+    const key = settings.getSecret('openaiApiKey');
+    if (!key) return null;
+    let index = codeIndexes.get(workspace.root);
+    if (!index) {
+      const embedder = openAIEmbedder(createOpenAIClient(key, settings.get().openaiBaseUrl));
+      index = new CodeIndex(workspace, embedder, join(userData, 'indexes'), () => settings.get().maxIndexedFiles);
+      codeIndexes.set(workspace.root, index);
+    }
+    return index;
+  };
+  const indexStatus = (index: CodeIndex | null, reason?: string): IndexStatus =>
+    index
+      ? { available: true, indexed: index.fileCount > 0, indexing: index.isUpdating, files: index.fileCount, chunks: index.chunkCount }
+      : { available: false, reason, indexed: false, indexing: false, files: 0, chunks: 0 };
+  const currentIndex = (): { index: CodeIndex | null; reason?: string } => {
+    const project = projects.current();
+    if (!project) return { index: null, reason: 'Open a project first.' };
+    const index = indexFor(new Workspace(project.path));
+    return index ? { index } : { index: null, reason: 'Set an OpenAI API key to enable code indexing.' };
+  };
+
   const manager = new ChatManager({
     settings,
     projects,
@@ -60,16 +85,8 @@ function start(): void {
     llm,
     browser: () => browser,
     codeSearch: (workspace) => {
-      // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
-      const key = settings.getSecret('openaiApiKey');
-      if (!key) return null;
-      let index = codeIndexes.get(workspace.root);
-      if (!index) {
-        const embedder = openAIEmbedder(createOpenAIClient(key, settings.get().openaiBaseUrl));
-        index = new CodeIndex(workspace, embedder, join(userData, 'indexes'), () => settings.get().maxIndexedFiles);
-        codeIndexes.set(workspace.root, index);
-      }
-      return { search: index, tools: [searchCodeTool(index)] };
+      const index = indexFor(workspace);
+      return index ? { search: index, tools: [searchCodeTool(index)] } : null;
     },
     emit: (event, chatId) => send(mainWindow, 'chat:event', { chatId, event }),
     onSnapshot: (snapshot) => send(mainWindow, 'chat:snapshot', snapshot),
@@ -93,6 +110,17 @@ function start(): void {
     return settings.setSecret(name, value);
   });
   settings.on('change', (view) => send(mainWindow, 'settings:changed', view));
+
+  handle('index:status', () => {
+    const { index, reason } = currentIndex();
+    return indexStatus(index, reason);
+  });
+  handle('index:rebuild', async () => {
+    const { index, reason } = currentIndex();
+    if (!index) throw new Error(reason);
+    await index.rebuild();
+    return indexStatus(index);
+  });
 
   handle('project:choose', async () => {
     const options = { properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };

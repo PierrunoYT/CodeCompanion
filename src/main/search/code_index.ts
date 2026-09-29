@@ -111,8 +111,25 @@ export class CodeIndex implements CodeSearch {
     return hits;
   }
 
+  // Throws away everything indexed so far and embeds the whole project again.
+  async rebuild(signal?: AbortSignal, onProgress?: (progress: UpdateProgress) => void): Promise<void> {
+    await this.updating?.catch(() => {});
+    this.data.files = {};
+    this.vectors.clear();
+    writeJson(this.file, this.data);
+    await this.update(signal, onProgress);
+  }
+
   get fileCount(): number {
     return Object.keys(this.data.files).length;
+  }
+
+  get chunkCount(): number {
+    return Object.values(this.data.files).reduce((sum, file) => sum + file.chunks.length, 0);
+  }
+
+  get isUpdating(): boolean {
+    return this.updating !== null;
   }
 
   private async runUpdate(signal?: AbortSignal, onProgress?: (progress: UpdateProgress) => void): Promise<void> {

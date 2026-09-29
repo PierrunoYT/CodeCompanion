@@ -1,5 +1,6 @@
 import type { ChatSummary } from '@shared/chat';
 import { MODEL_OPTIONS, type Effort } from '@shared/models';
+import type { IndexStatus } from '@shared/ipc';
 import type { ProjectInfo } from '@shared/project';
 import type { SecretName, Settings, SettingsView } from '@shared/settings';
 import { h, icon } from '../dom';
@@ -50,6 +51,8 @@ const SECRET_LABELS: Record<SecretName, [string, string]> = {
 export interface SettingsDialogActions {
   update(patch: Partial<Settings>): Promise<SettingsView>;
   setSecret(name: SecretName, value: string): Promise<SettingsView>;
+  indexStatus(): Promise<IndexStatus>;
+  rebuildIndex(): Promise<IndexStatus>;
 }
 
 export function openSettingsDialog(settings: SettingsView, actions: SettingsDialogActions): void {
@@ -114,6 +117,36 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
   const maxFiles = h('input', { class: 'form-control', type: 'number', min: 1, value: String(settings.maxIndexedFiles) });
   const error = h('div', { class: 'text-danger me-auto small' });
 
+  const indexText = h('span', { class: 'small text-body-secondary flex-grow-1' }, 'Checking…');
+  const reindex = h('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm', disabled: true }, 'Reindex');
+  const showIndex = (status: IndexStatus) => {
+    indexText.textContent = !status.available
+      ? `Not available: ${status.reason ?? 'no project'}`
+      : status.indexing
+        ? 'Indexing…'
+        : status.indexed
+          ? `Indexed: ${status.files} files, ${status.chunks} chunks`
+          : 'Not indexed yet';
+    reindex.disabled = !status.available || status.indexing;
+  };
+  reindex.addEventListener('click', async () => {
+    reindex.disabled = true;
+    indexText.textContent = 'Indexing… this can take a while';
+    try {
+      showIndex(await actions.rebuildIndex());
+    } catch (err) {
+      indexText.textContent = `Indexing failed: ${err instanceof Error ? err.message : String(err)}`;
+      reindex.disabled = false;
+    }
+  });
+  actions.indexStatus().then(showIndex, () => (indexText.textContent = 'Status unavailable'));
+  const indexSection = h(
+    'div',
+    { class: 'mb-3' },
+    h('div', { class: 'form-label' }, 'Code index (current project)'),
+    h('div', { class: 'd-flex align-items-center gap-2' }, indexText, reindex),
+  );
+
   const body = h(
     'div',
     {},
@@ -132,6 +165,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     field('OpenAI-compatible base URL', baseUrl, 'Leave empty for api.openai.com.'),
     field('Google search engine id', searchEngine),
     field('Maximum files to index for code search', maxFiles),
+    indexSection,
   );
 
   const save = h('button', { type: 'button', class: 'btn btn-primary' }, 'Save');

@@ -76,6 +76,20 @@ describe('CodeIndex', () => {
     expect(index.fileCount).toBe(2);
   });
 
+  it('reports status and re-embeds everything on rebuild', async () => {
+    const embedder = new FakeEmbedder();
+    const index = new CodeIndex(new Workspace(root), embedder, indexDir, () => 1000);
+    expect(index.fileCount).toBe(0);
+    await index.update();
+    expect(index.chunkCount).toBeGreaterThan(0);
+    expect(index.isUpdating).toBe(false);
+    const afterFirst = embedder.embeddedTexts;
+
+    await index.rebuild();
+    expect(embedder.embeddedTexts).toBe(afterFirst * 2);
+    expect(index.fileCount).toBe(2);
+  });
+
   it('only re-embeds changed files and drops deleted ones', async () => {
     const embedder = new FakeEmbedder();
     const index = new CodeIndex(new Workspace(root), embedder, indexDir, () => 1000);

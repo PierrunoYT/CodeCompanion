@@ -24,8 +24,6 @@ function input(overrides: Partial<SystemPromptInput> = {}): SystemPromptInput {
     date: '2026-09-29',
     customInstructions: '',
     agentFile: null,
-    hasCodeSearch: false,
-    hasBrowser: false,
     ...overrides,
   };
 }
@@ -39,9 +37,11 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('node_modules');
   });
 
-  it('mentions optional tools only when available', () => {
-    expect(buildSystemPrompt(input())).not.toContain('search_code');
-    expect(buildSystemPrompt(input({ hasCodeSearch: true, hasBrowser: true }))).toContain('search_code');
+  it('defers optional tool availability to the current tool list without changing the cached prompt', () => {
+    const prompt = buildSystemPrompt(input());
+    expect(prompt).toContain('search_code when it is in the currently offered tools');
+    expect(prompt).toContain('browser tool when offered');
+    expect(prompt).toContain('current tool list is authoritative');
   });
 
   it('appends project instructions', () => {

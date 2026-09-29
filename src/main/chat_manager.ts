@@ -132,8 +132,6 @@ export class ChatManager {
             : null,
       };
     };
-    const initial = capabilities();
-
     const conversation = saved
       ? this.deps.llm.restoreConversation(saved.conversation)
       : this.deps.llm.createConversation();
@@ -148,8 +146,6 @@ export class ChatManager {
         date: new Date().toISOString().slice(0, 10),
         customInstructions: project.instructions,
         agentFile,
-        hasCodeSearch: Boolean(initial.codeSearch),
-        hasBrowser: Boolean(initial.browser),
       });
 
     const session: ChatSession = new ChatSession({

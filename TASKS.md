@@ -46,7 +46,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [x] Add unit tests for the Git, terminal and browser panel services; fix the browser stop-while-waiting bug they found
 - [x] Fix `run_command` hanging after the command exited while a leftover child held the output pipe
 - [x] Always inject `AGENTS.md` into the session and show in the UI that it is loaded
-- [ ] Add a stop-and-resume option for long agent runs
+- [x] Add a stop-and-resume option for long agent runs, including reopening stopped chats
 - [x] Show cost estimates next to the token usage in the status bar (Claude models only)
 - [x] Add verified GPT-6 prices, per-request long-context tiers, and cache-write tokens to cost estimates
 - [x] Add a setting to allow specific commands without approval

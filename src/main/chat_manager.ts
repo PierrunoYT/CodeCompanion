@@ -48,6 +48,7 @@ export class ChatManager {
         model: this.deps.settings.get().model,
         transcript: [],
         busy: false,
+        resumable: false,
         usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
         agentFile: this.pendingAgentFile(),
       }
@@ -71,6 +72,12 @@ export class ChatManager {
 
   stop(): void {
     this.session?.stop();
+  }
+
+  resume(): Promise<void> {
+    if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
+    if (!this.session?.snapshot().resumable) throw new Error('There is no stopped run to resume.');
+    return this.session.resume();
   }
 
   decide(approvalId: string, decision: ApprovalDecision): void {
@@ -161,6 +168,7 @@ export class ChatManager {
       transcript: saved?.transcript,
       usage: saved?.usage,
       readFiles: saved?.readFiles,
+      resumable: saved?.resumable,
       approvalMode: () => this.deps.settings.get().approvalMode,
       isPreApproved: (toolName, input) => {
         if (toolName === 'run_command' && typeof (input as { command?: unknown })?.command === 'string') {

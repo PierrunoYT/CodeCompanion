@@ -64,6 +64,7 @@ export type ChatEvent =
   | { type: 'error'; id: string; text: string }
   | { type: 'notice'; id: string; text: string }
   | { type: 'busy'; busy: boolean }
+  | { type: 'resumable'; resumable: boolean }
   | { type: 'usage'; totals: UsageTotals }
   | { type: 'title'; title: string };
 
@@ -82,6 +83,8 @@ export interface ChatSnapshot {
   officialPricing?: boolean;
   transcript: TranscriptItem[];
   busy: boolean;
+  // A user-stopped run can be continued without sending the original message again.
+  resumable: boolean;
   usage: UsageTotals;
   // Name of the project instruction file (AGENTS.md) that is part of the system prompt, if any.
   agentFile: string | null;

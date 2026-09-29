@@ -155,6 +155,9 @@ function start(): void {
     manager.send(message).catch(() => {});
   });
   handle('chat:stop', () => manager.stop());
+  handle('chat:resume', () => {
+    manager.resume().catch(() => {});
+  });
   handle('chat:new', () => manager.newChat());
   handle('chat:decide', (approvalId, decision) => manager.decide(approvalId, decision));
   handle('chat:export', () => {

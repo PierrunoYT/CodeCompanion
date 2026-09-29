@@ -4,6 +4,7 @@ import { h, icon } from '../dom';
 export interface ComposerActions {
   send(text: string, images: ImageAttachment[]): Promise<boolean>;
   stop(): void;
+  resume(): void;
   pickImages(): Promise<ImageAttachment[]>;
 }
 
@@ -14,6 +15,7 @@ export class Composer {
   private readonly input: HTMLTextAreaElement;
   private readonly sendButton: HTMLButtonElement;
   private readonly stopButton: HTMLButtonElement;
+  private readonly resumeButton: HTMLButtonElement;
   private readonly attachmentList: HTMLElement;
   private images: ImageAttachment[] = [];
   private busy = false;
@@ -40,6 +42,12 @@ export class Composer {
       icon('stop-fill'),
       ' Stop',
     );
+    this.resumeButton = h(
+      'button',
+      { class: 'btn btn-primary', title: 'Resume stopped task', hidden: true, onclick: () => this.actions.resume() },
+      icon('play-fill'),
+      ' Resume',
+    );
     this.attachmentList = h('div', { class: 'composer-attachments' });
 
     this.element = h(
@@ -57,14 +65,16 @@ export class Composer {
         this.input,
         this.sendButton,
         this.stopButton,
+        this.resumeButton,
       ),
     );
   }
 
-  setBusy(busy: boolean): void {
+  setState(busy: boolean, resumable: boolean): void {
     this.busy = busy;
     this.sendButton.hidden = busy;
     this.stopButton.hidden = !busy;
+    this.resumeButton.hidden = busy || !resumable;
   }
 
   focus(): void {

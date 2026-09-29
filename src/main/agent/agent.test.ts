@@ -4,7 +4,7 @@ import type { ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
 import { defineTool, type AgentTool, type ToolContext } from '../tools/types';
-import { ChatSession } from './session';
+import { ChatSession, type ChatSessionOptions } from './session';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
 
@@ -82,6 +82,8 @@ function setup(
     usage = undefined as UsageTotals | undefined,
     provider = 'anthropic' as 'anthropic' | 'openai',
     officialPricing = undefined as boolean | undefined,
+    resumable = undefined as boolean | undefined,
+    transcript = undefined as ChatSessionOptions['transcript'],
   } = {},
 ) {
   ran.length = 0;
@@ -95,6 +97,8 @@ function setup(
     agentFile: null,
     tools,
     usage,
+    resumable,
+    transcript,
     approvalMode: () => mode,
     isPreApproved,
     toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
@@ -253,6 +257,79 @@ describe('agent loop', () => {
     expect(conversation.toolResults[0]).toHaveLength(2);
     expect(session.busy).toBe(false);
     expect(ran).toEqual([]);
+  });
+
+  it('resumes after stopping during approval without rerunning the saved calls or duplicating the user message', async () => {
+    const { session, conversation, nextApproval } = setup([
+      {
+        toolCalls: [
+          { id: 't1', name: 'change', input: { to: 'x' } },
+          { id: 't2', name: 'look', input: { what: 'b' } },
+        ],
+      },
+      { text: 'Continued safely.' },
+    ]);
+    const sending = session.send({ text: 'change it' });
+    await nextApproval();
+    session.stop();
+    await sending;
+
+    expect(session.snapshot().resumable).toBe(true);
+    expect(conversation.toolResults[0]).toHaveLength(2);
+    await session.resume();
+
+    expect(ran).toEqual([]);
+    expect(conversation.users).toHaveLength(2);
+    expect(conversation.users[0].text).toBe('change it');
+    expect(conversation.users[1].text).toContain('inspect the current state');
+    expect(session.snapshot().transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
+    expect(session.snapshot().resumable).toBe(false);
+  });
+
+  it('resumes an aborted streaming turn and prevents simultaneous or duplicate resumes', async () => {
+    const { session, conversation } = setup([
+      (request) =>
+        new Promise((_resolve, reject) => {
+          request.callbacks.onText('partial');
+          request.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+      async (request) => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return { text: 'finished' };
+      },
+    ]);
+    const sending = session.send({ text: 'start once' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    session.stop();
+    await sending;
+
+    const resuming = session.resume();
+    await expect(session.resume()).rejects.toThrow(/still working/);
+    await resuming;
+    await expect(session.resume()).rejects.toThrow(/no stopped run/);
+    expect(conversation.users.map((user) => user.text).filter((text) => text === 'start once')).toHaveLength(1);
+  });
+
+  it('persists resumable state for a reopened chat', async () => {
+    const first = setup([
+      (request) =>
+        new Promise((_resolve, reject) =>
+          request.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))),
+        ),
+    ]);
+    const sending = first.session.send({ text: 'pause me' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    first.session.stop();
+    await sending;
+    const saved = first.session.serialize();
+
+    const reopened = setup([{ text: 'continued after reopen' }], {
+      resumable: saved.resumable,
+      transcript: saved.transcript,
+    });
+    expect(reopened.session.snapshot().resumable).toBe(true);
+    await reopened.session.resume();
+    expect(reopened.session.snapshot().transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
   });
 
   it('shows model errors in the transcript', async () => {

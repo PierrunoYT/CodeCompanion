@@ -27,6 +27,7 @@ export interface SavedChat {
   conversation: SerializedConversation;
   readFiles: string[];
   agentFile?: string | null;
+  resumable?: boolean;
 }
 
 export interface ChatSessionOptions {
@@ -42,6 +43,7 @@ export interface ChatSessionOptions {
   transcript?: TranscriptItem[];
   usage?: UsageTotals;
   readFiles?: string[];
+  resumable?: boolean;
   approvalMode: () => ApprovalMode;
   isPreApproved?: (toolName: string, input: unknown) => boolean;
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
@@ -61,6 +63,8 @@ export class ChatSession {
   private readonly agent: Agent;
   private readonly approvals = new Map<string, (decision: ApprovalDecision) => void>();
   private controller: AbortController | null = null;
+  private resumable: boolean;
+  private stopRequested = false;
   private updatedAt: string;
 
   constructor(private readonly options: ChatSessionOptions) {
@@ -70,6 +74,7 @@ export class ChatSession {
     this.title = options.title ?? 'New chat';
     this.transcript = options.transcript ?? [];
     this.readFiles = new Set(options.readFiles ?? []);
+    this.resumable = options.resumable ?? false;
     this.agent = new Agent({
       conversation: options.conversation,
       system: options.system,
@@ -108,6 +113,7 @@ export class ChatSession {
         this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
       transcript: this.transcript,
       busy: this.busy,
+      resumable: this.resumable,
       usage: this.agent.totals,
       agentFile: this.options.agentFile,
     };
@@ -119,14 +125,27 @@ export class ChatSession {
     if (!text && !message.images?.length) return;
 
     const isFirst = !this.transcript.some((item) => item.kind === 'user');
+    this.setResumable(false);
     this.emit({ type: 'user', id: randomUUID(), text, imageCount: message.images?.length ?? 0 });
     if (isFirst) void this.generateTitle(text);
 
+    return this.run((signal) => this.agent.send({ text: text || '(see attached images)', images: message.images }, signal));
+  }
+
+  async resume(): Promise<void> {
+    if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
+    if (!this.resumable) throw new Error('There is no stopped run to resume.');
+    this.setResumable(false);
+    return this.run((signal) => this.agent.resume(signal));
+  }
+
+  private async run(work: (signal: AbortSignal) => Promise<void>): Promise<void> {
     const controller = new AbortController();
     this.controller = controller;
+    this.stopRequested = false;
     this.emit({ type: 'busy', busy: true });
     try {
-      await this.agent.send({ text: text || '(see attached images)', images: message.images }, controller.signal);
+      await work(controller.signal);
     } catch (error) {
       if (controller.signal.aborted) {
         this.emit({ type: 'notice', id: randomUUID(), text: 'Stopped.' });
@@ -134,13 +153,17 @@ export class ChatSession {
         this.emit({ type: 'error', id: randomUUID(), text: error instanceof Error ? error.message : String(error) });
       }
     } finally {
+      const stopped = this.stopRequested;
       this.controller = null;
       this.rejectPendingApprovals();
+      if (stopped) this.setResumable(true);
       this.emit({ type: 'busy', busy: false });
     }
   }
 
   stop(): void {
+    if (!this.controller) return;
+    this.stopRequested = true;
     this.controller?.abort();
     this.rejectPendingApprovals();
   }
@@ -163,6 +186,7 @@ export class ChatSession {
       conversation: this.options.conversation.serialize(),
       readFiles: [...this.readFiles],
       agentFile: this.options.agentFile,
+      resumable: this.resumable,
     };
   }
 
@@ -173,6 +197,12 @@ export class ChatSession {
     if (event.type !== 'assistant-delta' && event.type !== 'thinking-delta' && event.type !== 'tool-progress') {
       this.options.onChange(event.type === 'busy' && !event.busy);
     }
+  }
+
+  private setResumable(resumable: boolean): void {
+    if (this.resumable === resumable) return;
+    this.resumable = resumable;
+    this.emit({ type: 'resumable', resumable });
   }
 
   private waitForApproval(id: string, signal: AbortSignal): Promise<ApprovalDecision> {

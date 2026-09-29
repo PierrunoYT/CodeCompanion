@@ -9,6 +9,7 @@ const chat = (transcript: ChatSnapshot['transcript']): ChatSnapshot => ({
   model: 'claude-test',
   transcript,
   busy: false,
+  resumable: false,
   usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
   agentFile: null,
 });

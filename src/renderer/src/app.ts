@@ -27,6 +27,7 @@ export class App {
   private readonly composer = new Composer({
     send: (text, images) => this.send(text, images),
     stop: () => void api.invoke('chat:stop'),
+    resume: () => void api.invoke('chat:resume').catch((error) => this.toast(error)),
     pickImages: () => api.invoke('files:pick-images').catch((error) => (this.toast(error), [])),
   });
 
@@ -143,7 +144,7 @@ export class App {
   private renderAll(): void {
     this.chatScroll.replaceChildren(this.welcome, this.transcript.element, this.transcript.announcer);
     this.transcript.render(this.chat.transcript);
-    this.composer.setBusy(this.chat.busy);
+    this.composer.setState(this.chat.busy, this.chat.resumable);
     this.renderHeader();
     void this.renderWelcome();
   }
@@ -156,12 +157,13 @@ export class App {
     for (const event of events) {
       transcript = applyChatEvent(transcript, event);
       if (event.type === 'busy') this.chat.busy = event.busy;
+      if (event.type === 'resumable') this.chat.resumable = event.resumable;
       if (event.type === 'usage') this.chat.usage = event.totals;
       if (event.type === 'title') this.chat.title = event.title;
     }
     this.chat = { ...this.chat, transcript };
     this.transcript.render(transcript);
-    this.composer.setBusy(this.chat.busy);
+    this.composer.setState(this.chat.busy, this.chat.resumable);
     this.renderHeader();
     this.welcome.hidden = transcript.length > 0;
   }

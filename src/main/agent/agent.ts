@@ -7,6 +7,8 @@ import { ToolError, type AgentTool, type ToolContext, type ToolPreview } from '.
 
 // Safety net against a model that never stops calling tools.
 const MAX_TURNS = 200;
+const RESUME_INSTRUCTION =
+  'Continue the task that I stopped. Use the completed conversation and tool results above; do not repeat the original request. Some interrupted tool actions may have completed even when their result says they were stopped, so inspect the current state before repeating any action with side effects.';
 
 export interface AgentOptions {
   conversation: Conversation;
@@ -37,8 +39,17 @@ export class Agent {
   }
 
   async send(input: UserInput, signal: AbortSignal): Promise<void> {
+    this.options.conversation.addUserMessage(input);
+    await this.run(signal);
+  }
+
+  async resume(signal: AbortSignal): Promise<void> {
+    this.options.conversation.addUserMessage({ text: RESUME_INSTRUCTION });
+    await this.run(signal);
+  }
+
+  private async run(signal: AbortSignal): Promise<void> {
     const { conversation, emit } = this.options;
-    conversation.addUserMessage(input);
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal.aborted) return;
@@ -193,6 +204,12 @@ export class Agent {
 
     if (needsApproval) {
       const decision = await this.options.requestApproval(eventId, signal);
+      if (signal.aborted) {
+        const content =
+          'Stopped by the user before this action was approved. Do not assume it ran; inspect the current state before attempting it again.';
+        emit({ type: 'tool-end', id: eventId, status: 'error', summary: 'Stopped', output: content });
+        return { result: { id: call.id, content, isError: true } };
+      }
       if (!decision.approved) {
         const feedback = decision.feedback?.trim();
         emit({ type: 'tool-end', id: eventId, status: 'declined', summary: 'Declined', output: feedback });

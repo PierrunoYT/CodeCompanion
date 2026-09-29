@@ -5,6 +5,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Added
+- Add a Resume control for stopped tasks, with persisted paused state, completed tool-result pairing, and a continuation instruction to inspect interrupted side effects before retrying them.
 - Add GPT-6 list-price estimates and cache-write accounting. Normalize OpenAI cached input, price long-context requests separately, and hide official estimates for custom endpoints. Older chat usage is migrated without double-counting cache reads.
 
 ### Security

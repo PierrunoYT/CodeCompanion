@@ -50,6 +50,8 @@ export interface InvokeApi {
   'chat:stop': () => void;
   'chat:new': () => ChatSnapshot;
   'chat:decide': (approvalId: string, decision: ApprovalDecision) => void;
+  // Asks where to save, writes the current chat as Markdown and returns the path (null if cancelled).
+  'chat:export': () => string | null;
 
   'history:list': () => ChatSummary[];
   'history:open': (id: string) => ChatSnapshot;
@@ -106,6 +108,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'chat:stop': true,
   'chat:new': true,
   'chat:decide': true,
+  'chat:export': true,
   'history:list': true,
   'history:open': true,
   'history:delete': true,

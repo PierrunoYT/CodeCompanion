@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
 import { ChatManager } from './chat_manager';
 import { ChatStore } from './chat_store';
-import { openInEditor, pickImages } from './files';
+import { chatToMarkdown, exportFileName } from '@shared/export';
+import { openInEditor, pickImages, saveTextFile } from './files';
 import { handle, send } from './ipc';
 import { LlmService } from './llm';
 import { createOpenAIClient } from './llm/openai';
@@ -149,6 +150,11 @@ function start(): void {
   handle('chat:stop', () => manager.stop());
   handle('chat:new', () => manager.newChat());
   handle('chat:decide', (approvalId, decision) => manager.decide(approvalId, decision));
+  handle('chat:export', () => {
+    const chat = manager.snapshot();
+    if (chat.transcript.length === 0) throw new Error('This chat is empty; there is nothing to export.');
+    return saveTextFile(mainWindow, exportFileName(chat.title), chatToMarkdown(chat));
+  });
 
   handle('history:list', () => chats.list());
   handle('history:open', (id) => {

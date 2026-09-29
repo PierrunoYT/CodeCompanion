@@ -45,6 +45,7 @@ export class App {
     (error) => this.toast(error),
     () => this.project !== null,
   );
+  private readonly exportButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Export this chat as Markdown', 'aria-label': 'Export chat', onclick: () => void this.exportChat() }, icon('download'));
   private readonly panelHost = h('div', { class: 'panel-host' }, this.panels.element);
   private readonly panelButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Show or hide the side panel', onclick: () => this.togglePanel() }, icon('layout-sidebar-reverse'));
 
@@ -123,6 +124,7 @@ export class App {
           this.modeButton,
           this.panelButton,
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'New chat (Ctrl+N)', onclick: () => void this.newChat() }, icon('plus-lg'), ' New chat'),
+          this.exportButton,
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Chat history', onclick: () => void this.openHistory() }, icon('clock-history')),
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() }, icon('gear')),
         ),
@@ -169,6 +171,7 @@ export class App {
     this.projectButton.title = this.project?.path ?? 'Open a project folder';
 
     this.titleLabel.textContent = this.chat.transcript.length > 0 ? this.chat.title : '';
+    this.exportButton.disabled = this.chat.transcript.length === 0;
 
     const auto = this.settings.approvalMode === 'auto';
     this.modeButton.className = `btn btn-sm mode-button ${auto ? 'btn-warning' : 'btn-outline-secondary'}`;
@@ -330,6 +333,15 @@ export class App {
     });
   }
 
+  private async exportChat(): Promise<void> {
+    try {
+      const path = await api.invoke('chat:export');
+      if (path) this.toast(`Saved ${path}`, 'success');
+    } catch (error) {
+      this.toast(error);
+    }
+  }
+
   private async openHistory(): Promise<void> {
     openHistoryDialog(await api.invoke('history:list'), {
       open: async (id) => {
@@ -367,9 +379,9 @@ export class App {
     document.documentElement.dataset.bsTheme = this.settings.theme;
   }
 
-  toast(error: unknown): void {
+  toast(error: unknown, kind: 'danger' | 'success' = 'danger'): void {
     const message = error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(error);
-    const toast = h('div', { class: 'app-toast alert alert-danger shadow', role: 'alert' }, message);
+    const toast = h('div', { class: `app-toast alert alert-${kind} shadow`, role: 'alert' }, message);
     this.toastArea.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
   }

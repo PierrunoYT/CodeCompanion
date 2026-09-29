@@ -71,6 +71,11 @@ Some prompt examples:
 
 5. Start the application with `npm start` or `npm run debug` for development mode.
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) – process layout, agent loop, context building, tools, embeddings
+- [Development guide](docs/DEVELOPMENT.md) – setup, scripts, where to change things
+
 ## Community and Support
 
 - [Official Website](https://codecompanion.ai/)

@@ -15,7 +15,7 @@ Tick a box (`- [x]`) when a task is done.
 
 - [ ] Manually test the packaged Windows build (`dist/win-unpacked/CodeCompanion.exe`)
 - [x] Build the NSIS installer (`npm run dist`, 119 MB, version 0.1.0); the packaged app starts cleanly
-- [ ] Run the installer, then check the Start menu entry, launch, and uninstall
+- [x] Run the installer, then check the Start menu entry, launch, and uninstall (worked)
 - [ ] Fix `npm run dist` failing with EBUSY when `dist/win-unpacked` is in use (close the app first, or write to a separate folder)
 - [ ] Add an end-to-end test for the OpenAI Responses path
 - [ ] Test on macOS: build the DMG, check signing and notarization

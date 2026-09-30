@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
 import { ToolErrorLog } from './agent/tool_error_log';
+import { appLog } from './app_log';
 import { ChatManager } from './chat_manager';
 import { ChatStore } from './chat_store';
 import { chatToMarkdown, exportFileName } from '@shared/export';
@@ -27,6 +28,23 @@ if (process.env.CODECOMPANION_USER_DATA) {
   app.setPath('userData', process.env.CODECOMPANION_USER_DATA);
 }
 
+// Crashes and other problems go to a local log (never sent anywhere). Set up before anything else can fail.
+appLog.setFile(join(app.getPath('userData'), 'logs', 'app.log.jsonl'));
+process.on('uncaughtException', (error) => {
+  appLog.error('uncaught-exception', error);
+  // A listener replaces Electron's own error dialog, so keep telling the user.
+  dialog.showErrorBox('CodeCompanion hit an unexpected error', error instanceof Error ? error.message : String(error));
+});
+process.on('unhandledRejection', (reason) => appLog.error('unhandled-rejection', reason));
+app.on('render-process-gone', (_event, _contents, details) =>
+  appLog.error('render-process-gone', `The UI process ended: ${details.reason}`, { exitCode: details.exitCode }),
+);
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason !== 'clean-exit') {
+    appLog.error('child-process-gone', `A ${details.type} process ended: ${details.reason}`, { exitCode: details.exitCode });
+  }
+});
+
 let mainWindow: BrowserWindow | null = null;
 
 function createSettings(): SettingsStore {
@@ -38,6 +56,11 @@ function createSettings(): SettingsStore {
 }
 
 function start(): void {
+  appLog.info('app', 'Started.', {
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    platform: process.platform,
+  });
   const userData = app.getPath('userData');
   const settings = createSettings();
   const projects = new ProjectStore(join(userData, 'projects.json'));
@@ -98,7 +121,11 @@ function start(): void {
       const index = indexFor(workspace);
       return index ? { search: index, tools: [searchCodeTool(index)] } : null;
     },
-    emit: (event, chatId) => send(mainWindow, 'chat:event', { chatId, event }),
+    emit: (event, chatId) => {
+      // Model and provider failures shown in the chat (the error text, not the conversation).
+      if (event.type === 'error') appLog.error('chat', event.text);
+      send(mainWindow, 'chat:event', { chatId, event });
+    },
     onSnapshot: (snapshot) => send(mainWindow, 'chat:snapshot', snapshot),
     onHistoryChanged: () => send(mainWindow, 'history:changed', chats.list()),
     onDroppedFields: (error) => toolErrorLog.record(error),

@@ -1,5 +1,6 @@
 import { BrowserWindow, screen, session, shell, type WebContents } from 'electron';
 import { join } from 'node:path';
+import { appLog } from './app_log';
 
 export function createMainWindow(onBrowserAttached: (guest: WebContents) => void): BrowserWindow {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
@@ -22,6 +23,7 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
   });
 
   hardenWebContents(window, onBrowserAttached);
+  logWindowProblems(window);
   // Electron grants every permission request (camera, microphone, location, notifications) unless told otherwise.
   // Neither the app page nor pages in the browser panel need any.
   for (const target of [session.defaultSession, session.fromPartition('persist:browser')]) {
@@ -37,6 +39,17 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
   }
 
   return window;
+}
+
+// A window that hangs, or an app page that fails to load, is otherwise invisible to anyone but the person looking at it.
+function logWindowProblems(window: BrowserWindow): void {
+  window.on('unresponsive', () => appLog.warn('window', 'The window stopped responding.'));
+  window.on('responsive', () => appLog.info('window', 'The window is responding again.'));
+  window.webContents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
+    // -3 is a navigation that was cancelled on purpose.
+    if (isMainFrame && code !== -3) appLog.error('window', `The app page failed to load: ${description}`, { code });
+  });
+  window.webContents.on('preload-error', (_event, path, error) => appLog.error('preload', error, { path }));
 }
 
 // The app page is the only content the main window may show. Links open in the system browser, and pages

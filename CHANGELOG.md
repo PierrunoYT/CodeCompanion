@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Security
+- Redact standalone Groq (`gsk_…`) and xAI (`xai-…`) API keys from local error messages and stack traces, including errors from custom endpoints.
+
 ### Added
 - Per-project allow-lists: **Project settings…** in the project menu (formerly *Project instructions…*) now also has "Commands allowed without asking" and "Network hosts allowed without asking" for that project only. They add to the global lists in Settings, with the same rules, and apply at once to open chats. They are stored in `projects.json` in the app's data folder, not in the project, so a repository cannot allow its own commands. New IPC channel `project:update-settings`.
 

@@ -6,6 +6,7 @@ const MAX_STACK = 4000;
 // Keys and tokens that could end up in an error message, e.g. a provider echoing a request header.
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/\bsk-[A-Za-z0-9_-]{8,}/g, 'sk-[redacted]'],
+  [/\b(gsk_|xai-)[A-Za-z0-9_-]{8,}/g, '$1[redacted]'],
   [/\bAIza[0-9A-Za-z_-]{20,}/g, 'AIza[redacted]'],
   [/\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [redacted]'],
   [/\b(x-api-key|api[_-]?key|authorization)(["']?\s*[:=]\s*["']?)[^\s"',;}]{6,}/gi, '$1$2[redacted]'],

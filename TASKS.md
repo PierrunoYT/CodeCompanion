@@ -81,7 +81,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [ ] Lock Undo against a message sent at the same moment (today the model is then told about the undo one message later)
 - [ ] Save the pending "you undid an edit" note with the chat, so it survives a restart
 - [ ] On the Anthropic path, keep the first part of a turn that was paused or compacted server-side out of the history until the turn completes, so a retry cannot leave it behind
-- [ ] Redact more token formats in the local log (custom-endpoint keys such as `gsk_…` or `xai-…`)
+- [x] Redact more token formats in the local log (custom-endpoint keys such as `gsk_…` or `xai-…`)
 
 ## Project setup
 

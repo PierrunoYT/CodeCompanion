@@ -94,6 +94,7 @@ Before tagging, use the built app once against the real Anthropic and OpenAI API
 
 ## Debugging
 
+- Log redaction recognizes standalone `sk-`, `gsk_` (Groq), `xai-` (xAI) and `AIza` keys, bearer tokens and named API-key/authorization fields. It runs before message/stack truncation. This is pattern-based protection for new entries, not a guarantee for arbitrary secret formats or a cleanup of existing logs; inspect logs before sharing them.
 - **View → Toggle Developer Tools** for the renderer; the main process logs to the terminal that launched the app.
 - `CODECOMPANION_USER_DATA=<folder>` starts with a clean profile.
 - **Crash and error log**: `logs/app.log.jsonl` in the user data folder records uncaught errors, unhandled rejections, a crashed or hung UI (`render-process-gone`, `unresponsive`), helper processes that ended, failed IPC handlers (channel and error message; the arguments are not logged, but a message can repeat a path), the app page failing to load, errors that reach the top of the UI (`installErrorReporting` in the renderer sends them over `log:renderer-error`; identical errors once, at most 20 per page load), and errors shown in the chat, plus an `info` line per start (app and Electron version, platform) and one when a hung window responds again. Help → Show Log Folder opens the folder. Call `appLog.error(source, error, context)` from main-process code for anything else worth keeping; put only names, codes and numbers in `context`, never user content. Messages and stacks are redacted for API keys and tokens and cut to a fixed length.

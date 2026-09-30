@@ -70,6 +70,20 @@ describe('AppLog', () => {
     expect(text).toContain('AIza[redacted]');
   });
 
+  it.each(['gsk_', 'xai-'])('redacts %s keys in persisted messages and stacks before clipping', (prefix) => {
+    const key = `${prefix}synthetic_Test-123456789`;
+    const error = new Error(`${'m'.repeat(1968)} rejected ${key}`);
+    error.stack = `${'s'.repeat(3968)} rejected ${key}`;
+    log.error('chat', error);
+    log.error('chat', { detail: `Rejected ${key}` });
+
+    const [failed, serialized] = entries();
+    expect(failed.message).toContain(`${prefix}[redacted]`);
+    expect(failed.stack).toContain(`${prefix}[redacted]`);
+    expect(serialized.message).toBe(JSON.stringify({ detail: `Rejected ${prefix}[redacted]` }));
+    expect(readFileSync(file, 'utf8')).not.toContain('synthetic');
+  });
+
   it('cuts very long messages and stacks', () => {
     const error = new Error('m'.repeat(5000));
     error.stack = 's'.repeat(9000);
@@ -103,6 +117,17 @@ describe('AppLog', () => {
 });
 
 describe('redact', () => {
+  it.each(['gsk_', 'xai-'])('redacts standalone %s keys without consuming surrounding punctuation', (prefix) => {
+    const text = `Rejected "${prefix}Ab12_-Cd", then (${prefix}synthetic123456).`;
+    expect(redact(text)).toBe(`Rejected "${prefix}[redacted]", then (${prefix}[redacted]).`);
+    expect(redact(text)).toBe(redact(redact(text)));
+  });
+
+  it('preserves short prefixes and embedded identifiers', () => {
+    const text = 'gsk_ xai- gsk_1234567 xai-1234567 mygsk_12345678 myxai-12345678';
+    expect(redact(text)).toBe(text);
+  });
+
   it('leaves ordinary text alone', () => {
     const text = 'ENOENT: no such file or directory, open src/index.ts (status 404)';
     expect(redact(text)).toBe(text);

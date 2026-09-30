@@ -81,6 +81,7 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 
 </details>
 
+- [User guide](docs/USAGE.md) — approvals, allow-lists, stop and resume, chat history and export
 - [Architecture](docs/ARCHITECTURE.md) — processes, IPC contract, agent loop, providers, tools, storage, security model
 - [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
 - [Contributing](CONTRIBUTING.md)

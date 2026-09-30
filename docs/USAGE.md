@@ -1,0 +1,118 @@
+# Using CodeCompanion
+
+A short guide to the parts that need explaining: approvals, allow-lists, stopping and resuming, and exporting a chat. For installing and building, see the [README](../README.md).
+
+## Start
+
+1. **File → Open Project…** (`Ctrl+O`) and pick a folder. The assistant can only read and change files inside it.
+2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are stored encrypted by the operating system and are never shown again; type a new one to replace it, or press **Remove**.
+3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button.
+
+Each chat keeps the model it started with. Changing the model in Settings applies to new chats.
+
+### Tell it about your project
+
+- **Project instructions**: the project menu (the folder button at the top) → *Project instructions…*. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
+- **`AGENTS.md`** (or `CLAUDE.md`) in the project root is added to every chat automatically. The status bar shows "AGENTS.md loaded".
+
+Both are prompt text, not enforced rules: the assistant can still get them wrong, which is why approvals exist.
+
+## Approvals
+
+By default the assistant asks before it changes anything. A card appears in the chat showing what it wants to do, with **Approve** and **Decline** buttons.
+
+| It wants to… | What you see |
+|---|---|
+| Edit or create a file (`edit_file`, `write_file`) | The diff |
+| Run a command (`run_command`) | The command text |
+| Fetch a page or use the browser (`fetch_url`, `browser`) | The URL |
+
+Reading files, listing folders, searching the code and web search never ask.
+
+- **Approve** runs it and the assistant continues.
+- **Decline** with the box left empty stops the task. Any other calls the assistant had planned for that step are skipped.
+- **Decline with a note** ("use pnpm instead") sends the note to the assistant, which adjusts and carries on. Use this rather than an empty decline when you want it to try something else.
+
+Existing files must be read by the assistant in the same chat before it can change them, and a file that was not read is rejected before you are asked to approve.
+
+### Ask first or Auto
+
+**Settings → Approvals** chooses between:
+
+- **Ask before edits and commands** (default): as above.
+- **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do.
+
+Even in Auto mode, a fetch or browser redirect to another host is blocked; the assistant has to ask for the new address as a separate step.
+
+## Allow-lists
+
+Two lists in Settings let specific things skip the approval card while **Ask** mode stays on. Both are empty by default.
+
+### Commands allowed without asking
+
+One command per line. A line allows that exact command and the same command followed by arguments:
+
+```
+npm test
+npm run lint
+git status
+# lines starting with # are comments
+```
+
+- `npm test` also allows `npm test -- --watch`, but not `npm testing` or `npm run test`.
+- Any command containing `;`, `&`, `|`, `>`, `<`, a backtick, `$(` or a line break is always asked about, so an allowed `npm test` cannot become `npm test && rm -rf .`.
+- File edits are always asked about, whatever is on this list.
+- Only allow commands you would run yourself. `npm run` would let the assistant run any script in `package.json`.
+
+### Network hosts allowed without asking
+
+One hostname per line, matched exactly and on any port:
+
+```
+localhost
+api.example.com
+```
+
+- `localhost` allows `http://localhost:3000/`. `example.com` does **not** allow `www.example.com`; list each subdomain.
+- Approved hosts can receive whatever the assistant sends them, and this is not a network sandbox: page subresources and Google search are not filtered. Keep projects with secrets out of chats that read untrusted pages.
+
+## Stop and Resume
+
+- **Stop** (the red button, or `Ctrl+.`) aborts the current request and any running command. It also cancels a wait before a retry.
+- The composer then shows **Resume**. Resume continues the task from the conversation so far without you retyping the request. The assistant is told that an interrupted action may have partly happened, so it checks the current state before repeating anything with side effects.
+- The Resume state is saved with the chat, so it is still there after you close the app and reopen the chat from the history.
+- Sending a new message instead of resuming drops the Resume option.
+
+Resume continues from the conversation, not from an exact checkpoint. Look at the diff and Git panel after resuming a run that was stopped mid-command.
+
+## When the provider has a problem
+
+Rate limits (429), server errors (5xx) and dropped connections are retried automatically, up to 4 times, waiting longer each time or as long as the provider asks. Each retry shows a line in the chat, for example "Rate limited (429). Retrying in 2 s (retry 1 of 4)…". **Stop** works during the wait. If the retries run out, or the problem is one a retry cannot fix (a wrong key, an unknown model, no credit), the error is shown in the chat.
+
+## Chats and projects
+
+- **New chat**: `Ctrl+N`. Chats are saved automatically.
+- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all.
+- **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
+
+### Export
+
+The download button in the chat header (*Export chat*) asks where to save and writes the chat as a Markdown file: your messages, the assistant's answers, and the diffs and commands it proposed. Tool output and the assistant's thinking are left out.
+
+## Side panel
+
+The panel button in the header shows or hides the side panel with three tabs:
+
+- **Terminal**: a normal shell in the project folder, separate from the commands the assistant runs.
+- **Browser**: where the assistant checks web apps, and where you can look at them yourself. Type an address such as `http://localhost:3000` in the address bar.
+- **Git**: changed files with diffs, **Commit all** with a message, per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet.
+
+## Where things are
+
+- Settings, projects, saved chats and code indexes are in the app's user data folder. **Help → Show Log Folder** opens its `logs` folder.
+- `logs/app.log.jsonl` records crashes and other problems, one JSON line each. It holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and it is never sent anywhere. Attach it when reporting a bug, after a glance at what is in it.
+- The `CODECOMPANION_USER_DATA=<folder>` environment variable starts the app with a clean profile.
+
+## Costs
+
+The status bar shows token totals and, for the built-in Claude and GPT-6 models, an estimated cost including cache reads and writes. Custom OpenAI-compatible endpoints have no official price, so no estimate is shown. A request that fails part-way and is retried can be billed for the part that was already generated.

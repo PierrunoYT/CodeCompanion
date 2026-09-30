@@ -64,7 +64,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 
 ### Docs
 
-- [ ] Add a short user guide (`docs/USAGE.md`) covering approvals, allow-lists, resume and export
+- [x] Add a short user guide (`docs/USAGE.md`) covering approvals, allow-lists, resume and export
 - [ ] Keep `CHANGELOG.md` `[Unreleased]` in sync as each item above lands
 
 ## Project setup

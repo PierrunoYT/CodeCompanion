@@ -19,6 +19,25 @@ function morph(target: HTMLElement, source: HTMLElement): void {
   target.replaceChildren(...source.childNodes);
 }
 
+// Keyboard focus inside an item that is updated in place. Focusable controls carry `data-focus-key`, so the matching
+// control can be focused again after the update; a control that is gone (Undo becomes an "Undone" badge) hands focus
+// to whatever took its key, or to the item itself.
+function focusKeyWithin(node: HTMLElement): string | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !node.contains(active)) return null;
+  return active.dataset.focusKey ?? '';
+}
+
+function restoreFocus(node: HTMLElement, key: string): void {
+  const target = key ? node.querySelector<HTMLElement>(`[data-focus-key="${CSS.escape(key)}"]`) : null;
+  if (target) {
+    target.focus({ preventScroll: true });
+    return;
+  }
+  if (!node.hasAttribute('tabindex')) node.setAttribute('tabindex', '-1');
+  node.focus({ preventScroll: true });
+}
+
 const TOOL_ICONS: Record<string, string> = {
   read_file: 'file-earmark-text',
   list_directory: 'folder2-open',
@@ -60,6 +79,8 @@ export class TranscriptView {
 
     const seen = new Set<string>();
     let previous: HTMLElement | null = null;
+    // Whether items were added or moved, as opposed to only updated in place (a streamed answer).
+    let inserted = false;
     for (const item of items) {
       seen.add(item.id);
       let entry = this.nodes.get(item.id);
@@ -67,14 +88,18 @@ export class TranscriptView {
         const node = this.renderItem(item);
         // Update a changed item in place rather than swapping its element: a new element among the transcript's
         // children makes the browser recheck the styles of the whole (long) list, on every streamed frame.
-        if (entry && entry.node.tagName === node.tagName) morph(entry.node, node);
-        else if (entry) entry.node.replaceWith(node);
+        if (entry && entry.node.tagName === node.tagName) {
+          const focus = focusKeyWithin(entry.node);
+          morph(entry.node, node);
+          if (focus !== null) restoreFocus(entry.node, focus);
+        } else if (entry) entry.node.replaceWith(node);
         entry = { item, node: entry && entry.node.tagName === node.tagName ? entry.node : node };
         this.nodes.set(item.id, entry);
       }
       const expectedNext: ChildNode | null = previous ? previous.nextSibling : this.element.firstChild;
       if (expectedNext !== entry.node) {
         this.element.insertBefore(entry.node, expectedNext);
+        inserted = true;
       }
       previous = entry.node;
     }
@@ -85,7 +110,14 @@ export class TranscriptView {
       }
     }
 
-    if (stick && container) container.scrollTop = container.scrollHeight;
+    if (container && stick) {
+      container.scrollTop = container.scrollHeight;
+      // A chat that was just opened, or a new item at the end: their real heights are only known a frame or more
+      // later, so jump again for a few frames.
+      if (!this.primed) this.stickFor(container, 10);
+      else if (inserted) this.stickFor(container, 2);
+    }
+    if (container) this.watchContainer(container, stick);
 
     // The first render after a reset is a chat being opened, not news.
     if (!this.primed) {
@@ -94,6 +126,47 @@ export class TranscriptView {
     } else {
       for (const message of newAnnouncements(items, this.announced)) this.announcer.appendChild(h('div', {}, message));
     }
+  }
+
+  // Items that were off screen (content-visibility: auto) count at a placeholder height until they have been laid out,
+  // so a jump to the bottom lands short: by thousands of pixels when a long chat is opened, or by most of a new
+  // approval card. After either, the view jumps to the bottom again for a few frames, unless the user scrolls. Streamed
+  // updates insert nothing and pay nothing: every other way tried (following all height changes, a ResizeObserver on
+  // the transcript, laying out the newest items with an inline style) made streaming in a 5,000-item chat two to
+  // three times slower (docs/PERFORMANCE.md).
+  private stickFrame = 0;
+  private stuck = false;
+  private watchedContainer: HTMLElement | null = null;
+
+  private stickFor(container: HTMLElement, frames: number): void {
+    cancelAnimationFrame(this.stickFrame);
+    let left = frames;
+    const again = () => {
+      if (!this.stuck) return;
+      container.scrollTop = container.scrollHeight;
+      if (--left > 0) this.stickFrame = requestAnimationFrame(again);
+    };
+    this.stickFrame = requestAnimationFrame(again);
+  }
+
+  // Whether the view is at the bottom is known from the user's own scrolling (wheel, touch, keys, the scrollbar); the
+  // position alone cannot tell, as the browser also moves it to keep the view steady while items above settle. When
+  // the scroll area itself gets smaller (a bar appears above it), a view at the bottom stays there. The scroll area's
+  // size does not change while an answer streams, so watching it costs nothing then.
+  private watchContainer(container: HTMLElement, stuck: boolean): void {
+    // Measured by render() before it changed anything. Reading the position again after the jump to the bottom made
+    // the browser lay the page out a second time on every streamed frame.
+    this.stuck = stuck;
+    if (this.watchedContainer === container) return;
+    this.watchedContainer = container;
+    const scrolledByUser = () => {
+      cancelAnimationFrame(this.stickFrame);
+      requestAnimationFrame(() => (this.stuck = container.scrollHeight - container.scrollTop - container.clientHeight < 80));
+    };
+    for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown']) container.addEventListener(type, scrolledByUser, { passive: true });
+    new ResizeObserver(() => {
+      if (this.stuck) container.scrollTop = container.scrollHeight;
+    }).observe(container);
   }
 
   reset(): void {
@@ -118,7 +191,13 @@ export class TranscriptView {
         return h(
           'div',
           { class: `message assistant${item.streaming ? ' streaming' : ''}`, dataset: { id: item.id } },
-          item.thinking ? this.details(`${item.id}:thinking`, h('span', {}, icon('lightbulb'), ' Thinking'), trustedHtml('div', 'markdown thinking', renderMarkdown(item.thinking))) : null,
+          // Rendered only when opened: while an answer streams, the thinking would otherwise be parsed and highlighted
+          // again on every frame, although it is usually collapsed.
+          item.thinking
+            ? this.details(`${item.id}:thinking`, h('span', {}, icon('lightbulb'), ' Thinking'), () => [
+                trustedHtml('div', 'markdown thinking', renderMarkdown(item.thinking)),
+              ])
+            : null,
           item.text ? trustedHtml('div', 'markdown', renderMarkdown(item.text)) : null,
           item.streaming && !item.text ? h('div', { class: 'typing' }, h('span'), h('span'), h('span')) : null,
         );
@@ -149,7 +228,12 @@ export class TranscriptView {
       item.path && item.status !== 'awaiting-approval'
         ? h(
             'button',
-            { class: 'btn btn-link btn-sm p-0 ms-1', title: 'Open in editor', onclick: () => this.actions.openFile(item.path!) },
+            {
+              class: 'btn btn-link btn-sm p-0 ms-1',
+              title: 'Open in editor',
+              dataset: { focusKey: 'open' },
+              onclick: () => this.actions.openFile(item.path!),
+            },
             icon('box-arrow-up-right'),
           )
         : null,
@@ -160,6 +244,7 @@ export class TranscriptView {
               class: 'btn btn-outline-secondary btn-sm py-0 ms-2 undo-button',
               title: 'Put the file back the way it was before this edit',
               'aria-label': `Undo ${title}`,
+              dataset: { focusKey: 'undo' },
               onclick: (event: Event) => {
                 // The button sits in the card's summary; do not also open or close the card.
                 event.preventDefault();
@@ -171,7 +256,8 @@ export class TranscriptView {
             ' Undo',
           )
         : item.undo === 'undone'
-          ? h('span', { class: 'badge text-bg-secondary ms-2' }, 'Undone')
+          ? // Takes the Undo button's focus key, so a keyboard user who pressed Undo lands on the result.
+            h('span', { class: 'badge text-bg-secondary ms-2', tabindex: -1, dataset: { focusKey: 'undo' } }, 'Undone')
           : null,
       h('span', { class: 'ms-auto' }, status[item.status]),
     );
@@ -255,7 +341,13 @@ export class TranscriptView {
   private details(id: string, summary: HTMLElement, content: HTMLElement | (() => HTMLElement[])): HTMLElement {
     const open = this.expanded.has(id);
     const build = typeof content === 'function' ? content : () => [content];
-    const details = h('details', { open }, h('summary', {}, summary), ...(open ? build() : []));
+    // The expanded state is noted when the summary is clicked, not only in the later `toggle` event: a streamed frame
+    // re-rendering this item in between would otherwise build it with the old state and undo the click.
+    const summaryElement = h('summary', {
+      dataset: { focusKey: 'summary' },
+      onclick: () => (details.open ? this.expanded.delete(id) : this.expanded.add(id)),
+    }, summary);
+    const details = h('details', { open }, summaryElement, ...(open ? build() : []));
     let built = open;
     details.addEventListener('toggle', () => {
       if (details.open && !built) {

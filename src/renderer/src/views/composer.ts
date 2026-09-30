@@ -11,6 +11,8 @@ export interface ComposerActions {
 }
 
 const PASTE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+// The API limit for one image, as for attached files (src/main/files.ts).
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export class Composer {
   readonly element: HTMLElement;
@@ -134,13 +136,19 @@ export class Composer {
   private paste(event: ClipboardEvent): void {
     const files = [...(event.clipboardData?.files ?? [])].filter((file) => PASTE_TYPES.has(file.type));
     if (files.length === 0) return;
-    event.preventDefault();
     if (this.imagesBlocked) {
+      // Copying from Word, Excel or a browser often puts text and an image on the clipboard together: let the text
+      // paste as usual, and only say why the image was left out when there is nothing else.
+      if (event.clipboardData?.types.includes('text/plain')) return;
+      event.preventDefault();
       this.actions.notice(this.imagesBlocked);
       return;
     }
+    event.preventDefault();
+    const tooLarge = files.filter((file) => file.size > MAX_IMAGE_BYTES);
+    if (tooLarge.length > 0) this.actions.notice(`${tooLarge.map((file) => file.name || 'The pasted image').join(', ')} is larger than 5 MB.`);
     const version = this.draftVersion;
-    for (const file of files) {
+    for (const file of files.filter((candidate) => candidate.size <= MAX_IMAGE_BYTES)) {
       const reader = new FileReader();
       reader.onload = () => {
         if (version !== this.draftVersion) return;
@@ -166,7 +174,8 @@ export class Composer {
           h(
             'button',
             {
-              class: 'btn-close btn-close-white btn-sm ms-1',
+              // A white cross is invisible on the yellow badge of an image the model cannot take.
+              class: `btn-close${this.imagesBlocked ? '' : ' btn-close-white'} btn-sm ms-1`,
               'aria-label': `Remove ${image.name}`,
               onclick: () => {
                 this.images.splice(index, 1);

@@ -24,7 +24,7 @@ export function chatToMarkdown(chat: ChatSnapshot): string {
         if (item.text.trim()) lines.push('## Assistant', '', item.text.trim(), '');
         break;
       case 'tool': {
-        const status = item.status === 'done' ? '' : ` (${item.status.replace('-', ' ')})`;
+        const status = item.undo === 'undone' ? ' (undone)' : item.status === 'done' ? '' : ` (${item.status.replace('-', ' ')})`;
         lines.push(`> **${item.name}**: ${item.summary ?? item.preview?.title ?? item.name}${status}`, '');
         if (item.preview?.command) lines.push(fence(item.preview.command, 'sh'), '');
         if (item.preview?.commandOmittedChars) lines.push(`_(${commandNotice(item.preview.commandOmittedChars)})_`, '');

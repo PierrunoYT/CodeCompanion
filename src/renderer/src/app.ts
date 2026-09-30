@@ -211,6 +211,8 @@ export class App {
       ? `The prompt is about ${format(contextTokens)} tokens. Summarize the older messages to free up context.`
       : 'Compact chat: summarize the older messages to free up context';
     this.contextLabel.hidden = contextTokens === undefined;
+    // Whichever of the two comes first on the right pushes them there.
+    this.usageLabel.classList.toggle('ms-auto', this.contextLabel.hidden);
     this.contextLabel.textContent = contextTokens === undefined ? '' : `Context: ${format(contextTokens)}${nearLimit ? ' · consider compacting' : ''}`;
     this.contextLabel.classList.toggle('text-warning-emphasis', nearLimit);
 
@@ -410,6 +412,11 @@ export class App {
   }
 
   private async undoEdit(id: string, path: string | undefined): Promise<void> {
+    // Said before asking, not after the user has confirmed.
+    if (this.chat.busy) {
+      this.toast('Stop the current task, or wait for it to finish, before undoing an edit.');
+      return;
+    }
     if (!confirm(`Undo this change to ${path ?? 'the file'}? The file goes back to how it was before the edit.`)) return;
     try {
       const result = await api.invoke('edit:undo', id);

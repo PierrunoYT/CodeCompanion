@@ -73,6 +73,13 @@ describe('chatToMarkdown', () => {
     expect(markdown).not.toContain('lots of output');
   });
 
+  it('marks an edit that was undone', () => {
+    const markdown = chatToMarkdown(
+      chat([{ kind: 'tool', id: 't1', name: 'edit_file', status: 'done', summary: 'Edited a.ts', undo: 'undone', preview: { title: 'Edit a.ts', diff: '-a\n+b' } }]),
+    );
+    expect(markdown).toContain('> **edit_file**: Edited a.ts (undone)');
+  });
+
   it('says when a diff or command was too long to keep in full', () => {
     const markdown = chatToMarkdown(
       chat([

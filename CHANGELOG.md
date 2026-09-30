@@ -21,6 +21,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Local crash and tool-input logs, a log-folder menu action, indexing progress and manual reindexing.
 - Keyboard-accessible controls and panel tabs, labelled approval cards, and screen-reader announcements for completed answers, approvals and errors.
 - Windows installer packaging, unit and end-to-end coverage, performance benchmarks, and development and usage guides.
+- Prettier formatting for the whole repository (`npm run format`, `npm run format:check`), enforced by a `format` job in CI.
 
 ### Changed
 

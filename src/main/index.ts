@@ -16,6 +16,7 @@ import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { RendererErrorReporter } from './renderer_errors';
 import { SettingsStore } from './settings';
+import { McpHub } from './tools/mcp';
 import { Workspace } from './tools/workspace';
 import type { IndexStatus } from '@shared/ipc';
 import { BrowserService } from './panels/browser';
@@ -65,6 +66,8 @@ function createSettings(): SettingsStore {
   });
 }
 
+let quitting = false;
+
 function start(): void {
   appLog.info('app', 'Started.', {
     version: app.getVersion(),
@@ -91,6 +94,21 @@ function start(): void {
   const codeIndexes = new Map<string, CodeIndex>();
   // A changed key or endpoint means new embeddings; drop cached indexes so they are rebuilt with the new client.
   settings.on('change', () => codeIndexes.clear());
+
+  const mcpServers = () => settings.mcpServers().map((server) => ({ ...server, cwd: projects.current()?.path }));
+  let appliedMcpConfig = '';
+  const mcp = new McpHub(mcpServers, () => send(mainWindow, 'app:notice', 'MCP servers updated'));
+  // Not awaited: connections happen in the background and the tool list refreshes when they settle.
+  const refreshMcp = () => {
+    const next = JSON.stringify(mcpServers());
+    if (next === appliedMcpConfig) return;
+    appliedMcpConfig = next;
+    mcp.start();
+  };
+  refreshMcp();
+  // Only a real change reconnects and notifies. A theme toggle or an API key edit does not, and neither does a
+  // project switch: stdio servers keep the working directory they connected with.
+  settings.on('change', refreshMcp);
 
   const indexFor = (workspace: Workspace): CodeIndex | null => {
     // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
@@ -132,6 +150,7 @@ function start(): void {
       const index = indexFor(workspace);
       return index ? { search: index, tools: [searchCodeTool(index)] } : null;
     },
+    mcp,
     emit: (event, chatId) => {
       // Model and provider failures shown in the chat (the error text, not the conversation).
       if (event.type === 'error') appLog.error('chat', event.text);
@@ -168,6 +187,8 @@ function start(): void {
     const { index, reason } = currentIndex();
     return indexStatus(index, reason);
   });
+
+  handle('mcp:status', () => mcp.status());
   handle('index:rebuild', async () => {
     const { index, reason } = currentIndex();
     if (!index) throw new Error(reason);
@@ -277,9 +298,13 @@ function start(): void {
       mainWindow = openWindow();
     }
   });
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    quitting = true;
     manager.dispose();
     terminal.stop();
+    void mcp.stop().finally(() => app.quit());
   });
 }
 

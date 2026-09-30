@@ -154,6 +154,7 @@ describe('task tool (subagent)', () => {
       'propose_plan',
       'task',
       'mcp_docs_search',
+      'load_skill',
     ];
     const tools = names.map((name) =>
       defineTool({
@@ -173,7 +174,8 @@ describe('task tool (subagent)', () => {
       tools: () => [readTool, ...tools],
     });
     await taskTool.run({ task: 'Look around' }, context());
-    expect(conversation.requests[0]?.tools.map((tool) => tool.name)).toEqual(['read_file']);
+    // load_skill only reads project skill files, so it is the one extra tool the subagent keeps.
+    expect(conversation.requests[0]?.tools.map((tool) => tool.name)).toEqual(['read_file', 'load_skill']);
   });
 
   it('does not count a file the subagent read as read by the parent', async () => {

@@ -17,6 +17,22 @@ Each chat keeps the model it started with. Changing the model in Settings applie
 
 Both are prompt text, not enforced rules: the assistant can still get them wrong, which is why approvals exist.
 
+### Project skills
+
+Skills are instructions for recurring tasks that the assistant only reads when it needs them, so they don't take up room in every request. Put each one in a Markdown file in `.patch/skills/` in the project, for example `.patch/skills/release.md`:
+
+```markdown
+# Release
+
+Bump the version in package.json, add the CHANGELOG section, then tag v<version> and push the tag.
+```
+
+- The file name (without `.md`) is the skill's name. The first line that isn't a heading is its description.
+- When a chat starts, the assistant is told each skill's name and description, and loads the full file when a task matches.
+- Up to 20 skills are listed, in file-name order. The assistant is told if there are more.
+- A chat keeps the skill list it started with. Start a new chat after adding or removing skills.
+- The folder must be inside the project. A skills folder that links elsewhere is ignored.
+
 ## Approvals
 
 By default the assistant asks before it changes anything. A card appears in the chat showing what it wants to do, with **Approve** and **Decline** buttons.

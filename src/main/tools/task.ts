@@ -26,7 +26,8 @@ export function subagentConversation(
   return restore({ ...saved, messages: [] });
 }
 
-const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'grep', 'search_code']);
+// load_skill only reads project skill files, and the subagent gets the parent's prompt, which lists the skills.
+const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'grep', 'search_code', 'load_skill']);
 
 const SUBAGENT_PREAMBLE = `You are a read-only research subagent. Another agent delegated one question to you.
 - You can only read files, list directories, grep and use semantic code search. You cannot edit files, run commands, use the browser or fetch pages, and you have no web access.

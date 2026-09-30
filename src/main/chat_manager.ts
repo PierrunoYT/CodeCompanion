@@ -7,7 +7,7 @@ import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
 import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
 import type { DroppedFieldError } from './agent/agent';
-import { buildSystemPrompt } from './agent/system_prompt';
+import { buildSystemPrompt, promptListsSkills } from './agent/system_prompt';
 import { ChatSession, type SavedChat } from './agent/session';
 import type { ChatStore } from './chat_store';
 import type { LlmService } from './llm';
@@ -236,7 +236,6 @@ export class ChatManager {
           googleApiKey && settings.googleSearchEngineId
             ? { googleApiKey, googleSearchEngineId: settings.googleSearchEngineId }
             : null,
-        hasSkills: listSkills(workspace).length > 0,
       };
     };
     const conversation = saved
@@ -253,16 +252,19 @@ export class ChatManager {
         date: new Date().toISOString().slice(0, 10),
         customInstructions: project.instructions,
         agentFile,
+        skills: listSkills(workspace),
       });
+    // Read from the prompt the chat actually has (a saved chat keeps its own), not from the folder on every turn.
+    const offersSkills = promptListsSkills(system);
 
     // The subagent tool closes over the chat's conversation factory and system prompt; the nested agent shares
     // the tool list (minus itself, via the read-only filter).
     const sessionTools = () => {
-      const { codeSearch, browser, webSearch, hasSkills } = capabilities();
+      const { codeSearch, browser, webSearch } = capabilities();
       return availableTools(
         { browser, codeSearch: codeSearch?.search ?? null, webSearch },
         [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool],
-        { planMode: this.deps.settings.get().planMode, skills: hasSkills },
+        { planMode: this.deps.settings.get().planMode, skills: offersSkills },
       );
     };
     const taskTool = createTaskTool({

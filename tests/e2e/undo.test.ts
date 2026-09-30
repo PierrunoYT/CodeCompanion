@@ -51,6 +51,9 @@ describe('undo an approved edit (mock Claude API)', () => {
     throw new Error('Timed out waiting for the task');
   }
 
+  // The app gives cards ids of its own, so cards are found by what they did.
+  const cardsOf = (chat: ChatSnapshot, name: string) => chat.transcript.filter((item) => item.kind === 'tool' && item.name === name);
+
   const toast = (text: string) => running.page.locator('.app-toast', { hasText: text }).first().waitFor();
 
   it('puts the file back from the card of the edit, and tells the model on the next message', async () => {
@@ -61,15 +64,15 @@ describe('undo an approved edit (mock Claude API)', () => {
     );
     const done = await runTask('Change the word to mango');
     expect(readFileSync(notes(), 'utf8')).toBe('The secret word is mango.\n');
-    expect(done.transcript.find((item) => item.id === 'toolu_edit')).toMatchObject({ kind: 'tool', status: 'done', undo: 'available' });
+    expect(cardsOf(done, 'edit_file').at(-1)).toMatchObject({ kind: 'tool', status: 'done', undo: 'available' });
     // Reading a file has nothing to undo.
-    expect(done.transcript.find((item) => item.id === 'toolu_read')).not.toHaveProperty('undo');
+    expect(cardsOf(done, 'read_file').at(-1)).not.toHaveProperty('undo');
 
     await running.page.getByLabel('Undo Edited notes.txt').click();
     await toast('Restored notes.txt');
 
     expect(readFileSync(notes(), 'utf8')).toBe('The secret word is pineapple.\n');
-    expect((await snapshot()).transcript.find((item) => item.id === 'toolu_edit')).toMatchObject({ undo: 'undone' });
+    expect(cardsOf(await snapshot(), 'edit_file').at(-1)).toMatchObject({ undo: 'undone' });
     await running.page.getByText('Undone', { exact: true }).waitFor();
     expect(await running.page.getByLabel('Undo Edited notes.txt').count()).toBe(0);
 
@@ -85,13 +88,18 @@ describe('undo an approved edit (mock Claude API)', () => {
     expect(shown.at(-1)).toBe('What is the word now?');
   });
 
-  it('will not overwrite what changed after the edit', async () => {
+  it('will not overwrite what changed after the edit, and keeps cards apart when the server reuses tool-call ids', async () => {
+    // The same provider ids as in the first test: some OpenAI-compatible servers number calls from 1 in every turn.
     claude.script(
-      toolTurn('toolu_read2', 'read_file', { path: 'notes.txt' }),
-      toolTurn('toolu_edit2', 'edit_file', { path: 'notes.txt', old_string: 'pineapple', new_string: 'kiwi' }),
+      toolTurn('toolu_read', 'read_file', { path: 'notes.txt' }),
+      toolTurn('toolu_edit', 'edit_file', { path: 'notes.txt', old_string: 'pineapple', new_string: 'kiwi' }),
       textTurn('Done.'),
     );
-    await runTask('Change it to kiwi');
+    const second = await runTask('Change it to kiwi');
+    const [first, latest] = cardsOf(second, 'edit_file');
+    expect(first.id).not.toBe(latest.id);
+    expect(first).toMatchObject({ undo: 'undone' });
+    expect(latest).toMatchObject({ undo: 'available' });
     expect(readFileSync(notes(), 'utf8')).toBe('The secret word is kiwi.\n');
 
     writeFileSync(notes(), 'Rewritten by the user.\n');
@@ -100,7 +108,7 @@ describe('undo an approved edit (mock Claude API)', () => {
 
     expect(readFileSync(notes(), 'utf8')).toBe('Rewritten by the user.\n');
     // Still undoable, once the file is as the edit left it.
-    expect((await snapshot()).transcript.find((item) => item.id === 'toolu_edit2')).toMatchObject({ undo: 'available' });
+    expect(cardsOf(await snapshot(), 'edit_file').at(-1)).toMatchObject({ undo: 'available' });
     writeFileSync(notes(), 'The secret word is kiwi.\n');
     await running.page.getByLabel('Undo Edited notes.txt').click();
     await toast('Restored notes.txt');

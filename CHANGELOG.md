@@ -29,6 +29,7 @@ Patch continues the from-scratch TypeScript rewrite of CodeCompanion.AI. The pre
 - Replace the former JavaScript application with an Electron and TypeScript implementation using an isolated main process, sandboxed renderer and typed IPC.
 - Improve long-chat rendering with batched streaming updates, deferred off-screen layout and lazily rendered tool output; explicitly identify truncated previews and exports.
 - Preserve provider-native conversation history and shorten only outgoing requests during compaction or context trimming.
+- Keep local `pack` and `dist` builds non-publishing, even when CI environment variables are present; publishing remains explicit in the release workflow.
 
 ### Removed
 
@@ -37,22 +38,27 @@ Patch continues the from-scratch TypeScript rewrite of CodeCompanion.AI. The pre
 
 ### Fixed
 
-- Prevent commands from starting after Stop, terminate command process trees on cancellation, and avoid hangs when child processes retain output pipes.
+- Prevent commands from starting after Stop, cancel foreground and active-project background process trees (including startup waits), and avoid hangs when child processes retain output pipes. Other projects' background jobs remain independent.
 - Serialize Undo against sending, resuming, compaction and project switching; use application-generated tool-card IDs to prevent collisions from reused provider IDs.
 - Keep failed or cancelled Anthropic continuation responses out of saved history and retry transient failures reported inside streams.
 - Remove SDK-only fields from OpenAI request history and preserve valid reasoning and tool-call/result boundaries during trimming and compaction.
-- Prevent deleted chats from being saved again by open sessions, and avoid offering Resume when a run has already completed.
-- Preserve complete large-file reads through line-based pagination and reject edits to files that have not been read.
+- Do not execute Chat Completions tool calls when a response ends at an output limit or is content-filtered; preserve paired results in conversation history.
+- Report the final Claude request's context size separately from billable usage summed across continuation requests.
+- Use the pinned chat model for custom-endpoint titles and compaction rather than assuming GPT-6 Luna is available. JSON-schema structured-output support is still required.
+- Prevent deleted chats from being restored by late title responses or other callbacks from forgotten sessions; refuse deletion during Undo, and avoid offering Resume when a run has already completed.
+- Preserve complete large-file reads with line pagination and `char_offset` continuation for overlong lines, without splitting Unicode surrogate pairs; reject edits to files that have not been read.
 - Keep long transcripts and approval controls in view, preserve keyboard focus across updates, and handle blocked or oversized image attachments consistently.
 - Avoid terminal startup without a project and Windows console-helper crashes when closing project tabs.
 - Correct long-context and cached-token cost accounting, recent-project ordering and approval-button contrast.
+- Restore both paths when discarding staged Git renames, including staged and unstaged edits, and include staged additions in diffs before the first commit.
+- Correct documentation for persisted Undo notifications, the welcome-screen location of Remove from recent, and measured long-chat performance.
 
 ### Security
 
-- Confine file access to the workspace, including symlinked paths and new files, and block browser access to files outside the project.
+- Confine file access to the workspace, including symlinked paths and new files, ignore external or dangling `.gitignore`/`.ccignore` links, and block browser access to files outside the project.
 - Require approval for shell expressions that could bypass command-prefix allow-lists and reject unsafe file names passed to external editor commands.
 - Check agent-initiated network navigation against approved hosts, block cross-host redirects and browser popups, and deny browser permission requests.
-- Sanitize rendered model output, enforce a content security policy, and keep Node.js and API keys out of the renderer.
-- Encrypt stored API keys with the operating system and redact recognized keys and tokens from local logs, including Groq and xAI keys.
+- Strip inline style attributes as well as style elements from model Markdown, while preserving trusted syntax-highlighting classes; enforce a content security policy and keep Node.js and API keys out of the renderer.
+- Migrate plaintext API keys when system encryption becomes available and report their actual storage status. Failed migration preserves usable keys and the plaintext warning. Redact recognized keys and tokens from local logs, including Groq and xAI keys.
 
 [Unreleased]: https://github.com/PierrunoYT/patch/tree/main

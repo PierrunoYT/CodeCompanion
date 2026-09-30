@@ -4,7 +4,7 @@
 
 **Question:** does the chat UI need a virtualized or paginated message list for long chats?
 
-**Answer:** not at this point. Three targeted changes made streaming in a 5,000-item chat as smooth as in an empty one, and roughly halved the time to open it. The remaining costs grow with the length of the answer being streamed, or linearly with the chat at about 0.2 ms per item when it is opened.
+**Answer:** not at this point. Three targeted changes roughly halved opening time and improved long-chat rendering, but the initial claim that a 5,000-item chat streamed as smoothly as an empty chat was based on an off-screen answer. The later [Windows bisection](#windows-bisection-2026-09-30) measured 14–21 ms median frames while actually following the answer, versus the earlier 7 ms off-screen result. Remaining costs include layout across the long transcript and rendering the growing answer.
 
 ### How it is measured
 
@@ -78,7 +78,7 @@ Opening times are unchanged. For comparison, the same 1,000-turn chat was at 42 
 - following every height change, with a frame loop or with a ResizeObserver on the transcript;
 - laying out the newest items with an inline `content-visibility` style.
 
-**Not yet found:** which part of the kept fix costs the remaining time at 1,000 turns. Every piece was measured on its own and none accounts for it alone. It is a task in `TASKS.md`.
+**Resolved by the later Windows bisection:** the old benchmark was not following the answer, so Chromium skipped its off-screen layout. Correctly following a visible answer exposes the layout cost of the long transcript; see [Windows bisection](#windows-bisection-2026-09-30).
 
 **The benchmark is noisy:** the same build sometimes measures 7 ms and sometimes 21 ms, so compare at least three runs.
 

@@ -5,7 +5,7 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 ## Start
 
 1. **File → Open Project…** (`Ctrl+O`) and pick a folder. The assistant can only read and change files inside it.
-2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are stored encrypted by the operating system and are never shown again; type a new one to replace it, or press **Remove**.
+2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are encrypted when system encryption is available; Settings warns about plaintext storage if encryption is unavailable or migration fails. Existing plaintext keys are migrated when encryption becomes available. Stored keys are never shown again; type a new one to replace it, or press **Remove**.
 3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under *Other model id…* that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
 
 Each chat keeps the model it started with. Changing the model in Settings applies to new chats.
@@ -95,7 +95,7 @@ api.example.com
 
 ## Stop and Resume
 
-- **Stop** (the red button, or `Ctrl+.`) aborts the current request and any running command. It also cancels a wait before a retry.
+- **Stop** (the red button, or `Ctrl+.`) aborts the current request, running foreground commands and background commands belonging to the active project, including commands still starting. Other projects' background jobs and the interactive terminal are unaffected. It also cancels a wait before a retry.
 - The composer then shows **Resume**. Resume continues the task from the conversation so far without you retyping the request. The assistant is told that an interrupted action may have partly happened, so it checks the current state before repeating anything with side effects.
 - The Resume state is saved with the chat, so it is still there after you close the app and reopen the chat from the history.
 - Sending a new message instead of resuming drops the Resume option.
@@ -109,20 +109,20 @@ Rate limits (429), server errors (5xx) and dropped connections are retried autom
 ## Chats and projects
 
 - **New chat**: `Ctrl+N`. Chats are saved automatically.
-- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Deleting removes the chat for good, also when it is open or in another project's tab, together with its edit backups; the chat that is running cannot be deleted until it is stopped. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
+- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Deleting removes the chat for good, also when it is open or in another project's tab, together with its edit backups; late title responses cannot restore it. Wait until a running task is stopped or an Undo finishes before deleting that chat. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
 - **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
 
 ### Compact a long chat
 
 Every request re-sends the conversation, so a long chat gets slower and costs more, and eventually no longer fits in the model's context window. The status bar shows **Context: 96k**, the size of the last prompt. From 150k it says "consider compacting" and the **Compact chat** button in the header (arrows icon) turns yellow.
 
-Press it to have the older turns summarized. The summary is written by the small model (Claude Haiku 4.5 or GPT-6 Luna, whichever key you have), and from then on it is sent in place of those turns, followed by the most recent part of the chat (roughly the last 10k tokens) exactly as it was.
+Press it to have the older turns summarized. Standard provider chats use a small model (Claude Haiku 4.5 or GPT-6 Luna, according to the chat's provider and available keys). A custom OpenAI-compatible chat uses its own pinned model on that endpoint for the summary, which requires JSON-schema structured-output support. From then on the summary is sent in place of older turns, followed by the most recent part of the chat (roughly the last 10k tokens) exactly as it was.
 
 - Your chat on screen does not change; a notice says how many messages were replaced. **Stop** cancels a compaction in progress and leaves the chat unchanged.
 - Nothing is deleted. The saved chat file keeps every message, so a compacted chat can still be searched and exported in full. Compacting again later summarizes the previous summary together with what came after it.
 - The first request afterwards re-reads the whole prompt once, so it costs like the first message of a chat. The summarizing request itself is not counted in the token totals.
 - A summary can lose detail. If the assistant seems to have forgotten something, say it again. For a task that is nearly finished, starting a new chat can work better.
-- Nothing happens for a short chat ("not enough older history"). Current Claude models also compact on the server side, and OpenAI chats otherwise drop their oldest turns once the context fills up; this button works with every model and keeps a summary of those turns instead.
+- Nothing happens for a short chat ("not enough older history"). Current Claude models also compact on the server side, and OpenAI chats otherwise drop their oldest turns once the context fills up. Manual compaction keeps a summary of those turns instead; custom endpoints must support the selected summarizer model and JSON-schema structured output. If they reject the summary request, the error is shown and the conversation is left unchanged.
 
 ### Export
 
@@ -140,7 +140,7 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 - **Google search engine id**: with a Google API key, turns on web search.
 - **Maximum files to index for code search**, and the current project's index status with a **Reindex** button.
 
-The project menu (the folder button at the top) has **Project settings…** for the open project (its instructions and its own allow-lists, see above) and **Remove from recent** on each recent project.
+The project menu (the folder button at the top) has **Project settings…** for the open project (its instructions and its own allow-lists, see above). **Remove from recent** is on each recent project's row on the welcome screen, shown when no project is open.
 
 ## Side panel
 
@@ -149,6 +149,8 @@ The panel button in the header shows or hides the side panel with three tabs:
 - **Terminal**: a normal shell in the project folder, separate from the commands the assistant runs.
 - **Browser**: where the assistant checks web apps, and where you can look at them yourself. Type an address such as `http://localhost:3000` in the address bar.
 - **Git**: changed files with diffs, **Commit all** with a message, per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet.
+
+Before a repository's first commit, the diff includes staged additions and any later working-tree changes. Discarding a renamed file restores its original committed path and removes the renamed destination, including edits to it; review the diff before confirming.
 
 ## Where things are
 

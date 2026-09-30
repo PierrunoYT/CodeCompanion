@@ -6,6 +6,11 @@ The release checklists below record historical CodeCompanion work. Those release
 
 ## Done
 
+- [x] Fix audit findings in chat deletion and active-project background cancellation, with late-callback and process-lifecycle regressions
+- [x] Fix truncated/refused tool execution, final-request context accounting and pinned custom-endpoint summarizer selection
+- [x] Strip untrusted inline styles, confine ignore-file reads and migrate/report plaintext API-key storage accurately
+- [x] Add complete overlong-line continuation and fix Git rename discard and pre-first-commit diffs
+- [x] Disable implicit local publishing and correct stale Undo, recent-project, compaction and performance documentation
 - [x] Rewrite the changelog for Patch using Keep a Changelog, consolidating the removed releases into an unreleased baseline
 - [x] Update project documentation and repository links for the Patch name; preserve current runtime filenames and historical release names
 - [x] Replace application, executable, installer and uninstaller branding with `assets/logo-icon.svg`, with reproducible native icon generation

@@ -54,6 +54,8 @@ Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/
 
 `pack` and `dist` first run `scripts/ensure-closed.mjs`. On Windows, electron-builder cannot replace `dist/win-unpacked` while an app started from it is running, so the script stops with "Close CodeCompanion first" instead of an `EBUSY` error. An installed copy (outside `dist/`) does not matter.
 
+Both local packaging scripts pass `--publish never`, including when CI environment variables are present. They build artifacts only and do not require a GitHub publishing token. The tag-triggered release workflow publishes explicitly.
+
 Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
 
 ### Application icons

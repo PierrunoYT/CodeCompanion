@@ -159,7 +159,9 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
         item.kind === 'assistant' ? { ...item, text: event.text ?? item.text, streaming: false } : item,
       );
       // Tool-only turns produce no text; drop the empty bubble.
-      return ended.filter((item) => !(item.kind === 'assistant' && item.id === event.id && !item.text && !item.thinking));
+      return ended.filter(
+        (item) => !(item.kind === 'assistant' && item.id === event.id && !item.text && !item.thinking),
+      );
     }
     case 'tool-start':
       return [

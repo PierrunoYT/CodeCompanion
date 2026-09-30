@@ -27,14 +27,14 @@ CodeCompanion is an Electron app written in TypeScript and built with electron-v
 
 ## Source layout
 
-| Path | Contents |
-|---|---|
-| `src/shared/` | Types and logic used by both processes: IPC contract, settings, models, chat events + transcript reducer, project and panel types |
-| `src/main/` | Main process (see diagram) |
-| `src/preload/` | The `window.api` bridge |
-| `src/renderer/` | UI: `index.html`, `src/app.ts`, `src/views/*`, styles |
-| `tests/e2e/` | Playwright-driven end-to-end tests against the built app and a mock Claude API |
-| `build/` | Icons, macOS entitlements, NSIS include used by electron-builder |
+| Path            | Contents                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/`   | Types and logic used by both processes: IPC contract, settings, models, chat events + transcript reducer, project and panel types |
+| `src/main/`     | Main process (see diagram)                                                                                                        |
+| `src/preload/`  | The `window.api` bridge                                                                                                           |
+| `src/renderer/` | UI: `index.html`, `src/app.ts`, `src/views/*`, styles                                                                             |
+| `tests/e2e/`    | Playwright-driven end-to-end tests against the built app and a mock Claude API                                                    |
+| `build/`        | Icons, macOS entitlements, NSIS include used by electron-builder                                                                  |
 
 ## IPC contract
 
@@ -79,7 +79,7 @@ Stopping a run marks it resumable only after its abort handling settles and tool
 
 **OpenAI** (`openai_responses.ts`, used when no custom base URL is set): the Responses API, because GPT-6 models only support function calling in Chat Completions with reasoning turned off (and GPT-6 Astra cannot turn it off). Requests are stateless (`store: false`); reasoning items come back encrypted (`include: ['reasoning.encrypted_content']`) and are sent back unchanged so the model keeps its reasoning across tool calls. Reasoning effort follows Settings → Effort, reasoning summaries are shown as "Thinking", and `truncation: 'auto'` drops the oldest items when the context fills up.
 
-**OpenAI-compatible endpoints** (`openai.ts`, used when Settings → *OpenAI-compatible base URL* is set, e.g. Ollama, OpenRouter, LM Studio): Chat Completions streaming with function tools, since most compatible servers only implement that API. With no server-side compaction, the oldest turns are dropped once the history passes ~100k tokens; the first user message (the task) is always kept.
+**OpenAI-compatible endpoints** (`openai.ts`, used when Settings → _OpenAI-compatible base URL_ is set, e.g. Ollama, OpenRouter, LM Studio): Chat Completions streaming with function tools, since most compatible servers only implement that API. With no server-side compaction, the oldest turns are dropped once the history passes ~100k tokens; the first user message (the task) is always kept.
 
 In both OpenAI paths, tool screenshots are sent as a follow-up user message because tool results cannot carry images. Saved chats record which API their history belongs to (`api: 'responses' | 'chat'`).
 
@@ -89,19 +89,19 @@ A chat keeps its model. Changing the model in settings applies to new chats.
 
 ## Tools (`src/main/tools/`)
 
-| Tool | Approval | Notes |
-|---|---|---|
-| `read_file` | no | Line-numbered, optional `offset`/`limit`; marks the file as read |
-| `list_directory` | no | Skips `.gitignore`/`.ccignore` matches, `.git`, `node_modules` |
-| `grep` | no | JavaScript regex over non-ignored text files, 200 matches max |
-| `search_code` | no | Semantic search (only offered while an OpenAI key is set; picked up mid-chat) |
-| `edit_file` | yes | Exact string replacement; must be unique unless `replace_all`; tolerates CRLF files |
-| `write_file` | yes | Create or overwrite; creates folders |
-| `run_command` | yes | Fresh shell per call (PowerShell on Windows, `$SHELL` elsewhere) in the project root; timeout (default 120 s, max 600 s); `background: true` for servers |
-| `command_output` | no | Read or stop a background command |
-| `fetch_url` | yes, unless host allowed | Main text via Readability; cross-host redirects are blocked |
-| `web_search` | no | Google Custom Search (only when configured) |
-| `browser` | yes, unless host allowed or project file | Opens a URL in the browser panel; returns title, status, console messages, optional screenshot |
+| Tool             | Approval                                 | Notes                                                                                                                                                    |
+| ---------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read_file`      | no                                       | Line-numbered, optional `offset`/`limit`; marks the file as read                                                                                         |
+| `list_directory` | no                                       | Skips `.gitignore`/`.ccignore` matches, `.git`, `node_modules`                                                                                           |
+| `grep`           | no                                       | JavaScript regex over non-ignored text files, 200 matches max                                                                                            |
+| `search_code`    | no                                       | Semantic search (only offered while an OpenAI key is set; picked up mid-chat)                                                                            |
+| `edit_file`      | yes                                      | Exact string replacement; must be unique unless `replace_all`; tolerates CRLF files                                                                      |
+| `write_file`     | yes                                      | Create or overwrite; creates folders                                                                                                                     |
+| `run_command`    | yes                                      | Fresh shell per call (PowerShell on Windows, `$SHELL` elsewhere) in the project root; timeout (default 120 s, max 600 s); `background: true` for servers |
+| `command_output` | no                                       | Read or stop a background command                                                                                                                        |
+| `fetch_url`      | yes, unless host allowed                 | Main text via Readability; cross-host redirects are blocked                                                                                              |
+| `web_search`     | no                                       | Google Custom Search (only when configured)                                                                                                              |
+| `browser`        | yes, unless host allowed or project file | Opens a URL in the browser panel; returns title, status, console messages, optional screenshot                                                           |
 
 Rules enforced in code, not only in the prompt:
 
@@ -113,7 +113,7 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 
 ## Code search (`src/main/search/`)
 
-`CodeIndex` walks the project (respecting ignore rules, up to *Maximum files to index*), splits text files into overlapping 60-line chunks, embeds them with OpenAI `text-embedding-3-small` and stores Float32 vectors in `userData/indexes/<sha1 of path>.json`. Updates re-embed only files whose size or modification time changed. The index is built on the first `search_code` call, never in the background. Search ranks by cosine similarity, at most two snippets per file. Changing `INDEX_VERSION` or the embedding model rebuilds indexes. Settings shows the current project's index status (`index:status`: files and chunks, or why it is unavailable) and a Reindex button (`index:rebuild`, `CodeIndex.rebuild()`), which clears the index and embeds everything again.
+`CodeIndex` walks the project (respecting ignore rules, up to _Maximum files to index_), splits text files into overlapping 60-line chunks, embeds them with OpenAI `text-embedding-3-small` and stores Float32 vectors in `userData/indexes/<sha1 of path>.json`. Updates re-embed only files whose size or modification time changed. The index is built on the first `search_code` call, never in the background. Search ranks by cosine similarity, at most two snippets per file. Changing `INDEX_VERSION` or the embedding model rebuilds indexes. Settings shows the current project's index status (`index:status`: files and chunks, or why it is unavailable) and a Reindex button (`index:rebuild`, `CodeIndex.rebuild()`), which clears the index and embeds everything again.
 
 ## Panels (`src/main/panels/`, `src/renderer/src/views/panels.ts`)
 
@@ -123,12 +123,12 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 
 ## Storage (`app.getPath('userData')`)
 
-| File | Contents |
-|---|---|
-| `settings.json` | Settings; API keys as `safeStorage` ciphertext (plain text only if the OS offers no encryption, flagged in Settings) |
-| `projects.json` | Recent projects (20) and their instructions |
-| `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage) |
-| `indexes/<hash>.json` | Code search indexes |
+| File                                    | Contents                                                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `settings.json`                         | Settings; API keys as `safeStorage` ciphertext (plain text only if the OS offers no encryption, flagged in Settings) |
+| `projects.json`                         | Recent projects (20) and their instructions                                                                          |
+| `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage)                                                                        |
+| `indexes/<hash>.json`                   | Code search indexes                                                                                                  |
 
 Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses a different folder (tests use this).
 

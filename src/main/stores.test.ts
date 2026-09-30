@@ -55,7 +55,13 @@ describe('ChatStore', () => {
       title: 'Fix login',
       transcript: [
         { kind: 'user' as const, id: 'u1', text: 'The refresh token is rejected by the API', imageCount: 0 },
-        { kind: 'tool' as const, id: 't1', name: 'read_file', status: 'done' as const, output: 'only in tool output: zebra' },
+        {
+          kind: 'tool' as const,
+          id: 't1',
+          name: 'read_file',
+          status: 'done' as const,
+          output: 'only in tool output: zebra',
+        },
       ],
     };
     const second = { ...chat(idB, '2026-02-01T00:00:00Z'), title: 'Dark mode', projectPath: 'D:\\code\\blog' };
@@ -79,7 +85,11 @@ describe('ChatStore', () => {
     const base = chat(idA, '2026-01-01T00:00:00Z');
     store.save({ ...base, transcript: [{ kind: 'user', id: 'u', text: 'alpha', imageCount: 0 }] });
     expect(store.search('alpha')).toHaveLength(1);
-    store.save({ ...base, updatedAt: '2026-01-02T00:00:00Z', transcript: [{ kind: 'user', id: 'u', text: 'beta', imageCount: 0 }] });
+    store.save({
+      ...base,
+      updatedAt: '2026-01-02T00:00:00Z',
+      transcript: [{ kind: 'user', id: 'u', text: 'beta', imageCount: 0 }],
+    });
     expect(store.search('alpha')).toHaveLength(0);
     expect(store.search('beta')).toHaveLength(1);
     store.delete(idA);

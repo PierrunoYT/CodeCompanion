@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyChatEvent, filterChats, searchSnippet, transcriptSearchText, type ChatEvent, type ChatSummary, type TranscriptItem } from './chat';
+import {
+  applyChatEvent,
+  filterChats,
+  searchSnippet,
+  transcriptSearchText,
+  type ChatEvent,
+  type ChatSummary,
+  type TranscriptItem,
+} from './chat';
 
 const run = (events: ChatEvent[]) => events.reduce<TranscriptItem[]>(applyChatEvent, []);
 
@@ -36,7 +44,11 @@ describe('filterChats', () => {
     projectPath,
     updatedAt: '2026-09-30T00:00:00.000Z',
   });
-  const chats = [chat('1', 'Fix login bug', 'D:\\code\\shop'), chat('2', 'Add dark mode', 'D:\\code\\blog'), chat('3', 'Notes', null)];
+  const chats = [
+    chat('1', 'Fix login bug', 'D:\\code\\shop'),
+    chat('2', 'Add dark mode', 'D:\\code\\blog'),
+    chat('3', 'Notes', null),
+  ];
 
   it('returns everything for a blank query', () => {
     expect(filterChats(chats, '  ')).toBe(chats);
@@ -65,7 +77,12 @@ describe('applyChatEvent', () => {
   });
 
   it('drops empty assistant bubbles from tool-only turns', () => {
-    expect(run([{ type: 'assistant-start', id: 'a' }, { type: 'assistant-end', id: 'a', text: '' }])).toEqual([]);
+    expect(
+      run([
+        { type: 'assistant-start', id: 'a' },
+        { type: 'assistant-end', id: 'a', text: '' },
+      ]),
+    ).toEqual([]);
   });
 
   it('keeps streamed text when ended without final text', () => {
@@ -79,7 +96,13 @@ describe('applyChatEvent', () => {
 
   it('tracks a tool through approval, progress and completion', () => {
     const items = run([
-      { type: 'tool-start', id: 't', name: 'run_command', awaitingApproval: true, preview: { title: 'Run', command: 'ls' } },
+      {
+        type: 'tool-start',
+        id: 't',
+        name: 'run_command',
+        awaitingApproval: true,
+        preview: { title: 'Run', command: 'ls' },
+      },
       { type: 'tool-running', id: 't' },
       { type: 'tool-progress', id: 't', text: 'a\n' },
       { type: 'tool-progress', id: 't', text: 'b\n' },
@@ -89,6 +112,11 @@ describe('applyChatEvent', () => {
   });
 
   it('ignores metadata events', () => {
-    expect(run([{ type: 'busy', busy: true }, { type: 'title', title: 'x' }])).toEqual([]);
+    expect(
+      run([
+        { type: 'busy', busy: true },
+        { type: 'title', title: 'x' },
+      ]),
+    ).toEqual([]);
   });
 });

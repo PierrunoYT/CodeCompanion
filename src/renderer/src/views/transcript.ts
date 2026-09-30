@@ -29,7 +29,12 @@ export class TranscriptView {
   readonly element = h('div', { class: 'transcript' });
   // Screen-reader only. The transcript itself is not a live region: it is re-rendered on every streamed chunk, which
   // a screen reader would read out again and again. This announces finished answers, approvals and failures once.
-  readonly announcer = h('div', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'false' });
+  readonly announcer = h('div', {
+    class: 'visually-hidden',
+    role: 'status',
+    'aria-live': 'polite',
+    'aria-atomic': 'false',
+  });
   private readonly announced = new Set<string>();
   private primed = false;
   private readonly nodes = new Map<string, { item: TranscriptItem; node: HTMLElement }>();
@@ -44,9 +49,7 @@ export class TranscriptView {
     const last = items[items.length - 1];
     // Always follow when the user just sent a message; otherwise only if already near the bottom.
     const stick =
-      !container ||
-      last?.kind === 'user' ||
-      container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+      !container || last?.kind === 'user' || container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
     const seen = new Set<string>();
     let previous: HTMLElement | null = null;
@@ -99,20 +102,34 @@ export class TranscriptView {
           'div',
           { class: 'message user', dataset: { id: item.id } },
           h('div', { class: 'bubble' }, item.text),
-          item.imageCount > 0 ? h('div', { class: 'attachments' }, icon('image'), ` ${item.imageCount} image(s)`) : null,
+          item.imageCount > 0
+            ? h('div', { class: 'attachments' }, icon('image'), ` ${item.imageCount} image(s)`)
+            : null,
         );
       case 'assistant':
         return h(
           'div',
           { class: `message assistant${item.streaming ? ' streaming' : ''}`, dataset: { id: item.id } },
-          item.thinking ? this.details(`${item.id}:thinking`, h('span', {}, icon('lightbulb'), ' Thinking'), trustedHtml('div', 'markdown thinking', renderMarkdown(item.thinking))) : null,
+          item.thinking
+            ? this.details(
+                `${item.id}:thinking`,
+                h('span', {}, icon('lightbulb'), ' Thinking'),
+                trustedHtml('div', 'markdown thinking', renderMarkdown(item.thinking)),
+              )
+            : null,
           item.text ? trustedHtml('div', 'markdown', renderMarkdown(item.text)) : null,
           item.streaming && !item.text ? h('div', { class: 'typing' }, h('span'), h('span'), h('span')) : null,
         );
       case 'tool':
         return this.renderTool(item);
       case 'error':
-        return h('div', { class: 'message error alert alert-danger py-2', dataset: { id: item.id } }, icon('exclamation-triangle'), ' ', item.text);
+        return h(
+          'div',
+          { class: 'message error alert alert-danger py-2', dataset: { id: item.id } },
+          icon('exclamation-triangle'),
+          ' ',
+          item.text,
+        );
       case 'notice':
         return h('div', { class: 'message notice', dataset: { id: item.id } }, icon('info-circle'), ' ', item.text);
     }
@@ -122,7 +139,11 @@ export class TranscriptView {
     const title = item.summary ?? item.preview?.title ?? item.name.replace(/_/g, ' ');
     const status: Record<typeof item.status, HTMLElement> = {
       'awaiting-approval': h('span', { class: 'badge text-bg-warning' }, 'Needs approval'),
-      running: h('span', { class: 'spinner-border spinner-border-sm text-secondary', role: 'img', 'aria-label': 'Running' }),
+      running: h('span', {
+        class: 'spinner-border spinner-border-sm text-secondary',
+        role: 'img',
+        'aria-label': 'Running',
+      }),
       done: h('span', {}, icon('check2', 'text-success'), h('span', { class: 'visually-hidden' }, 'Done')),
       error: h('span', {}, icon('x-circle', 'text-danger'), h('span', { class: 'visually-hidden' }, 'Failed')),
       declined: h('span', { class: 'badge text-bg-secondary' }, 'Declined'),
@@ -136,7 +157,11 @@ export class TranscriptView {
       item.path && item.status !== 'awaiting-approval'
         ? h(
             'button',
-            { class: 'btn btn-link btn-sm p-0 ms-1', title: 'Open in editor', onclick: () => this.actions.openFile(item.path!) },
+            {
+              class: 'btn btn-link btn-sm p-0 ms-1',
+              title: 'Open in editor',
+              onclick: () => this.actions.openFile(item.path!),
+            },
             icon('box-arrow-up-right'),
           )
         : null,
@@ -153,10 +178,16 @@ export class TranscriptView {
         placeholder: 'Optional: tell the assistant what to do instead',
         'aria-label': 'Optional feedback if you decline',
       });
-      const decide = (approved: boolean) => this.actions.decide(item.id, { approved, feedback: approved ? undefined : feedback.value });
+      const decide = (approved: boolean) =>
+        this.actions.decide(item.id, { approved, feedback: approved ? undefined : feedback.value });
       return h(
         'div',
-        { class: 'tool-card awaiting', role: 'group', 'aria-label': `Approval needed: ${title}`, dataset: { id: item.id } },
+        {
+          class: 'tool-card awaiting',
+          role: 'group',
+          'aria-label': `Approval needed: ${title}`,
+          dataset: { id: item.id },
+        },
         header,
         preview,
         h(

@@ -27,7 +27,9 @@ describe('estimateCost', () => {
   });
 
   it('returns null for unknown models and official ids on custom compatible providers', () => {
-    expect(estimateCost('gpt-6-astra', { inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0 }, false)).toBeNull();
+    expect(
+      estimateCost('gpt-6-astra', { inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0 }, false),
+    ).toBeNull();
     expect(estimateCost('claude-custom', { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 })).toBeNull();
   });
 

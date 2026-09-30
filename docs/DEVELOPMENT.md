@@ -29,16 +29,17 @@ Both lifecycle scripts must be executable. They become available to future proje
 
 ## Scripts
 
-| Script | Purpose |
-|---|---|
-| `npm run dev` | Development mode |
-| `npm start` | Build and run the production build |
-| `npm run build` | Build main, preload and renderer into `out/` |
-| `npm run typecheck` | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
-| `npm test` | Unit tests, then build + end-to-end tests |
-| `npm run test:unit` / `npm run test:e2e` | One of the two |
-| `npm run pack` | Unpacked app in `dist/` |
-| `npm run dist` | Installer (NSIS on Windows, DMG on macOS) |
+| Script                                    | Purpose                                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `npm run dev`                             | Development mode                                                                       |
+| `npm start`                               | Build and run the production build                                                     |
+| `npm run build`                           | Build main, preload and renderer into `out/`                                           |
+| `npm run typecheck`                       | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
+| `npm run format` / `npm run format:check` | Rewrite every file with Prettier / check formatting without writing                    |
+| `npm test`                                | Unit tests, then build + end-to-end tests                                              |
+| `npm run test:unit` / `npm run test:e2e`  | One of the two                                                                         |
+| `npm run pack`                            | Unpacked app in `dist/`                                                                |
+| `npm run dist`                            | Installer (NSIS on Windows, DMG on macOS)                                              |
 
 Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screenshots of the main screens.
 
@@ -60,21 +61,21 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 ## Where to change things
 
-| Goal | File |
-|---|---|
-| Add or rename a model, change defaults | `src/shared/models.ts` |
-| Change model prices used for the cost estimate | `MODEL_PRICING` in `src/shared/models.ts` |
-| Enable a Claude API feature for a model | `claudeCapabilities` in `src/shared/models.ts`, request building in `src/main/llm/anthropic.ts` |
-| Change the system prompt | `src/main/agent/system_prompt.ts` |
-| Add a tool | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts` |
-| Add a setting | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts` |
-| Add an IPC channel | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts` |
-| Add a chat event | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts` |
-| UI | `src/renderer/src/app.ts`, `views/`, `styles.css` |
+| Goal                                           | File                                                                                                                                            |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add or rename a model, change defaults         | `src/shared/models.ts`                                                                                                                          |
+| Change model prices used for the cost estimate | `MODEL_PRICING` in `src/shared/models.ts`                                                                                                       |
+| Enable a Claude API feature for a model        | `claudeCapabilities` in `src/shared/models.ts`, request building in `src/main/llm/anthropic.ts`                                                 |
+| Change the system prompt                       | `src/main/agent/system_prompt.ts`                                                                                                               |
+| Add a tool                                     | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts`                                                                           |
+| Add a setting                                  | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts` |
+| Add an IPC channel                             | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts`                                         |
+| Add a chat event                               | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts`                                                                                          |
+| UI                                             | `src/renderer/src/app.ts`, `views/`, `styles.css`                                                                                               |
 
 ## Conventions
 
-- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes).
+- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes.
 - Renderer code builds DOM with `h()` (`src/renderer/src/dom.ts`), which inserts text safely. Use `trustedHtml` only for HTML that went through `renderMarkdown`/`renderDiff` (DOMPurify).
 - Never pass API keys or unsanitized model output to the renderer as HTML.
 - Keep the Claude conversation history append-only; add new request features through `claudeCapabilities` so models that do not support them keep working.

@@ -33,7 +33,9 @@ function dialog(title: string, body: HTMLElement, footer: HTMLElement): HTMLDial
 function field(label: string, control: HTMLElement, help?: string): HTMLElement {
   const id = `field-${Math.random().toString(36).slice(2)}`;
   // The label must point at the input itself, which may be wrapped (e.g. in an input group).
-  const target = control.matches('input, select, textarea') ? control : control.querySelector('input, select, textarea');
+  const target = control.matches('input, select, textarea')
+    ? control
+    : control.querySelector('input, select, textarea');
   (target ?? control).id = id;
   return h(
     'div',
@@ -90,16 +92,25 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
   const modelSelect = h(
     'select',
     { class: 'form-select' },
-    ...MODEL_OPTIONS.map((option) => h('option', { value: option.id, selected: option.id === settings.model }, option.label)),
+    ...MODEL_OPTIONS.map((option) =>
+      h('option', { value: option.id, selected: option.id === settings.model }, option.label),
+    ),
     h('option', { value: '__custom', selected: !known }, 'Other model id…'),
   );
-  const customModel = h('input', { class: 'form-control mt-2', value: known ? '' : settings.model, placeholder: 'e.g. claude-sonnet-5-5', hidden: known });
+  const customModel = h('input', {
+    class: 'form-control mt-2',
+    value: known ? '' : settings.model,
+    placeholder: 'e.g. claude-sonnet-5-5',
+    hidden: known,
+  });
   modelSelect.addEventListener('change', () => (customModel.hidden = modelSelect.value !== '__custom'));
 
   const effort = h(
     'select',
     { class: 'form-select' },
-    ...(['low', 'medium', 'high', 'xhigh', 'max'] as Effort[]).map((level) => h('option', { value: level, selected: level === settings.effort }, level)),
+    ...(['low', 'medium', 'high', 'xhigh', 'max'] as Effort[]).map((level) =>
+      h('option', { value: level, selected: level === settings.effort }, level),
+    ),
   );
   const approval = h(
     'select',
@@ -125,10 +136,19 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     h('option', { value: 'dark', selected: settings.theme === 'dark' }, 'Dark'),
     h('option', { value: 'light', selected: settings.theme === 'light' }, 'Light'),
   );
-  const baseUrl = h('input', { class: 'form-control', value: settings.openaiBaseUrl, placeholder: 'https://api.openai.com/v1' });
+  const baseUrl = h('input', {
+    class: 'form-control',
+    value: settings.openaiBaseUrl,
+    placeholder: 'https://api.openai.com/v1',
+  });
   const searchEngine = h('input', { class: 'form-control', value: settings.googleSearchEngineId });
   const editor = h('input', { class: 'form-control', value: settings.editorCommand });
-  const maxFiles = h('input', { class: 'form-control', type: 'number', min: 1, value: String(settings.maxIndexedFiles) });
+  const maxFiles = h('input', {
+    class: 'form-control',
+    type: 'number',
+    min: 1,
+    value: String(settings.maxIndexedFiles),
+  });
   const error = h('div', { class: 'text-danger me-auto small' });
 
   const indexText = h('span', { class: 'small text-body-secondary flex-grow-1' }, 'Checking…');
@@ -173,12 +193,20 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     {},
     h('h3', { class: 'h6 text-body-secondary' }, 'API keys'),
     !settings.secretsEncrypted
-      ? h('div', { class: 'alert alert-warning py-2 small' }, 'System encryption is unavailable, so keys are stored unencrypted.')
+      ? h(
+          'div',
+          { class: 'alert alert-warning py-2 small' },
+          'System encryption is unavailable, so keys are stored unencrypted.',
+        )
       : null,
     ...secretFields,
     h('h3', { class: 'h6 text-body-secondary mt-4' }, 'Assistant'),
     field('Model', h('div', {}, modelSelect, customModel)),
-    field('Effort', effort, 'How much the model thinks before acting (current Claude and OpenAI models). Higher is slower and costs more.'),
+    field(
+      'Effort',
+      effort,
+      'How much the model thinks before acting (current Claude and OpenAI models). Higher is slower and costs more.',
+    ),
     field('Approvals', approval),
     field(
       'Commands allowed without asking',
@@ -200,7 +228,17 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
   );
 
   const save = h('button', { type: 'button', class: 'btn btn-primary' }, 'Save');
-  const element = dialog('Settings', body, h('div', { class: 'd-flex w-100 align-items-center gap-2' }, error, h('button', { type: 'button', class: 'btn btn-outline-secondary', onclick: () => element.close() }, 'Cancel'), save));
+  const element = dialog(
+    'Settings',
+    body,
+    h(
+      'div',
+      { class: 'd-flex w-100 align-items-center gap-2' },
+      error,
+      h('button', { type: 'button', class: 'btn btn-outline-secondary', onclick: () => element.close() }, 'Cancel'),
+      save,
+    ),
+  );
   element.addEventListener('close', stopPolling);
 
   save.addEventListener('click', async () => {
@@ -236,7 +274,11 @@ export function openInstructionsDialog(project: ProjectInfo, save: (text: string
     h(
       'div',
       {},
-      h('p', { class: 'text-body-secondary small' }, 'Added to every new chat in this project, e.g. commands to run tests, coding conventions or things to avoid.'),
+      h(
+        'p',
+        { class: 'text-body-secondary small' },
+        'Added to every new chat in this project, e.g. commands to run tests, coding conventions or things to avoid.',
+      ),
       text,
     ),
     button,
@@ -276,7 +318,13 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
     const shown = query && found ? found : filterChats(items, query);
     list.replaceChildren(
       ...(shown.length === 0
-        ? [h('div', { class: 'text-body-secondary p-3' }, items.length === 0 ? 'No saved chats yet.' : 'No chats match your search.')]
+        ? [
+            h(
+              'div',
+              { class: 'text-body-secondary p-3' },
+              items.length === 0 ? 'No saved chats yet.' : 'No chats match your search.',
+            ),
+          ]
         : shown.map((chat) =>
             h(
               'div',
@@ -297,7 +345,9 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
                   { class: 'small text-body-secondary text-truncate' },
                   `${new Date(chat.updatedAt).toLocaleString()}${chat.projectPath ? ` · ${chat.projectPath}` : ''}`,
                 ),
-                chat.snippet ? h('div', { class: 'small fst-italic text-body-secondary text-truncate' }, chat.snippet) : null,
+                chat.snippet
+                  ? h('div', { class: 'small fst-italic text-body-secondary text-truncate' }, chat.snippet)
+                  : null,
               ),
               h(
                 'button',

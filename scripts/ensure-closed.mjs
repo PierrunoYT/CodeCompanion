@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 if (process.platform === 'win32') {
   const dist = resolve('dist').toLowerCase();
-  const script = "Get-Process CodeCompanion -ErrorAction SilentlyContinue | ForEach-Object { $_.Path }";
+  const script = 'Get-Process CodeCompanion -ErrorAction SilentlyContinue | ForEach-Object { $_.Path }';
   let paths = [];
   try {
     paths = execFileSync('powershell', ['-NoProfile', '-Command', script], { encoding: 'utf8' })

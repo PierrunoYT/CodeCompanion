@@ -109,8 +109,7 @@ export class ChatSession {
       title: this.title,
       projectPath: this.options.projectPath,
       model: this.options.conversation.model,
-      officialPricing:
-        this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
+      officialPricing: this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
       transcript: this.transcript,
       busy: this.busy,
       resumable: this.resumable,
@@ -129,7 +128,9 @@ export class ChatSession {
     this.emit({ type: 'user', id: randomUUID(), text, imageCount: message.images?.length ?? 0 });
     if (isFirst) void this.generateTitle(text);
 
-    return this.run((signal) => this.agent.send({ text: text || '(see attached images)', images: message.images }, signal));
+    return this.run((signal) =>
+      this.agent.send({ text: text || '(see attached images)', images: message.images }, signal),
+    );
   }
 
   async resume(): Promise<void> {
@@ -220,7 +221,8 @@ export class ChatSession {
   }
 
   private async generateTitle(firstMessage: string): Promise<void> {
-    const fallback = firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
+    const fallback =
+      firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
     let title = fallback || 'New chat';
     const model = this.options.smallModel();
     if (model) {

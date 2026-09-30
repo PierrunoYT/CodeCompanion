@@ -126,7 +126,9 @@ describe('OpenAIConversation', () => {
     server.queueSse([
       chunk({
         role: 'assistant',
-        tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":' } }],
+        tool_calls: [
+          { index: 0, id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":' } },
+        ],
       }),
       chunk({}, 'tool_calls'),
       { data: '[DONE]' },

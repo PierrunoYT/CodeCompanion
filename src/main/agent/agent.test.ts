@@ -15,7 +15,10 @@ class ScriptedConversation implements Conversation {
   readonly toolResults: ToolResult[][] = [];
   turns = 0;
 
-  constructor(private readonly steps: Step[], provider: 'anthropic' | 'openai' = 'anthropic') {
+  constructor(
+    private readonly steps: Step[],
+    provider: 'anthropic' | 'openai' = 'anthropic',
+  ) {
     this.provider = provider;
   }
 
@@ -101,7 +104,15 @@ function setup(
     transcript,
     approvalMode: () => mode,
     isPreApproved,
-    toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
+    toolContext: (base) =>
+      ({
+        ...base,
+        workspace: null as never,
+        shell: null as never,
+        browser: null,
+        codeSearch: null,
+        webSearch: null,
+      }) as ToolContext,
     smallModel: () => null,
     onEvent: (event) => events.push(event),
     onChange: () => {},
@@ -109,7 +120,9 @@ function setup(
   const nextApproval = () =>
     new Promise<string>((resolve) => {
       const check = () => {
-        const pending = session.snapshot().transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
+        const pending = session
+          .snapshot()
+          .transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
         if (pending) resolve(pending.id);
         else setTimeout(check, 5);
       };
@@ -154,7 +167,10 @@ describe('agent loop', () => {
   });
 
   it('waits for approval and shows a preview', async () => {
-    const { session, nextApproval } = setup([{ toolCalls: [{ id: 't1', name: 'change', input: { to: 'x' } }] }, { text: 'ok' }]);
+    const { session, nextApproval } = setup([
+      { toolCalls: [{ id: 't1', name: 'change', input: { to: 'x' } }] },
+      { text: 'ok' },
+    ]);
     const sending = session.send({ text: 'change it' });
     const id = await nextApproval();
     const pending = session.snapshot().transcript.find((item) => item.id === id);
@@ -433,12 +449,18 @@ describe('agent loop', () => {
 
   it('restores legacy saved usage without cache writes', () => {
     const { session } = setup([], { usage: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3 } });
-    expect(session.snapshot().usage).toEqual({ inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 0 });
+    expect(session.snapshot().usage).toEqual({
+      inputTokens: 7,
+      outputTokens: 5,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 0,
+    });
   });
 
   it('normalizes legacy OpenAI input exactly once and suppresses custom endpoint pricing', () => {
     const { session } = setup([], {
-      provider: 'openai', officialPricing: false,
+      provider: 'openai',
+      officialPricing: false,
       usage: { inputTokens: 17, outputTokens: 5, cacheReadTokens: 3 },
     });
     expect(session.snapshot().usage.inputTokens).toBe(14);
@@ -448,8 +470,17 @@ describe('agent loop', () => {
   });
 
   it('accumulates multiple long requests without mutating earlier snapshots', async () => {
-    const usage = { inputTokens: 280_000, outputTokens: 17, cacheReadTokens: 3, cacheWriteTokens: 5, longContext: true };
-    const { session } = setup([{ text: 'first', usage }, { text: 'second', usage }]);
+    const usage = {
+      inputTokens: 280_000,
+      outputTokens: 17,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 5,
+      longContext: true,
+    };
+    const { session } = setup([
+      { text: 'first', usage },
+      { text: 'second', usage },
+    ]);
     await session.send({ text: 'one' });
     const first = session.snapshot();
     await session.send({ text: 'two' });

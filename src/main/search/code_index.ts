@@ -182,7 +182,11 @@ export class CodeIndex implements CodeSearch {
       );
       batch.forEach((item, j) => {
         const list = results.get(item.file.path) ?? [];
-        list.push({ startLine: item.chunk.startLine, endLine: item.chunk.endLine, vector: encode(normalize(Float32Array.from(vectors[j]))) });
+        list.push({
+          startLine: item.chunk.startLine,
+          endLine: item.chunk.endLine,
+          vector: encode(normalize(Float32Array.from(vectors[j]))),
+        });
         results.set(item.file.path, list);
       });
       onProgress?.({ embedded: Math.min(i + EMBED_BATCH, work.length), total: work.length });
@@ -209,7 +213,10 @@ export class CodeIndex implements CodeSearch {
     try {
       const absolute = this.workspace.resolve(path);
       if ((await fileSize(absolute)) > MAX_FILE_BYTES) return '';
-      return (await readFile(absolute, 'utf8')).split(/\r?\n/).slice(start - 1, end).join('\n');
+      return (await readFile(absolute, 'utf8'))
+        .split(/\r?\n/)
+        .slice(start - 1, end)
+        .join('\n');
     } catch {
       return '';
     }
@@ -253,9 +260,7 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
         context.onProgress(`Indexing project: ${embedded}/${total} chunks\n`),
       );
       const hits = await index.search(query, limit, context.signal);
-      const content = hits
-        .map((hit) => `${hit.path}:${hit.startLine}-${hit.endLine}\n${hit.text}`)
-        .join('\n\n---\n\n');
+      const content = hits.map((hit) => `${hit.path}:${hit.startLine}-${hit.endLine}\n${hit.text}`).join('\n\n---\n\n');
       return {
         content: content || 'No matches.',
         summary: `Searched code for "${query}" (${hits.length} results)`,
@@ -264,7 +269,14 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
   });
 }
 
-export function openAIEmbedder(client: { embeddings: { create(body: { model: string; input: string[] }, options?: { signal?: AbortSignal }): Promise<{ data: Array<{ embedding: number[]; index: number }> }> } }): Embedder {
+export function openAIEmbedder(client: {
+  embeddings: {
+    create(
+      body: { model: string; input: string[] },
+      options?: { signal?: AbortSignal },
+    ): Promise<{ data: Array<{ embedding: number[]; index: number }> }>;
+  };
+}): Embedder {
   return {
     model: EMBEDDING_MODEL,
     async embed(texts, signal) {

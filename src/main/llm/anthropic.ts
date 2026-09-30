@@ -55,12 +55,10 @@ export class AnthropicConversation implements Conversation {
 
   addUserMessage(input: UserInput): void {
     const content: ContentBlockParam[] = [
-      ...(input.images ?? []).map(
-        (image): ContentBlockParam => ({
-          type: 'image',
-          source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
-        }),
-      ),
+      ...(input.images ?? []).map((image): ContentBlockParam => ({
+        type: 'image',
+        source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
+      })),
       { type: 'text', text: input.text },
     ];
     this.messages.push({ role: 'user', content });
@@ -116,7 +114,10 @@ export class AnthropicConversation implements Conversation {
         if (block.type === 'text') text.push(block.text);
       }
 
-      if ((message.stop_reason === 'compaction' || message.stop_reason === 'pause_turn') && continuations < MAX_CONTINUATIONS) {
+      if (
+        (message.stop_reason === 'compaction' || message.stop_reason === 'pause_turn') &&
+        continuations < MAX_CONTINUATIONS
+      ) {
         continuations++;
         continue;
       }
@@ -208,7 +209,11 @@ export class AnthropicCompletionClient implements CompletionClient {
     private readonly model: string,
   ) {}
 
-  async complete<T extends z.ZodObject<z.ZodRawShape>>(prompt: string, schema: T, signal?: AbortSignal): Promise<z.infer<T>> {
+  async complete<T extends z.ZodObject<z.ZodRawShape>>(
+    prompt: string,
+    schema: T,
+    signal?: AbortSignal,
+  ): Promise<z.infer<T>> {
     const response = await this.client.messages.parse(
       {
         model: this.model,

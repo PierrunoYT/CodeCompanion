@@ -5,19 +5,24 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Added
+
 - Keep multiple projects open with separate chats, drafts and workspace-bound tool state. Stop a busy task before switching; closing a tab retains saved history.
 - Add a Resume control for stopped tasks, with persisted paused state, completed tool-result pairing, and a continuation instruction to inspect interrupted side effects before retrying them.
 - Add GPT-6 list-price estimates and cache-write accounting. Normalize OpenAI cached input, price long-context requests separately, and hide official estimates for custom endpoints. Older chat usage is migrated without double-counting cache reads.
 
 ### Security
+
 - Ask for approval before fetching or browsing unlisted network hosts; add an exact-host allow-list in Settings, block cross-host redirects, and deny browser popups that could bypass navigation checks. Auto mode still skips tool approvals; browser subresources and Google search are not filtered.
 
 ### Fixed
+
 - New-chat system prompts defer optional tool availability to the current tool list, so adding semantic search mid-chat does not require changing the cached prompt.
 - Improve Decline-button text contrast in light and dark approval cards, including hover and keyboard focus states.
 - Recent projects keep the most recently opened folder first even when opens share a timestamp, including after reopening the app.
 
 ### Development
+
+- Install Prettier as a devDependency and enforce formatting: `npm run format` rewrites the repository and `npm run format:check` runs in CI. This reformats the existing sources once (mechanical changes only); `package-lock.json` is excluded via `.prettierignore`.
 - Reset focus between theme checks and wait for CSS transitions before measuring rendered contrast.
 - Add reproducible Settings, Git and Browser README captures and rendered text-contrast checks for both themes.
 - Add executable Amp orb setup and resume scripts: install Linux build/Electron test prerequisites and locked npm dependencies, reuse matching snapshot dependencies, and check readiness on wake without reinstalling.
@@ -27,6 +32,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 First release of the from-scratch TypeScript codebase (version numbering restarts at 0.1.0; the 6.x line is the old app). No code from 6.x remains; features were rebuilt on a new architecture. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Added
+
 - The chat history search now also looks inside the messages you and the assistant wrote (not tool output or thinking) and shows an excerpt of the match. New `history:search` channel; message text is read from the chat files on first use and cached in memory.
 - Settings show indexing progress ("Indexing… 120 of 480 chunks (25%)") while the code index is being built or rebuilt, including updates started by a code search. `IndexStatus` has a new `progress` field.
 - Setting "Commands allowed without asking": shell commands (one per line, matched as a whole-word prefix) that run without an approval card in Ask first mode. Commands with shell operators (`; & | > < `` ` `` `$(`) and all file edits still ask.
@@ -37,6 +43,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - Settings show whether the current project's code is indexed (files and chunks) and have a Reindex button that rebuilds the index from scratch.
 
 ### Accessibility
+
 - Screen readers no longer re-read the transcript on every streamed chunk: it is not a live region any more. A separate hidden announcer says finished answers, approval requests, failed tools, errors and notices once (`src/shared/announce.ts`).
 - Tool status (done, failed, running) has a text label for screen readers, not only an icon. The approval card is a labelled group and its feedback box has a label.
 - The Terminal, Browser and Git tabs work with the arrow keys, Home and End, only the selected tab is in the Tab order, and the panels are tab panels.
@@ -44,12 +51,14 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - Git status colors use Bootstrap's text-emphasis colors, which keep enough contrast on white in the light theme (the plain info color did not).
 
 ### Security
+
 - The `browser` tool no longer opens `file://` URLs outside the project. It needs no approval, so a prompt-injected model could otherwise open and screenshot any local file.
 - All permission requests (camera, microphone, location, notifications) are denied for the app page and the browser panel; Electron grants them by default.
 - The webview can only be attached to `about:blank` or an `http(s)` URL.
 - Known limits of the security model (unapproved network tools, editor command, `AGENTS.md` as prompt text) are documented in `docs/ARCHITECTURE.md`.
 
 ### Fixed
+
 - `run_command` no longer hangs (spinner until the timeout) when a command exits but leaves a child process running that keeps the output pipe open, such as a test runner's workers. It now returns shortly after the command itself exits.
 - Stopping a chat while the browser tool was still waiting for the panel no longer leaves it loading until the timeout; the load timer and abort listener are also cleaned up.
 - The chat now autoscrolls to the latest agent output (the scroll position was checked on the wrong element). It follows while you are at the bottom and always after you send a message.
@@ -59,6 +68,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - The terminal panel no longer asks the main process for a shell when no project is open, which logged an error at startup; it shows "Open a project to use the terminal." instead.
 
 ### Development
+
 - CI also runs on Ubuntu and macOS (non-blocking until they pass; end-to-end tests run under `xvfb-run` on Linux).
 - Unit tests for the Git, terminal and browser panel services (the Git "not a repository" test is skipped when the temp folder is inside a repository).
 - README shows a screenshot of the approval card (`docs/images/approval.png`), cropped from the end-to-end screenshots.
@@ -71,11 +81,13 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - `npm run pack` / `npm run dist` stop with a clear message when the app is running from `dist/` (previously an `EBUSY` error on Windows).
 
 ### Architecture
+
 - TypeScript, electron-vite, Electron 44.
 - All file, shell, network and API work runs in the main process. The UI runs sandboxed without Node.js access and talks to the main process through a typed, allow-listed IPC contract.
 - Unit tests (Vitest) and end-to-end tests (Playwright driving the built app against a mock Claude API).
 
 ### Added
+
 - Approval cards show a diff or the exact command, with **Approve** / **Decline**. Declining with a note sends it to the assistant so it can adjust.
 - **Auto** / **Ask first** toggle in the header.
 - Adaptive thinking with a configurable **Effort** setting, shown as collapsible "Thinking" in the chat (current Claude models).
@@ -88,6 +100,7 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - Token usage (including cached tokens) in the status bar.
 
 ### Changed
+
 - Default model is Claude Opus 5.5; background tasks use Claude Haiku 4.5 (or GPT-6 Luna with only an OpenAI key).
 - OpenAI models are GPT-6 Astra, Sol and Luna, used through the Responses API with reasoning (Effort setting) and encrypted reasoning carried across tool calls. Custom OpenAI-compatible endpoints keep using Chat Completions.
 - File edits use exact string replacement (`edit_file`) instead of line ranges, which broke when earlier edits shifted lines.
@@ -98,17 +111,20 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 - Web search calls the Google Custom Search API directly and returns results for the assistant to fetch, instead of summarizing pages with a second model.
 
 ### Security
+
 - API keys are encrypted with the OS keychain (Electron `safeStorage`) and never reach the UI.
 - File tools are confined to the project folder (symlinks resolved) and must read a file before changing it.
 - Model output is sanitized (DOMPurify); images, embeds and forms are stripped from it. Strict content security policy.
 - The app window cannot navigate away; links open in the system browser. Browser-panel pages have no Node access.
 
 ### Removed
+
 - Telemetry (Sentry, Aptabase), the auto-updater and the upstream release pipeline (S3 publish, AppVeyor, notarize script, upstream links).
 - The separate "planning" mode; the assistant plans as part of its normal work.
 - Manual "Save chat" (chats are saved automatically) and "Download chat logs".
 
 ### Known issues
+
 - The OpenAI paths are covered by unit tests against a mock server, not by end-to-end tests.
 - No end-to-end run against the live Claude or OpenAI APIs has been done yet.
 - On Linux, `node-pty` compiles from source and needs build tools.
@@ -118,13 +134,16 @@ First release of the from-scratch TypeScript codebase (version numbering restart
 Changes made to the 6.x JavaScript app before the rewrite.
 
 ### Changed
+
 - Claude models updated to Sonnet 5.5, Opus 5.5 and Haiku 4.5.
 - `node-pty` 1.0 → 1.1 (prebuilt binaries), `openai` 4 → 7, `@anthropic-ai/sdk` 0.24 → 0.129.
 
 ### Fixed
+
 - `approvalRequired` key typo in two tool definitions; Windows platform check (`win64` → `win32`).
 - Implicit globals replaced by explicit imports; approval polling replaced with a Promise.
 - Model output rendered without sanitization; inline handlers replaced with delegated actions.
 
 ### Removed
+
 - Sentry, Aptabase, the auto-updater and the upstream release pipeline.

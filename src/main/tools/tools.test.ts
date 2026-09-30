@@ -84,7 +84,11 @@ describe('file tools', () => {
 
   it('edits after reading and reports a diff', async () => {
     await call(readFileTool, { path: 'src/app.ts' });
-    const result = await call(editFileTool, { path: 'src/app.ts', old_string: 'const a = 1;', new_string: 'const a = 10;' });
+    const result = await call(editFileTool, {
+      path: 'src/app.ts',
+      old_string: 'const a = 1;',
+      new_string: 'const a = 10;',
+    });
     expect(readFileSync(join(root, 'src', 'app.ts'), 'utf8')).toContain('const a = 10;');
     expect(result.content).toContain('+const a = 10;');
   });
@@ -95,7 +99,10 @@ describe('file tools', () => {
   });
 
   it('previews writes as a diff', async () => {
-    const preview = await writeFileTool.preview!(writeFileTool.schema.parse({ path: 'new.txt', content: 'hello\n' }), context);
+    const preview = await writeFileTool.preview!(
+      writeFileTool.schema.parse({ path: 'new.txt', content: 'hello\n' }),
+      context,
+    );
     expect(preview.title).toBe('Create new.txt');
     expect(preview.diff).toContain('+hello');
   });
@@ -205,7 +212,9 @@ describe('fetch redirects', () => {
     }) as typeof fetch;
     try {
       expect(
-        await (await fetchWithoutCrossHostRedirect(new URL('https://allowed.test/start'), new AbortController().signal)).text(),
+        await (
+          await fetchWithoutCrossHostRedirect(new URL('https://allowed.test/start'), new AbortController().signal)
+        ).text(),
       ).toBe('ok');
       expect(contacted).toEqual(['https://allowed.test/start', 'https://allowed.test/next']);
     } finally {

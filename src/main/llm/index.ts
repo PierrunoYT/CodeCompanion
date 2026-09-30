@@ -32,7 +32,11 @@ export class LlmService {
     for (const provider of order) {
       if (provider === 'anthropic') {
         const key = this.settings.getSecret('anthropicApiKey');
-        if (key) return new AnthropicCompletionClient(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL), SMALL_MODELS.anthropic);
+        if (key)
+          return new AnthropicCompletionClient(
+            createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL),
+            SMALL_MODELS.anthropic,
+          );
       } else {
         const key = this.settings.getSecret('openaiApiKey');
         if (key) {

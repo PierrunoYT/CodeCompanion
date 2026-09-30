@@ -39,7 +39,7 @@ Then:
 
 1. **File → Open Project…** and pick a folder.
 2. Open **Settings** (gear icon, `Ctrl+,`) and add your Anthropic API key (and optionally an OpenAI key for code search, and a Google API key + search engine id for web search).
-3. Describe a task, e.g. *"Add input validation to the signup form and a test for it."*
+3. Describe a task, e.g. _"Add input validation to the signup form and a test for it."_
 
 Recent projects are ordered by the latest open, including folders opened within the same millisecond.
 
@@ -49,13 +49,13 @@ For development in Amp orbs, the repository includes setup and resume scripts to
 
 ## Keyboard shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Enter` / `Shift+Enter` | Send / new line |
-| `Ctrl+O` | Open project |
-| `Ctrl+N` | New chat |
-| `Ctrl+.` | Stop the assistant |
-| `Ctrl+,` | Settings |
+| Shortcut                | Action             |
+| ----------------------- | ------------------ |
+| `Enter` / `Shift+Enter` | Send / new line    |
+| `Ctrl+O`                | Open project       |
+| `Ctrl+N`                | New chat           |
+| `Ctrl+.`                | Stop the assistant |
+| `Ctrl+,`                | Settings           |
 
 (`Cmd` instead of `Ctrl` on macOS.)
 

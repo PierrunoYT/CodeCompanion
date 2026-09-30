@@ -36,7 +36,11 @@ export class Composer {
       },
       onpaste: (event: ClipboardEvent) => this.paste(event),
     });
-    this.sendButton = h('button', { class: 'btn btn-primary', title: 'Send', onclick: () => void this.submit() }, icon('send'));
+    this.sendButton = h(
+      'button',
+      { class: 'btn btn-primary', title: 'Send', onclick: () => void this.submit() },
+      icon('send'),
+    );
     this.stopButton = h(
       'button',
       { class: 'btn btn-danger', title: 'Stop (Ctrl+.)', hidden: true, onclick: () => this.actions.stop() },
@@ -125,7 +129,11 @@ export class Composer {
       reader.onload = () => {
         if (version !== this.draftVersion) return;
         const base64 = String(reader.result).split(',')[1] ?? '';
-        this.images.push({ name: file.name || 'pasted image', mediaType: file.type as ImageAttachment['mediaType'], base64 });
+        this.images.push({
+          name: file.name || 'pasted image',
+          mediaType: file.type as ImageAttachment['mediaType'],
+          base64,
+        });
         this.renderAttachments();
       };
       reader.readAsDataURL(file);
@@ -140,17 +148,14 @@ export class Composer {
           { class: 'badge text-bg-secondary me-1' },
           icon('image'),
           ` ${image.name} `,
-          h(
-            'button',
-            {
-              class: 'btn-close btn-close-white btn-sm ms-1',
-              'aria-label': `Remove ${image.name}`,
-              onclick: () => {
-                this.images.splice(index, 1);
-                this.renderAttachments();
-              },
+          h('button', {
+            class: 'btn-close btn-close-white btn-sm ms-1',
+            'aria-label': `Remove ${image.name}`,
+            onclick: () => {
+              this.images.splice(index, 1);
+              this.renderAttachments();
             },
-          ),
+          }),
         ),
       ),
     );

@@ -81,12 +81,14 @@ export class Agent {
       this.usage.cacheReadTokens += result.usage.cacheReadTokens;
       this.usage.cacheWriteTokens = (this.usage.cacheWriteTokens ?? 0) + (result.usage.cacheWriteTokens ?? 0);
       if (result.usage.longContext) {
-        const long = this.usage.longContext ? { ...this.usage.longContext } : {
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-        };
+        const long = this.usage.longContext
+          ? { ...this.usage.longContext }
+          : {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+            };
         long.inputTokens += result.usage.inputTokens;
         long.outputTokens += result.usage.outputTokens;
         long.cacheReadTokens += result.usage.cacheReadTokens;
@@ -99,7 +101,11 @@ export class Agent {
         emit({ type: 'notice', id: randomUUID(), text: result.refusal ?? 'The model declined this request.' });
       }
       if (result.stopReason === 'context_exceeded') {
-        emit({ type: 'notice', id: randomUUID(), text: 'The conversation is too long for the model. Start a new chat.' });
+        emit({
+          type: 'notice',
+          id: randomUUID(),
+          text: 'The conversation is too long for the model. Start a new chat.',
+        });
       }
       if (result.toolCalls.length === 0 || result.stopReason === 'refusal') {
         if (result.stopReason === 'max_tokens') {
@@ -108,7 +114,12 @@ export class Agent {
         return;
       }
 
-      const { results, stop } = await this.runTools(tools, result.toolCalls, result.stopReason === 'max_tokens', signal);
+      const { results, stop } = await this.runTools(
+        tools,
+        result.toolCalls,
+        result.stopReason === 'max_tokens',
+        signal,
+      );
       conversation.addToolResults(results);
       if (stop || signal.aborted) return;
     }
@@ -138,7 +149,8 @@ export class Agent {
       if (truncated) {
         results.push({
           id: call.id,
-          content: 'Not run: your response hit the output limit and this tool input may be cut off. Retry with smaller changes.',
+          content:
+            'Not run: your response hit the output limit and this tool input may be cut off. Retry with smaller changes.',
           isError: true,
         });
         continue;
@@ -151,7 +163,11 @@ export class Agent {
     return { results, stop };
   }
 
-  private async runTool(tools: AgentTool[], call: ToolCall, signal: AbortSignal): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
+  private async runTool(
+    tools: AgentTool[],
+    call: ToolCall,
+    signal: AbortSignal,
+  ): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
     const { emit } = this.options;
     const tool = tools.find((candidate) => candidate.name === call.name);
     const eventId = call.id || randomUUID();
@@ -166,7 +182,9 @@ export class Agent {
       const issues = parsed.error.issues
         .map((issue) => {
           const name = issue.path.join('.') || 'input';
-          return /received undefined/.test(issue.message) ? `${name}: required but missing` : `${name}: ${issue.message}`;
+          return /received undefined/.test(issue.message)
+            ? `${name}: required but missing`
+            : `${name}: ${issue.message}`;
         })
         .join('; ');
       const received =

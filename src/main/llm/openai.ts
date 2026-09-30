@@ -53,7 +53,11 @@ export class OpenAIConversation implements Conversation {
   addToolResults(results: ToolResult[]): void {
     for (const result of results) {
       const prefix = result.isError ? 'Error: ' : '';
-      this.messages.push({ role: 'tool', tool_call_id: result.id, content: prefix + (result.content || '(no output)') });
+      this.messages.push({
+        role: 'tool',
+        tool_call_id: result.id,
+        content: prefix + (result.content || '(no output)'),
+      });
     }
     // Tool messages cannot carry images; screenshots follow as a user message.
     const images = results.flatMap((result) => result.images ?? []);
@@ -94,8 +98,7 @@ export class OpenAIConversation implements Conversation {
 
     const inputTokens = completion.usage?.prompt_tokens ?? 0;
     const details = completion.usage?.prompt_tokens_details as
-      | { cached_tokens?: number; cache_write_tokens?: number }
-      | undefined;
+      { cached_tokens?: number; cache_write_tokens?: number } | undefined;
     const cacheReadTokens = details?.cached_tokens ?? 0;
     const cacheWriteTokens = details?.cache_write_tokens ?? 0;
 
@@ -168,7 +171,11 @@ export class OpenAICompletionClient implements CompletionClient {
     private readonly model: string,
   ) {}
 
-  async complete<T extends z.ZodObject<z.ZodRawShape>>(prompt: string, schema: T, signal?: AbortSignal): Promise<z.infer<T>> {
+  async complete<T extends z.ZodObject<z.ZodRawShape>>(
+    prompt: string,
+    schema: T,
+    signal?: AbortSignal,
+  ): Promise<z.infer<T>> {
     const completion = await this.client.chat.completions.parse(
       {
         model: this.model,

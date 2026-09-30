@@ -34,7 +34,10 @@ export class App {
     pickImages: () => api.invoke('files:pick-images').catch((error) => (this.toast(error), [])),
   });
 
-  private readonly projectButton = h('button', { class: 'btn btn-sm btn-outline-secondary project-button', onclick: () => this.toggleProjectMenu() });
+  private readonly projectButton = h('button', {
+    class: 'btn btn-sm btn-outline-secondary project-button',
+    onclick: () => this.toggleProjectMenu(),
+  });
   private readonly projectMenu = h('div', { class: 'dropdown-menu project-menu' });
   private readonly modelLabel = h('span', { class: 'status-item' });
   private readonly agentLabel = h('span', { class: 'status-item' });
@@ -49,9 +52,26 @@ export class App {
     (error) => this.toast(error),
     () => this.project !== null,
   );
-  private readonly exportButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Export this chat as Markdown', 'aria-label': 'Export chat', onclick: () => void this.exportChat() }, icon('download'));
+  private readonly exportButton = h(
+    'button',
+    {
+      class: 'btn btn-sm btn-outline-secondary',
+      title: 'Export this chat as Markdown',
+      'aria-label': 'Export chat',
+      onclick: () => void this.exportChat(),
+    },
+    icon('download'),
+  );
   private readonly panelHost = h('div', { class: 'panel-host' }, this.panels.element);
-  private readonly panelButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Show or hide the side panel', onclick: () => this.togglePanel() }, icon('layout-sidebar-reverse'));
+  private readonly panelButton = h(
+    'button',
+    {
+      class: 'btn btn-sm btn-outline-secondary',
+      title: 'Show or hide the side panel',
+      onclick: () => this.togglePanel(),
+    },
+    icon('layout-sidebar-reverse'),
+  );
 
   async start(root: HTMLElement): Promise<void> {
     [this.settings, this.project, this.chat] = await Promise.all([
@@ -133,17 +153,47 @@ export class App {
           { class: 'header-actions' },
           this.modeButton,
           this.panelButton,
-          h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'New chat (Ctrl+N)', onclick: () => void this.newChat() }, icon('plus-lg'), ' New chat'),
+          h(
+            'button',
+            {
+              class: 'btn btn-sm btn-outline-secondary',
+              title: 'New chat (Ctrl+N)',
+              onclick: () => void this.newChat(),
+            },
+            icon('plus-lg'),
+            ' New chat',
+          ),
           this.exportButton,
-          h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Chat history', onclick: () => void this.openHistory() }, icon('clock-history')),
-          h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() }, icon('gear')),
+          h(
+            'button',
+            {
+              class: 'btn btn-sm btn-outline-secondary',
+              title: 'Chat history',
+              onclick: () => void this.openHistory(),
+            },
+            icon('clock-history'),
+          ),
+          h(
+            'button',
+            {
+              class: 'btn btn-sm btn-outline-secondary',
+              title: 'Settings (Ctrl+,)',
+              onclick: () => this.openSettings(),
+            },
+            icon('gear'),
+          ),
         ),
         this.projectTabs,
       ),
       h(
         'main',
         { class: 'app-main' },
-        h('section', { class: 'chat-pane' }, h('div', { class: 'chat-scroll-wrap' }, this.chatScroll), this.composer.element),
+        h(
+          'section',
+          { class: 'chat-pane' },
+          h('div', { class: 'chat-scroll-wrap' }, this.chatScroll),
+          this.composer.element,
+        ),
         this.panelHost,
       ),
       h('footer', { class: 'app-footer' }, this.modelLabel, this.agentLabel, this.usageLabel),
@@ -179,7 +229,13 @@ export class App {
   }
 
   private renderHeader(): void {
-    this.projectButton.replaceChildren(icon('folder2'), ' ', this.project?.name ?? 'Open project', ' ', icon('chevron-down', 'small'));
+    this.projectButton.replaceChildren(
+      icon('folder2'),
+      ' ',
+      this.project?.name ?? 'Open project',
+      ' ',
+      icon('chevron-down', 'small'),
+    );
     this.projectButton.title = this.project?.path ?? 'Open a project folder';
 
     this.titleLabel.textContent = this.chat.transcript.length > 0 ? this.chat.title : '';
@@ -223,19 +279,35 @@ export class App {
     if (!this.project) {
       const projects = await api.invoke('project:list');
       if (generation !== this.welcomeGeneration) return;
-      setChildren(this.welcome, 
+      setChildren(
+        this.welcome,
         h('h1', { class: 'h4' }, 'Open a project to start'),
-        h('p', { class: 'text-body-secondary' }, 'CodeCompanion works inside a project folder: it reads and edits files there and runs commands in it.'),
-        h('button', { class: 'btn btn-primary', onclick: () => void this.chooseProject() }, icon('folder-plus'), ' Open folder…'),
+        h(
+          'p',
+          { class: 'text-body-secondary' },
+          'CodeCompanion works inside a project folder: it reads and edits files there and runs commands in it.',
+        ),
+        h(
+          'button',
+          { class: 'btn btn-primary', onclick: () => void this.chooseProject() },
+          icon('folder-plus'),
+          ' Open folder…',
+        ),
         projects.length > 0 ? h('h2', { class: 'h6 mt-4 text-body-secondary' }, 'Recent') : null,
-        h('div', { class: 'list-group recent-projects' }, ...projects.map((project) => this.recentProjectItem(project))),
+        h(
+          'div',
+          { class: 'list-group recent-projects' },
+          ...projects.map((project) => this.recentProjectItem(project)),
+        ),
       );
       return;
     }
 
     const provider = providerForModel(this.settings.model);
-    const missingKey = provider === 'anthropic' ? !this.settings.secrets.anthropicApiKey : !this.settings.secrets.openaiApiKey;
-    setChildren(this.welcome, 
+    const missingKey =
+      provider === 'anthropic' ? !this.settings.secrets.anthropicApiKey : !this.settings.secrets.openaiApiKey;
+    setChildren(
+      this.welcome,
       h('h1', { class: 'h4' }, this.project.name),
       h('p', { class: 'text-body-secondary small' }, this.project.path),
       missingKey
@@ -251,8 +323,16 @@ export class App {
         { class: 'text-body-secondary tips' },
         h('li', {}, 'Describe a task: "Add input validation to the signup form and a test for it."'),
         h('li', {}, 'Ask about the code: "How does authentication work here?"'),
-        h('li', {}, this.settings.approvalMode === 'ask' ? 'You approve each file change and command before it runs.' : 'Auto mode is on: changes and commands run without asking.'),
-        !this.settings.secrets.openaiApiKey ? h('li', {}, 'Add an OpenAI key in settings to enable semantic code search.') : null,
+        h(
+          'li',
+          {},
+          this.settings.approvalMode === 'ask'
+            ? 'You approve each file change and command before it runs.'
+            : 'Auto mode is on: changes and commands run without asking.',
+        ),
+        !this.settings.secrets.openaiApiKey
+          ? h('li', {}, 'Add an OpenAI key in settings to enable semantic code search.')
+          : null,
       ),
       h(
         'button',
@@ -269,7 +349,10 @@ export class App {
       { class: 'list-group-item d-flex align-items-center gap-2' },
       h(
         'button',
-        { class: 'btn btn-link text-start text-decoration-none flex-grow-1 p-0 text-body', onclick: () => void this.openProject(project.path) },
+        {
+          class: 'btn btn-link text-start text-decoration-none flex-grow-1 p-0 text-body',
+          onclick: () => void this.openProject(project.path),
+        },
         h('div', { class: 'fw-semibold' }, project.name),
         h('div', { class: 'small text-body-secondary text-truncate' }, project.path),
       ),
@@ -292,10 +375,19 @@ export class App {
     if (this.projectMenu.classList.toggle('show')) {
       const projects = await api.invoke('project:list');
       const item = (label: HTMLElement | string, action: () => void, disabled = false) =>
-        h('button', { class: 'dropdown-item', disabled, onclick: () => (this.projectMenu.classList.remove('show'), action()) }, label);
-      setChildren(this.projectMenu, 
+        h(
+          'button',
+          { class: 'dropdown-item', disabled, onclick: () => (this.projectMenu.classList.remove('show'), action()) },
+          label,
+        );
+      setChildren(
+        this.projectMenu,
         item(h('span', {}, icon('folder-plus'), ' Open folder…'), () => void this.chooseProject()),
-        item(h('span', {}, icon('journal-text'), ' Project instructions…'), () => this.editInstructions(), !this.project),
+        item(
+          h('span', {}, icon('journal-text'), ' Project instructions…'),
+          () => this.editInstructions(),
+          !this.project,
+        ),
         projects.length > 0 ? h('div', { class: 'dropdown-divider' }) : null,
         ...projects.map((project) =>
           item(
@@ -350,20 +442,33 @@ export class App {
       if (!projects.some((project) => project.path === path)) this.drafts.delete(path);
     }
     this.projectTabs.hidden = projects.length === 0;
-    this.projectTabs.replaceChildren(...projects.map((project) => h(
-      'div', { class: 'btn-group flex-shrink-0' },
-      h('button', {
-        class: `btn btn-sm ${project.path === this.project?.path ? 'btn-primary' : 'btn-outline-secondary'}`,
-        title: project.path,
-        'aria-pressed': String(project.path === this.project?.path),
-        onclick: () => void this.openProject(project.path),
-      }, project.name),
-      h('button', {
-        class: 'btn btn-sm btn-outline-secondary',
-        'aria-label': `Close project ${project.name}`,
-        onclick: () => void api.invoke('project:close', project.path).catch((error) => this.toast(error)),
-      }, icon('x-lg')),
-    )));
+    this.projectTabs.replaceChildren(
+      ...projects.map((project) =>
+        h(
+          'div',
+          { class: 'btn-group flex-shrink-0' },
+          h(
+            'button',
+            {
+              class: `btn btn-sm ${project.path === this.project?.path ? 'btn-primary' : 'btn-outline-secondary'}`,
+              title: project.path,
+              'aria-pressed': String(project.path === this.project?.path),
+              onclick: () => void this.openProject(project.path),
+            },
+            project.name,
+          ),
+          h(
+            'button',
+            {
+              class: 'btn btn-sm btn-outline-secondary',
+              'aria-label': `Close project ${project.name}`,
+              onclick: () => void api.invoke('project:close', project.path).catch((error) => this.toast(error)),
+            },
+            icon('x-lg'),
+          ),
+        ),
+      ),
+    );
   }
 
   private async toggleMode(): Promise<void> {
@@ -427,7 +532,10 @@ export class App {
   }
 
   toast(error: unknown, kind: 'danger' | 'success' = 'danger'): void {
-    const message = error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(error);
+    const message =
+      error instanceof Error
+        ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+        : String(error);
     const toast = h('div', { class: `app-toast alert alert-${kind} shadow`, role: 'alert' }, message);
     this.toastArea.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);

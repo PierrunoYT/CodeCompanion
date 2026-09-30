@@ -18,7 +18,8 @@ export function chatToMarkdown(chat: ChatSnapshot): string {
     switch (item.kind) {
       case 'user':
         lines.push('## You', '', item.text.trim(), '');
-        if (item.imageCount > 0) lines.push(`_(${item.imageCount} image${item.imageCount === 1 ? '' : 's'} attached)_`, '');
+        if (item.imageCount > 0)
+          lines.push(`_(${item.imageCount} image${item.imageCount === 1 ? '' : 's'} attached)_`, '');
         break;
       case 'assistant':
         if (item.text.trim()) lines.push('## Assistant', '', item.text.trim(), '');

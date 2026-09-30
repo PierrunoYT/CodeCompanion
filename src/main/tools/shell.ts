@@ -31,7 +31,10 @@ function shellCommand(command: string): { file: string; args: string[] } {
   if (process.platform === 'win32') {
     // UTF-8 output so non-ASCII text survives.
     const prelude = '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;';
-    return { file: 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', prelude + command] };
+    return {
+      file: 'powershell.exe',
+      args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', prelude + command],
+    };
   }
   return { file: process.env.SHELL || '/bin/bash', args: ['-lc', command] };
 }
@@ -45,7 +48,11 @@ export class ShellRunner {
 
   run(
     command: string,
-    { timeoutSeconds = DEFAULT_TIMEOUT_SECONDS, signal, onOutput }: { timeoutSeconds?: number; signal?: AbortSignal; onOutput?: (text: string) => void } = {},
+    {
+      timeoutSeconds = DEFAULT_TIMEOUT_SECONDS,
+      signal,
+      onOutput,
+    }: { timeoutSeconds?: number; signal?: AbortSignal; onOutput?: (text: string) => void } = {},
   ): Promise<CommandResult> {
     return new Promise((resolve) => {
       const child = this.spawn(command);
@@ -61,10 +68,13 @@ export class ShellRunner {
       child.stdout?.on('data', collect);
       child.stderr?.on('data', collect);
 
-      const timer = setTimeout(() => {
-        timedOut = true;
-        killTree(child);
-      }, Math.min(timeoutSeconds, MAX_TIMEOUT_SECONDS) * 1000);
+      const timer = setTimeout(
+        () => {
+          timedOut = true;
+          killTree(child);
+        },
+        Math.min(timeoutSeconds, MAX_TIMEOUT_SECONDS) * 1000,
+      );
       const onAbort = () => {
         aborted = true;
         killTree(child);

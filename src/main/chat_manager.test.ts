@@ -21,21 +21,38 @@ describe('project chat retention', () => {
     projects = new ProjectStore(join(root, 'projects.json'));
     chats = new ChatStore(join(root, 'chats'));
     const settings = new SettingsStore(join(root, 'settings.json'), {
-      isAvailable: () => false, encrypt: (value) => value, decrypt: (value) => value,
+      isAvailable: () => false,
+      encrypt: (value) => value,
+      decrypt: (value) => value,
     });
     const llm = new LlmService(settings);
     const conversation = (): Conversation => ({
-      provider: 'anthropic', model: 'test', addUserMessage() {}, addToolResults() {},
+      provider: 'anthropic',
+      model: 'test',
+      addUserMessage() {},
+      addToolResults() {},
       async runTurn() {
-        return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } };
+        return {
+          text: 'Done',
+          toolCalls: [],
+          stopReason: 'end_turn',
+          usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 },
+        };
       },
       serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
     });
     vi.spyOn(llm, 'createConversation').mockImplementation(conversation);
     vi.spyOn(llm, 'restoreConversation').mockImplementation(conversation);
     manager = new ChatManager({
-      projects, chats, settings, llm, browser: () => null, codeSearch: () => null,
-      emit() {}, onSnapshot() {}, onHistoryChanged() {},
+      projects,
+      chats,
+      settings,
+      llm,
+      browser: () => null,
+      codeSearch: () => null,
+      emit() {},
+      onSnapshot() {},
+      onHistoryChanged() {},
     });
   });
 

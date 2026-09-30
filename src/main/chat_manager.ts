@@ -138,7 +138,8 @@ export class ChatManager {
   }
 
   requireIdle(): void {
-    if (this.busy) throw new Error('Stop the current task and wait for it to finish before switching chats or projects.');
+    if (this.busy)
+      throw new Error('Stop the current task and wait for it to finish before switching chats or projects.');
   }
 
   closeProject(path: string): void {
@@ -220,7 +221,10 @@ export class ChatManager {
         if (toolName === 'run_command' && typeof (input as { command?: unknown })?.command === 'string') {
           return isCommandAllowed((input as { command: string }).command, this.deps.settings.get().allowedCommands);
         }
-        if ((toolName === 'fetch_url' || toolName === 'browser') && typeof (input as { url?: unknown })?.url === 'string') {
+        if (
+          (toolName === 'fetch_url' || toolName === 'browser') &&
+          typeof (input as { url?: unknown })?.url === 'string'
+        ) {
           const url = (input as { url: string }).url;
           if (toolName === 'browser' && /^file:/i.test(url)) {
             try {
@@ -273,7 +277,10 @@ export class ChatManager {
   private scheduleSave(session: ChatSession): void {
     if (session.isEmpty) return;
     clearTimeout(this.saveTimers.get(session));
-    this.saveTimers.set(session, setTimeout(() => this.save(session), SAVE_DELAY_MS));
+    this.saveTimers.set(
+      session,
+      setTimeout(() => this.save(session), SAVE_DELAY_MS),
+    );
   }
 
   private save(session: ChatSession): void {

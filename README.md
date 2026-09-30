@@ -12,26 +12,25 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 
 ![The assistant shows a diff and waits for Approve or Decline before editing a file](docs/images/approval.png)
 
-- Model Context Protocol (MCP) servers: configure them in Settings (stdio or Streamable HTTP) and their tools are offered to the assistant, always behind an approval card
-- Optional **Plan mode**: the assistant proposes what it intends to do as an approval card before multi-step changes, including in Auto mode
-- Delegates broad research to a read-only subagent (`task` tool) so the main context stays small; its progress streams into the chat while it works, and a file it reads still has to be read before it can be edited
-- Project skills: drop markdown instructions into `.patch/skills/` and the assistant loads the matching one on demand
-
 ## Features
 
 - Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5), OpenAI GPT-6 (Astra, Sol, Luna) or any OpenAI-compatible endpoint, with streaming answers
 - Works directly in your project: read, search, edit and create files, run commands
 - Every file change and command is shown first (diffs, command text) and waits for **Approve** or **Decline** — or switch to **Auto** mode
 - Decline with a note ("use pnpm instead") and the assistant adjusts
+- Optional **Plan mode**: before multi-step changes, the assistant shows its plan as an approval card, also in Auto mode
 - **Undo** on the card of any approved file edit puts the file back (or deletes a file the assistant created), as long as the file is still as the edit left it; the assistant is told and has to read the file again
 - Semantic code search over the project (needs an OpenAI key for embeddings, which can be added mid-chat); Settings shows whether the project is indexed (with progress while it builds) and can reindex it
 - Built-in browser the assistant uses to check web apps: console output and screenshots
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
 - Web search (Google Custom Search) and page fetching
+- Model Context Protocol (MCP) servers: add them in Settings (stdio programs or Streamable HTTP endpoints) and their tools are offered to the assistant; every MCP tool call asks for approval, also in Auto mode
+- A read-only research subagent (`task` tool) for broad questions such as "find every caller", so the main chat's context stays small; its progress shows while it works
+- Project skills: Markdown instructions for recurring tasks in `.patch/skills/`, which the assistant loads when a task matches
 - Long chats are handled by server-side compaction (current Claude models), and **Compact chat** (header button) summarizes older turns on demand; custom endpoints must support structured-output summaries using the chat's model. The status bar shows the latest request's prompt size, not the sum across Claude continuations. The full history stays in the saved chat
 - Rate limits (429), server errors (5xx) and dropped connections are retried automatically, up to 4 times, waiting about 2 to 16 seconds or as long as the provider asks (up to a minute); each retry is shown in the chat and **Stop** works during the wait
 - Failed or stopped Claude continuations after a server-side pause or compaction leave saved model history unchanged; retries start from the history before that attempt
-- Stop a running task, including its project's background commands, and use **Resume** to continue it after cancellation settles, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them
+- Stop a running task, including its project's background commands, and use **Resume** to continue it after cancellation settles, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them. A task cut off by a crash while tools were running can be resumed the same way
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
 - `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
@@ -55,7 +54,7 @@ Then:
 
 Recent projects are ordered by the latest open, including folders opened within the same millisecond.
 
-To build an installer: `npm run dist` (Windows NSIS installer or macOS DMG in `dist/`). Local `pack` and `dist` commands never publish; releases are published by the tag-triggered release workflow.
+To build an installer: `npm run dist` (on Windows, `dist/Patch-Installer.exe`; the unpacked app is `dist/win-unpacked/Patch.exe`; a DMG on macOS). Local `pack` and `dist` commands never publish; releases are published by the tag-triggered release workflow.
 
 For development in Amp orbs, the repository includes setup and resume scripts to prepare and reuse dependencies. See [orb setup](docs/DEVELOPMENT.md#amp-orbs) for requirements and headless test commands.
 
@@ -78,7 +77,9 @@ For development in Amp orbs, the repository includes setup and resume scripts to
 - API keys are encrypted with the operating system's keychain (Electron `safeStorage`) when available and never reach the UI process. Without system encryption, keys are stored as plaintext and Settings warns. Existing plaintext keys are migrated when encryption becomes available; failed migration keeps the warning and preserves the keys.
 - The assistant's file access is confined to the open project folder, including through links: a file is checked where it would really be written, even when it does not exist yet. Commands run in your shell with your permissions — keep **Ask first** mode on unless you trust the task. In Settings, "Commands allowed without asking" lists commands (one per line, for example `npm test`) that skip the approval card in Ask first mode; a line also allows the command with arguments. **Project settings…** in the project menu has the same two lists for one project, added to the global ones; they are kept with the app's data, not in the project, so a repository cannot allow its own commands. Commands containing `;`, `&`, `|`, `>`, `<`, a backtick, `$`, `(`, `)`, `{`, `}` or a line break are always asked about (PowerShell, which runs the commands on Windows, runs `(...)` and `{...}` even inside a program's arguments), and file edits always wait for you. Only allow commands you would run yourself: `npm run` would let the assistant run any script in `package.json`.
 - The UI runs sandboxed without Node.js access; model output is sanitized before display.
-- In **Ask first** mode, page fetching and browser tools require approval unless their exact hostname is listed in Settings → "Network hosts allowed without asking". The list starts empty and does not include subdomains automatically. Cross-host redirects require a separate tool call; browser popups are denied. **Auto** mode skips tool approvals. This is not a network sandbox: browser subresources and Google search are not covered, and approved hosts may receive private data. Avoid untrusted pages in projects with secrets.
+- In **Ask first** mode, page fetching and browser tools require approval unless their exact hostname is listed in Settings → "Network hosts allowed without asking". The list starts empty and does not include subdomains automatically. Cross-host redirects require a separate tool call; browser popups are denied. **Auto** mode skips tool approvals, except for MCP tools and Plan mode, which always ask. This is not a network sandbox: browser subresources and Google search are not covered, and approved hosts may receive private data. Avoid untrusted pages in projects with secrets.
+- MCP servers you add run with your permissions (a stdio server is a program on your computer); their environment variables and HTTP headers are encrypted like API keys and never reach the UI.
+- Be careful with folders from untrusted sources: until [#24](https://github.com/PierrunoYT/patch/issues/24) is fixed, opening the **Git** tab runs `git status` with the folder's own `.git/config`, which can name a command to run. Other open security findings carry the [`security` label](https://github.com/PierrunoYT/patch/issues?q=is%3Aopen+label%3Asecurity).
 
 Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 
@@ -93,7 +94,7 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 
 </details>
 
-- [User guide](docs/USAGE.md) — approvals, allow-lists, stop and resume, chat history and export
+- [User guide](docs/USAGE.md) — approvals, plan mode, allow-lists, project skills, MCP servers, the research subagent, stop and resume, chat history and export
 - [Architecture](docs/ARCHITECTURE.md) — processes, IPC contract, agent loop, providers, tools, storage, security model
 - [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
 - [Performance](docs/PERFORMANCE.md) — long-chat measurements and what was changed

@@ -52,6 +52,7 @@ export class ChatManager {
   private projectPath: string | null = null;
   private readonly parked = new Map<string, ProjectChat>();
   private readonly saveTimers = new Map<ChatSession, NodeJS.Timeout>();
+  private readonly liveSessions = new Set<ChatSession>();
 
   constructor(private readonly deps: ChatManagerDeps) {}
 
@@ -93,6 +94,7 @@ export class ChatManager {
 
   stop(): void {
     this.session?.stop();
+    this.shell?.stopAll();
   }
 
   resume(): Promise<void> {
@@ -196,7 +198,10 @@ export class ChatManager {
       this.projectPath = null;
     } else {
       const retained = this.parked.get(path);
-      if (retained?.session) this.save(retained.session);
+      if (retained?.session) {
+        this.save(retained.session);
+        this.drop(retained.session);
+      }
       retained?.shell?.stopAll();
       this.parked.delete(path);
     }
@@ -204,6 +209,7 @@ export class ChatManager {
 
   dispose(): void {
     this.closeSession();
+    this.shell?.stopAll();
     for (const path of [...this.parked.keys()]) this.closeProject(path);
     for (const timer of this.saveTimers.values()) clearTimeout(timer);
     this.saveTimers.clear();
@@ -288,12 +294,13 @@ export class ChatManager {
         const { codeSearch, browser, webSearch } = capabilities();
         return { ...base, workspace, shell, browser, codeSearch: codeSearch?.search ?? null, webSearch };
       },
-      smallModel: () => this.deps.llm.smallModel(),
+      smallModel: (conversation) => this.deps.llm.smallModel(conversation),
       onDroppedFields: this.deps.onDroppedFields,
       onEditApplied: this.deps.edits ? (toolId, edit) => this.deps.edits!.record(session.id, toolId, edit) : undefined,
       onEvent: (event) => this.deps.emit(event, session.id),
       onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),
     });
+    this.liveSessions.add(session);
     return session;
   }
 
@@ -323,7 +330,7 @@ export class ChatManager {
   }
 
   private scheduleSave(session: ChatSession): void {
-    if (session.isEmpty) return;
+    if (!this.liveSessions.has(session) || session.isEmpty) return;
     clearTimeout(this.saveTimers.get(session));
     this.saveTimers.set(session, setTimeout(() => this.save(session), SAVE_DELAY_MS));
   }
@@ -331,7 +338,7 @@ export class ChatManager {
   private save(session: ChatSession): void {
     clearTimeout(this.saveTimers.get(session));
     this.saveTimers.delete(session);
-    if (session.isEmpty) return;
+    if (!this.liveSessions.has(session) || session.isEmpty) return;
     this.deps.chats.save(session.serialize());
     this.deps.onHistoryChanged();
   }
@@ -342,7 +349,7 @@ export class ChatManager {
   forget(ids: string[] | 'all'): void {
     const deleted = (session: ChatSession) => ids === 'all' || ids.includes(session.id);
     if (this.session && deleted(this.session)) {
-      if (this.session.busy) throw new Error('Stop the current task before deleting its chat.');
+      if (this.busy) throw new Error('Stop the current task and wait for it to finish before deleting its chat.');
       this.drop(this.session);
       this.session = null;
       this.deps.onSnapshot(this.snapshot());
@@ -358,13 +365,15 @@ export class ChatManager {
   private drop(session: ChatSession): void {
     clearTimeout(this.saveTimers.get(session));
     this.saveTimers.delete(session);
-    session.stop();
+    this.liveSessions.delete(session);
+    session.dispose();
   }
 
   private closeSession(): void {
     if (!this.session) return;
     this.session.stop();
     this.save(this.session);
+    this.drop(this.session);
     this.session = null;
     this.shell?.stopAll();
   }

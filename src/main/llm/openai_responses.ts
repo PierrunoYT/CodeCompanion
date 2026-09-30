@@ -210,6 +210,7 @@ export class OpenAIResponsesConversation implements Conversation {
         cacheWriteTokens,
         longContext: inputTokens > 272_000,
       },
+      contextTokens: inputTokens,
       refusal: refusal?.type === 'refusal' ? refusal.refusal : undefined,
     };
   }

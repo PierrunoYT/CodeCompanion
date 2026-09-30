@@ -34,10 +34,13 @@ export class LlmService {
     return this.build(saved.model, saved.messages, saved.api ?? 'chat', saved.compaction ?? null);
   }
 
-  // Prefers the provider of the selected model; falls back to whichever provider has a key. Returns null when no
-  // key is configured, in which case background features (titles, re-ranking) are skipped.
-  smallModel(): CompletionClient | null {
-    const preferred = providerForModel(this.settings.get().model);
+  // Prefers the pinned conversation's provider; falls back to whichever provider has a key.
+  // Custom endpoints use the conversation model rather than assuming they serve OpenAI's small model.
+  smallModel(conversation: Conversation): CompletionClient | null {
+    const preferred = conversation.provider;
+    const customEndpoint = preferred === 'openai' && conversation.serialize().api === 'chat'
+      ? this.settings.get().openaiBaseUrl.trim()
+      : '';
     const order = preferred === 'anthropic' ? (['anthropic', 'openai'] as const) : (['openai', 'anthropic'] as const);
     for (const provider of order) {
       if (provider === 'anthropic') {
@@ -47,8 +50,8 @@ export class LlmService {
         const key = this.settings.getSecret('openaiApiKey');
         if (key) {
           return new OpenAICompletionClient(
-            createOpenAIClient(key, this.settings.get().openaiBaseUrl || TEST_OPENAI_BASE_URL, BACKGROUND_RETRIES),
-            SMALL_MODELS.openai,
+            createOpenAIClient(key, customEndpoint || TEST_OPENAI_BASE_URL, BACKGROUND_RETRIES),
+            customEndpoint ? conversation.model : SMALL_MODELS.openai,
           );
         }
       }

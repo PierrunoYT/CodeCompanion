@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { defineTool, truncateOutput } from './types';
 
@@ -20,6 +21,7 @@ interface BackgroundCommand {
   process: ChildProcess;
   output: string;
   exitCode: number | null | undefined;
+  detachAbort: () => void;
 }
 
 // The shell the agent's commands run in. Named in the system prompt so the model writes matching syntax.
@@ -94,20 +96,32 @@ export class ShellRunner {
     });
   }
 
-  startBackground(command: string): BackgroundCommand {
+  startBackground(command: string, signal?: AbortSignal): BackgroundCommand {
+    signal?.throwIfAborted();
     const child = this.spawn(command);
-    const entry: BackgroundCommand = { id: this.nextId++, command, process: child, output: '', exitCode: undefined };
+    const onAbort = () => this.stopBackground(entry.id);
+    const entry: BackgroundCommand = {
+      id: this.nextId++, command, process: child, output: '', exitCode: undefined,
+      detachAbort: () => signal?.removeEventListener('abort', onAbort),
+    };
     const collect = (chunk: Buffer) => {
       entry.output = (entry.output + chunk.toString('utf8')).slice(-MAX_BUFFERED_CHARS);
     };
     child.stdout?.on('data', collect);
     child.stderr?.on('data', collect);
-    child.on('close', (code) => (entry.exitCode = code));
+    child.on('close', (code) => {
+      entry.exitCode = code;
+      entry.detachAbort();
+    });
     child.on('error', (error) => {
       entry.output += `\n${error.message}`;
       entry.exitCode = null;
+      entry.detachAbort();
     });
     this.background.set(entry.id, entry);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    // An abort during spawning must not leave an untracked command alive.
+    if (signal?.aborted) onAbort();
     return entry;
   }
 
@@ -118,12 +132,13 @@ export class ShellRunner {
   stopBackground(id: number): boolean {
     const entry = this.background.get(id);
     if (!entry) return false;
+    entry.detachAbort();
     if (entry.exitCode === undefined) killTree(entry.process);
     this.background.delete(id);
     return true;
   }
 
-  // Called when a chat ends or the app quits.
+  // Called on Stop, when a chat/project closes, or when the app quits.
   stopAll(): void {
     for (const id of [...this.background.keys()]) this.stopBackground(id);
   }
@@ -189,9 +204,9 @@ export const runCommandTool = defineTool({
   },
   async run({ command, background, timeout_seconds }, context) {
     if (background) {
-      const entry = context.shell.startBackground(command);
+      const entry = context.shell.startBackground(command, context.signal);
       // Give servers a moment so early errors (port in use, syntax errors) show up in the result.
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await delay(3000, undefined, { signal: context.signal });
       const status = entry.exitCode === undefined ? 'still running' : `exited with code ${entry.exitCode}`;
       return {
         content: `Started background command ${entry.id} (${status}).\n${truncateOutput(stripAnsi(entry.output)) || '(no output yet)'}`,

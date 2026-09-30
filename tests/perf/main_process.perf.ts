@@ -25,7 +25,7 @@ class StreamingConversation implements Conversation {
   addToolResults(): void {}
   async runTurn(request: TurnRequest): Promise<TurnResult> {
     for (let index = 0; index < ANSWER.length; index += CHUNK) request.callbacks.onText(ANSWER.slice(index, index + CHUNK));
-    return { text: ANSWER, toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } };
+    return { text: ANSWER, toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, contextTokens: 1 };
   }
   serialize() {
     return { provider: this.provider, model: this.model, messages: [] };

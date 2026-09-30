@@ -87,7 +87,7 @@ export class Agent {
       this.usage.outputTokens += result.usage.outputTokens;
       this.usage.cacheReadTokens += result.usage.cacheReadTokens;
       this.usage.cacheWriteTokens = (this.usage.cacheWriteTokens ?? 0) + (result.usage.cacheWriteTokens ?? 0);
-      this.usage.contextTokens = result.usage.inputTokens + result.usage.cacheReadTokens + (result.usage.cacheWriteTokens ?? 0);
+      this.usage.contextTokens = result.contextTokens;
       if (result.usage.longContext) {
         const long = this.usage.longContext ? { ...this.usage.longContext } : {
           inputTokens: 0,

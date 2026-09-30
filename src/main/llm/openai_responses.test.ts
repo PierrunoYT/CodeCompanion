@@ -104,6 +104,7 @@ describe('OpenAIResponsesConversation', () => {
       cacheWriteTokens: 3,
       longContext: false,
     });
+    expect(result.contextTokens).toBe(12);
   });
 
   it('sends a stateless request with reasoning effort, encrypted reasoning and auto truncation', async () => {

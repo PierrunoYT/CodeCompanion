@@ -37,6 +37,7 @@ class ScriptedConversation implements Conversation {
       toolCalls: [],
       stopReason: partial.toolCalls?.length ? 'tool_use' : 'end_turn',
       usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+      contextTokens: 1,
       ...partial,
     };
   }
@@ -783,6 +784,7 @@ describe('agent loop', () => {
     const { session } = setup([
       {
         text: 'a',
+        contextTokens: 12,
         usage: {
           inputTokens: 7,
           outputTokens: 5,

@@ -171,6 +171,7 @@ export class OpenAIConversation implements Conversation {
         cacheWriteTokens,
         longContext: inputTokens > 272_000,
       },
+      contextTokens: inputTokens,
       refusal: message.refusal ?? undefined,
     };
   }
@@ -219,14 +220,12 @@ function estimateTokens(messages: MessageParam[]): number {
 }
 
 function mapFinishReason(reason: string | null, hasToolCalls: boolean): StopReason {
+  if (reason === 'length') return 'max_tokens';
+  if (reason === 'content_filter') return 'refusal';
   if (hasToolCalls) return 'tool_use';
   switch (reason) {
     case 'stop':
       return 'end_turn';
-    case 'length':
-      return 'max_tokens';
-    case 'content_filter':
-      return 'refusal';
     default:
       return 'other';
   }

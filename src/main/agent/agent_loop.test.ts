@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { ApprovalDecision, ChatEvent } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
+import { AnthropicConversation, createAnthropicClient } from '../llm/anthropic';
+import { anthropicStream, MockApiServer } from '../llm/test_server';
 import type { Conversation, ImageData, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
 import { defineTool, ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolOutput } from '../tools/types';
 import { Agent, type DroppedFieldError } from './agent';
@@ -41,6 +43,7 @@ class ScriptedConversation implements Conversation {
       toolCalls: [],
       stopReason: partial.toolCalls?.length ? 'tool_use' : 'end_turn',
       usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+      contextTokens: 1,
       ...partial,
     };
   }
@@ -621,7 +624,7 @@ describe('Agent: error and limit paths', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const { agent, conversation } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 } },
+        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 }, contextTokens: 14 },
         async () => {
           throw new Error('rate limited');
         },
@@ -810,9 +813,9 @@ describe('Agent: retrying transient provider errors', () => {
     const look = tool('look', run);
     const { agent, conversation } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 } },
+        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 }, contextTokens: 10 },
         fail(httpError(503)),
-        { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 0 } },
+        { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 0 }, contextTokens: 20 },
       ],
       { tools: [look] },
     );
@@ -889,8 +892,8 @@ describe('Agent: streaming and usage', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const { agent, events } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, cacheWriteTokens: 1 } },
-        { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 6 } },
+        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, cacheWriteTokens: 1 }, contextTokens: 15 },
+        { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 6 }, contextTokens: 26 },
       ],
       { tools: [look] },
     );
@@ -903,5 +906,42 @@ describe('Agent: streaming and usage', () => {
     // Totals are copies, so callers cannot change the running count.
     agent.totals.inputTokens = 999;
     expect(agent.totals).toEqual(expected);
+  });
+});
+
+describe('Agent: provider continuation usage', () => {
+  it.each(['pause_turn', 'compaction'])('keeps final context separate from billable input after %s', async (stopReason) => {
+    const server = new MockApiServer();
+    const baseURL = await server.start();
+    try {
+      for (const [inputTokens, reason] of [[140_000, stopReason], [40_000, 'end_turn']] as const) {
+        const stream = anthropicStream([{ type: 'text', text: 'part' }], reason);
+        const start = stream.find((event) => event.event === 'message_start')!.data as {
+          message: { usage: { input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } };
+        };
+        Object.assign(start.message.usage, {
+          input_tokens: inputTokens, cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
+        });
+        server.queueSse(stream);
+      }
+      const events: ChatEvent[] = [];
+      const agent = new Agent({
+        conversation: new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+          model: 'claude-opus-5-5', effort: 'high',
+        }),
+        system: 'sys',
+        tools: () => [],
+        approvalMode: () => 'auto',
+        requestApproval: async () => ({ approved: true }),
+        toolContext: () => { throw new Error('No tools in this turn'); },
+        emit: (event) => events.push(event),
+      });
+      await agent.send({ text: 'Continue' }, new AbortController().signal);
+
+      expect(agent.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
+      expect(eventsOf(events, 'usage').at(-1)?.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
+    } finally {
+      await server.stop();
+    }
   });
 });

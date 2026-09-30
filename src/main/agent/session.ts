@@ -53,7 +53,7 @@ export interface ChatSessionOptions {
   approvalMode: () => ApprovalMode;
   isPreApproved?: (toolName: string, input: unknown) => boolean;
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
-  smallModel: () => CompletionClient | null;
+  smallModel: (conversation: Conversation) => CompletionClient | null;
   onDroppedFields?: (error: DroppedFieldError) => void;
   // Keeps what is needed to undo an approved edit. Throwing means the edit cannot be undone.
   onEditApplied?: (toolId: string, edit: EditUndo) => void;
@@ -72,6 +72,8 @@ export class ChatSession {
   private readonly agent: Agent;
   private readonly approvals = new Map<string, (decision: ApprovalDecision) => void>();
   private controller: AbortController | null = null;
+  private titleController: AbortController | null = null;
+  private disposed = false;
   private resumable: boolean;
   private stopRequested = false;
   private updatedAt: string;
@@ -211,7 +213,7 @@ export class ChatSession {
       this.emit({ type: 'notice', id: randomUUID(), text: 'There is not enough older history to compact yet.' });
       return;
     }
-    const summarizer = this.options.smallModel();
+    const summarizer = this.options.smallModel(this.options.conversation);
     if (!summarizer) throw new Error('Compacting needs an API key for the summarizing model. Add one in Settings.');
 
     const controller = new AbortController();
@@ -248,6 +250,12 @@ export class ChatSession {
     this.rejectPendingApprovals();
   }
 
+  dispose(): void {
+    this.disposed = true;
+    this.titleController?.abort();
+    this.stop();
+  }
+
   decide(approvalId: string, decision: ApprovalDecision): void {
     this.approvals.get(approvalId)?.(decision);
   }
@@ -273,6 +281,7 @@ export class ChatSession {
   }
 
   private emit(event: ChatEvent): void {
+    if (this.disposed) return;
     this.transcript = applyChatEvent(this.transcript, event);
     this.updatedAt = new Date().toISOString();
     this.options.onEvent(event);
@@ -304,18 +313,24 @@ export class ChatSession {
   private async generateTitle(firstMessage: string): Promise<void> {
     const fallback = firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
     let title = fallback || 'New chat';
-    const model = this.options.smallModel();
+    const model = this.options.smallModel(this.options.conversation);
     if (model) {
       try {
+        const controller = new AbortController();
+        this.titleController = controller;
         const result = await model.complete(
           `Write a short title (2 to 5 words, no quotes or punctuation at the end) for a coding chat that starts with this request:\n\n${firstMessage.slice(0, 2000)}`,
           z.object({ title: z.string() }),
+          controller.signal,
         );
         title = result.title.trim().slice(0, 80) || title;
       } catch {
         // Keep the fallback title; a missing title is not worth an error in the chat.
+      } finally {
+        this.titleController = null;
       }
     }
+    if (this.disposed) return;
     this.title = title;
     this.emit({ type: 'title', title });
   }

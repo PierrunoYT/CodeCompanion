@@ -1,10 +1,13 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { createServer, type AddressInfo, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChatEvent } from '@shared/chat';
 import { ChatManager } from './chat_manager';
 import { ChatStore } from './chat_store';
 import { LlmService, type Conversation } from './llm';
+import type { CompletionClient } from './llm/types';
 import { ProjectStore } from './projects';
 import { SettingsStore } from './settings';
 
@@ -14,6 +17,8 @@ describe('project chat retention', () => {
   let manager: ChatManager;
   let chats: ChatStore;
   let settings: SettingsStore;
+  let llm: LlmService;
+  let events: ChatEvent[];
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'cc-manager-'));
@@ -24,11 +29,12 @@ describe('project chat retention', () => {
     settings = new SettingsStore(join(root, 'settings.json'), {
       isAvailable: () => false, encrypt: (value) => value, decrypt: (value) => value,
     });
-    const llm = new LlmService(settings);
+    llm = new LlmService(settings);
+    events = [];
     const conversation = (): Conversation => ({
       provider: 'anthropic', model: 'test', addUserMessage() {}, addToolResults() {},
       async runTurn() {
-        return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } };
+        return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 }, contextTokens: 1 };
       },
       serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
       planCompaction: () => null,
@@ -38,12 +44,13 @@ describe('project chat retention', () => {
     vi.spyOn(llm, 'restoreConversation').mockImplementation(conversation);
     manager = new ChatManager({
       projects, chats, settings, llm, browser: () => null, codeSearch: () => null,
-      emit() {}, onSnapshot() {}, onHistoryChanged() {},
+      emit: (event) => events.push(event), onSnapshot() {}, onHistoryChanged() {},
     });
   });
 
   afterEach(() => {
     manager.dispose();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     rmSync(root, { recursive: true, force: true });
   });
@@ -104,6 +111,70 @@ describe('project chat retention', () => {
     expect(chats.load(betaId)).toBeNull();
   });
 
+  it.each(['success', 'failure'] as const)('never revives deleted open or parked chats after a delayed title %s', async (outcome) => {
+    vi.useFakeTimers();
+    let finish!: (value: { title: string }) => void;
+    let fail!: (error: Error) => void;
+    const pending = new Promise<{ title: string }>((resolve, reject) => {
+      finish = resolve;
+      fail = reject;
+    });
+    const signals: AbortSignal[] = [];
+    const model: CompletionClient = {
+      async complete(_prompt, schema, signal) {
+        signals.push(signal!);
+        return schema.parse(await pending);
+      },
+    };
+    vi.spyOn(llm, 'smallModel').mockReturnValue(model);
+    open('alpha');
+    await manager.send({ text: 'Alpha task' });
+    const alphaId = manager.snapshot().id;
+    open('beta');
+    await manager.send({ text: 'Beta task' });
+    const betaId = manager.snapshot().id;
+    manager.forget([alphaId, betaId]);
+    chats.delete(alphaId);
+    chats.delete(betaId);
+    events.length = 0;
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+
+    // A provider may ignore cancellation or settle with an error instead.
+    if (outcome === 'success') finish({ title: 'Too late' });
+    else fail(new Error('Title request failed'));
+    await vi.runAllTimersAsync();
+    expect(events).toEqual([]);
+    expect(chats.list()).toEqual([]);
+    expect(chats.load(alphaId)).toBeNull();
+    expect(chats.load(betaId)).toBeNull();
+    open('alpha');
+    open('beta');
+    manager.dispose();
+    expect(chats.list()).toEqual([]);
+  });
+
+  it('ignores late title callbacks from closed sessions after reopening the saved chat', async () => {
+    vi.useFakeTimers();
+    let finish!: (value: { title: string }) => void;
+    const pending = new Promise<{ title: string }>((resolve) => (finish = resolve));
+    vi.spyOn(llm, 'smallModel').mockReturnValue({
+      async complete(_prompt, schema) { return schema.parse(await pending); },
+    });
+    open('alpha');
+    await manager.send({ text: 'Original task' });
+    const id = manager.snapshot().id;
+    manager.newChat();
+    manager.open(id);
+    await manager.send({ text: 'The newer message must survive' });
+    events.length = 0;
+
+    finish({ title: 'Stale title' });
+    await vi.runAllTimersAsync();
+    expect(events).toEqual([]);
+    expect(chats.load(id)?.transcript.filter((item) => item.kind === 'user').map((item) => item.text))
+      .toEqual(['Original task', 'The newer message must survive']);
+  });
+
   it('forgets every session when all chats are deleted, and keeps chats that were not deleted', async () => {
     open('alpha');
     await manager.send({ text: 'Keep me' });
@@ -157,7 +228,81 @@ describe('project chat retention', () => {
     expect(manager.snapshot()).toEqual(beta);
   });
 
-  it('refuses to send, resume, compact or switch while an undo is putting a file back, and saves its note', async () => {
+  it('Stop kills every background child in the active project without killing a parked project', async () => {
+    const connections = new Map<string, Socket>();
+    const server = createServer((socket) => {
+      socket.once('data', (name) => connections.set(name.toString(), socket));
+      // Windows can reset the connection when taskkill terminates its owning process tree.
+      socket.on('error', (error: NodeJS.ErrnoException) => expect(error.code).toBe('ECONNRESET'));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    let modelStarted!: () => void;
+    const modelWaiting = new Promise<void>((resolve) => (modelStarted = resolve));
+    vi.spyOn(llm, 'createConversation').mockImplementation((): Conversation => {
+      const names = projects.current()!.path === join(root, 'alpha') ? ['alpha1', 'alpha2'] : ['beta'];
+      let turns = 0;
+      return {
+        provider: 'anthropic', model: 'test', addUserMessage() {}, addToolResults() {},
+        async runTurn({ signal }) {
+          if (turns++ < 2) {
+            const launching = turns === 1;
+            return {
+              text: '', stopReason: launching ? 'tool_use' : 'end_turn',
+              usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, contextTokens: 1,
+              toolCalls: launching ? names.map((name) => ({
+                id: name, name: 'run_command', input: {
+                  command: `node -e "const socket = require('net').connect(${port}, '127.0.0.1', () => socket.write('${name}'))"`,
+                  background: true,
+                },
+              })) : [],
+            };
+          }
+          return new Promise<never>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+            modelStarted();
+          });
+        },
+        serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
+        planCompaction: () => null, applyCompaction() {},
+      };
+    });
+    settings.update({ approvalMode: 'auto' });
+    try {
+      // The child sockets prove process-tree survival/death without polling PIDs or guessing shutdown delays.
+      open('alpha');
+      await manager.send({ text: 'Start two background commands' });
+      open('beta');
+      await manager.send({ text: 'Start another background command' });
+      const betaId = manager.snapshot().id;
+      open('alpha');
+      await vi.waitFor(() => expect([...connections.keys()].sort()).toEqual(['alpha1', 'alpha2', 'beta']), { timeout: 10_000 });
+      expect([...connections.values()].every((socket) => !socket.destroyed)).toBe(true);
+
+      const running = manager.send({ text: 'Keep working' });
+      await modelWaiting;
+      const alphaClosed = ['alpha1', 'alpha2'].map((name) => new Promise<void>((resolve) => connections.get(name)!.once('close', () => resolve())));
+      manager.stop();
+      await running;
+      await Promise.all(alphaClosed);
+      expect(manager.snapshot().resumable).toBe(true);
+      expect(connections.get('beta')!.destroyed).toBe(false);
+
+      // Stop also applies to retained commands when the active chat itself was deleted.
+      open('beta');
+      manager.forget([betaId]);
+      chats.delete(betaId);
+      const betaClosed = new Promise<void>((resolve) => connections.get('beta')!.once('close', () => resolve()));
+      manager.stop();
+      await betaClosed;
+    } finally {
+      manager.dispose();
+      for (const socket of connections.values()) socket.destroy();
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 30_000);
+
+  it('refuses to send, resume, compact, delete or switch while an undo is putting a file back, and saves its note', async () => {
     open('alpha');
     const alphaPath = join(root, 'alpha');
     const id = '11111111-2222-4333-8444-555555555555';
@@ -178,7 +323,7 @@ describe('project chat retention', () => {
     const conversation = (): Conversation => ({
       provider: 'anthropic', model: 'test', addUserMessage() {}, addToolResults() {},
       async runTurn() {
-        return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } };
+        return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 }, contextTokens: 1 };
       },
       serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
       planCompaction: () => null,
@@ -199,6 +344,9 @@ describe('project chat retention', () => {
     expect(() => manager.resume()).toThrow();
     expect(() => manager.compact()).toThrow(/still working/);
     expect(() => manager.newChat()).toThrow();
+    expect(() => manager.forget([id])).toThrow(/wait for it to finish/);
+    expect(() => manager.forget('all')).toThrow(/wait for it to finish/);
+    expect(manager.snapshot().id).toBe(id);
     await expect(manager.undoEdit('card-1')).rejects.toThrow();
 
     finish();

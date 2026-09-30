@@ -59,6 +59,8 @@ describe('multiple open projects', () => {
 
   it('keeps chats, drafts and workspace file reads separate when switching tabs', async () => {
     await running.page.evaluate((path) => window.api.invoke('project:open', path), alpha);
+    // The IPC reply can arrive before the renderer restores this project's draft.
+    await running.page.getByRole('navigation', { name: 'Open projects' }).getByRole('button', { name: 'Alpha', exact: true }).waitFor();
     alphaId = (await readNotes('Alpha ready')).id;
     expect(JSON.stringify(claude.agentRequests.at(-1).messages.at(-1))).toContain('Only Alpha has apples');
     await running.page.getByLabel('Message', { exact: true }).fill('Unsaved Alpha draft');

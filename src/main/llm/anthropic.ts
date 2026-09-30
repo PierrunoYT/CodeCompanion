@@ -201,6 +201,9 @@ export class AnthropicConversation implements Conversation {
         toolCalls,
         stopReason: mapStopReason(message.stop_reason),
         usage,
+        contextTokens: message.usage.input_tokens +
+          (message.usage.cache_read_input_tokens ?? 0) +
+          (message.usage.cache_creation_input_tokens ?? 0),
         refusal:
           message.stop_reason === 'refusal'
             ? (message.stop_details?.explanation ?? 'The model declined to continue this request.')

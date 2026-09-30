@@ -49,6 +49,8 @@ export interface TurnResult {
   toolCalls: ToolCall[];
   stopReason: StopReason;
   usage: TurnUsage;
+  // Prompt tokens (including cache reads/writes) of the final request, not aggregate billable usage.
+  contextTokens: number;
   // Set when a model's safety system declined; explains why when the API provides it.
   refusal?: string;
 }

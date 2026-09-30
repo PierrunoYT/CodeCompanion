@@ -69,6 +69,32 @@ const compactionAdapter: CompactionAdapter<InputItem> = {
   },
 };
 
+// The SDK's stream helper adds its own fields to the final response: `parsed_arguments` on function calls and
+// `parsed` on message text. They are not part of the API's input format, and the API rejects a history that contains
+// them ("400 Unknown parameter: 'input[1].parsed_arguments'"), so they are removed before an output item is stored or
+// sent back. Sending strips them too, which repairs chats saved before this was done.
+export function toInputItem(item: InputItem): InputItem {
+  const loose = item as unknown as Record<string, unknown>;
+  if (loose.type === 'function_call' && 'parsed_arguments' in loose) {
+    const { parsed_arguments: _parsed, ...rest } = loose;
+    return rest as unknown as InputItem;
+  }
+  if ((loose.type === 'message' || loose.type === undefined) && Array.isArray(loose.content)) {
+    const content = loose.content as Array<Record<string, unknown>>;
+    if (content.some((part) => part && typeof part === 'object' && 'parsed' in part)) {
+      return {
+        ...loose,
+        content: content.map((part) => {
+          if (!part || typeof part !== 'object' || !('parsed' in part)) return part;
+          const { parsed: _parsed, ...rest } = part;
+          return rest;
+        }),
+      } as unknown as InputItem;
+    }
+  }
+  return item;
+}
+
 // OpenAI's own API, through the Responses API. Used instead of Chat Completions because current OpenAI models
 // (GPT-6) only support function calling there with reasoning enabled.
 //
@@ -96,9 +122,9 @@ export class OpenAIResponsesConversation implements Conversation {
 
   // What is sent: the whole history, or the summary followed by the items from the cut on.
   private requestItems(): InputItem[] {
-    if (!this.compaction) return this.items;
+    if (!this.compaction) return this.items.map(toInputItem);
     const note: InputItem = { role: 'user', content: [{ type: 'input_text', text: summaryNote(this.compaction.summary) }] };
-    return [note, ...this.items.slice(this.compaction.keepFrom)];
+    return [note, ...this.items.slice(this.compaction.keepFrom).map(toInputItem)];
   }
 
   addUserMessage(input: UserInput): void {
@@ -152,7 +178,7 @@ export class OpenAIResponsesConversation implements Conversation {
 
     const response = await stream.finalResponse();
     // Output items (reasoning, messages, function calls) are valid input items for the next request.
-    this.items.push(...(response.output as unknown as InputItem[]));
+    this.items.push(...(response.output as unknown as InputItem[]).map(toInputItem));
 
     const toolCalls: ToolCall[] = response.output.flatMap((item) =>
       item.type === 'function_call' ? [{ id: item.call_id, name: item.name, input: parseArguments(item.arguments) }] : [],

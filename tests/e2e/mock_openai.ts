@@ -108,6 +108,15 @@ export class MockOpenAI {
           return;
         }
         this.agentRequests.push({ path: req.url, body });
+        // Like the real API: fields the SDK adds to responses are not valid input and are rejected.
+        const invalid = (body.input ?? []).findIndex((item: any) =>
+          'parsed_arguments' in item || (Array.isArray(item.content) && item.content.some((part: any) => part && 'parsed' in part)),
+        );
+        if (invalid >= 0) {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: `Unknown parameter: 'input[${invalid}].parsed_arguments'.`, type: 'invalid_request_error' } }));
+          return;
+        }
         const turn = this.turns.shift();
         if (!turn) {
           res.writeHead(500, { 'content-type': 'application/json' });

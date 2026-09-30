@@ -146,6 +146,47 @@ describe('OpenAIResponsesConversation', () => {
     expect(conversation.serialize().api).toBe('responses');
   });
 
+  it('sends back the output items exactly as the API returned them, without the fields the SDK adds', async () => {
+    server.queueSse(responseEvents());
+    server.queueSse(responseEvents());
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'medium');
+    conversation.addUserMessage({ text: 'read a.ts' });
+    await conversation.runTurn(request());
+    conversation.addToolResults([{ id: 'call_1', content: 'file contents' }]);
+    await conversation.runTurn(request());
+
+    // The real API rejects unknown fields: "400 Unknown parameter: 'input[1].parsed_arguments'".
+    const input = server.requests[1].body.input;
+    expect(input[2]).toEqual({
+      id: 'msg_1',
+      type: 'message',
+      role: 'assistant',
+      status: 'completed',
+      content: [{ type: 'output_text', text: 'Checking', annotations: [] }],
+    });
+    expect(input[3]).toEqual({ id: 'fc_1', type: 'function_call', call_id: 'call_1', name: 'read_file', arguments: '{"path":"a.ts"}', status: 'completed' });
+    expect(JSON.stringify(input)).not.toMatch(/"parsed(_arguments)?"/);
+    // Nor are they saved with the chat.
+    expect(JSON.stringify(conversation.serialize().messages)).not.toMatch(/"parsed(_arguments)?"/);
+  });
+
+  it('repairs a chat saved with the SDK fields when it is sent again', async () => {
+    server.queueSse(responseEvents());
+    const saved = [
+      { role: 'user', content: [{ type: 'input_text', text: 'read a.ts' }] },
+      { id: 'msg_1', type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'Checking', annotations: [], parsed: null }] },
+      { id: 'fc_1', type: 'function_call', call_id: 'call_1', name: 'read_file', arguments: '{}', status: 'completed', parsed_arguments: null },
+      { type: 'function_call_output', call_id: 'call_1', output: 'ok' },
+    ];
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'medium', saved as never);
+    await conversation.runTurn(request());
+
+    const input = server.requests[0].body.input;
+    expect(JSON.stringify(input)).not.toMatch(/"parsed(_arguments)?"/);
+    expect(input[2]).toEqual({ id: 'fc_1', type: 'function_call', call_id: 'call_1', name: 'read_file', arguments: '{}', status: 'completed' });
+    expect(input[1].content[0]).toEqual({ type: 'output_text', text: 'Checking', annotations: [] });
+  });
+
   it('reports truncated output', async () => {
     server.queueSse([
       { event: 'response.created', data: { type: 'response.created', sequence_number: 0, response: baseResponse('in_progress', []) } },

@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Fixed
+- OpenAI chats (GPT-6 through the Responses API) failed on every request after the first model turn with "400 Unknown parameter: 'input[1].parsed_arguments'". The OpenAI SDK adds `parsed_arguments` and `parsed` to the response it returns, and the app sent them back as history. They are now removed when a turn is stored and when history is sent, which also repairs OpenAI chats saved earlier. Found by running the app against the real API; the mock OpenAI server in the end-to-end tests now rejects these fields too.
+
 ### Added
 - Faster long chats: in a 5,000-item chat, streaming an answer is now as smooth as in an empty chat (frame p50 42 ms → 7 ms) and opening the chat takes 1.1 s instead of 3.2 s. Off-screen messages skip layout (`content-visibility: auto`), changed messages are updated in place instead of replaced, and finished tool cards build their diff and output when first expanded. `npm run perf` measures it; see `docs/PERFORMANCE.md`.
 - Limit very large tool results in the chat and say so. Diffs keep their first 2,000 lines (at most 200,000 characters), commands their first 20,000 characters, and output its last 20,000 characters, as before but no longer silently. An approval card with a shortened diff warns that approving applies the whole change. Exported chats note what was left out. The model's tool results and the applied changes are not affected.

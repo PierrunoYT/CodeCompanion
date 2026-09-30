@@ -35,6 +35,7 @@ Both lifecycle scripts must be executable. They become available to future proje
 | `npm start`                               | Build and run the production build                                                     |
 | `npm run build`                           | Build main, preload and renderer into `out/`                                           |
 | `npm run typecheck`                       | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
+| `npm run lint`                            | Lint the repository with ESLint (`eslint.config.mjs`)                                  |
 | `npm run format` / `npm run format:check` | Rewrite every file with Prettier / check formatting without writing                    |
 | `npm test`                                | Unit tests, then build + end-to-end tests                                              |
 | `npm run test:unit` / `npm run test:e2e`  | One of the two                                                                         |
@@ -55,7 +56,7 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request, on `windows-latest`, `ubuntu-latest` and `macos-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e` (under `xvfb-run` on Linux). Run the same commands locally before pushing. Windows is the only supported platform. The Linux and macOS jobs are `continue-on-error` and their failures are not being fixed for now (see `TASKS.md`).
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request: a `format` job (`npm run format:check`), a `lint` job (`npm run lint`) and the `test` job on `windows-latest`, `ubuntu-latest` and `macos-latest` with Node 22 (`npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e` under `xvfb-run` on Linux). Run the same commands locally before pushing. Windows is the only supported platform. The Linux and macOS jobs are `continue-on-error` and their failures are not being fixed for now (see `TASKS.md`).
 
 `.github/workflows/release.yml` runs when a tag such as `v0.1.0` is pushed. It checks that the tag matches the `package.json` version, runs the same checks as CI, builds the Windows installer with `electron-builder` and creates a GitHub release with `CodeCompanion-Installer.exe` attached. The release notes are the matching `## [x.y.z]` section of `CHANGELOG.md` plus a link to the full file at that tag; the run fails if the section is missing. To release: add the `## [x.y.z] - date` section to `CHANGELOG.md`, update the version, commit, then `git tag v0.1.0` and `git push origin v0.1.0`.
 
@@ -75,7 +76,7 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 ## Conventions
 
-- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes.
+- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes. ESLint (`npm run lint`, flat config in `eslint.config.mjs`) is also enforced in CI; test files and mock servers may use `any`, production sources may not.
 - Renderer code builds DOM with `h()` (`src/renderer/src/dom.ts`), which inserts text safely. Use `trustedHtml` only for HTML that went through `renderMarkdown`/`renderDiff` (DOMPurify).
 - Never pass API keys or unsanitized model output to the renderer as HTML.
 - Keep the Claude conversation history append-only; add new request features through `claudeCapabilities` so models that do not support them keep working.

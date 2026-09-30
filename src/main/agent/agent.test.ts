@@ -309,7 +309,7 @@ describe('agent loop', () => {
           request.callbacks.onText('partial');
           request.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
         }),
-      async (request) => {
+      async () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
         return { text: 'finished' };
       },

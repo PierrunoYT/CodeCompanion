@@ -32,7 +32,7 @@ export class Composer {
     this.input = h('textarea', {
       class: 'form-control composer-input',
       rows: 1,
-      placeholder: 'Describe a task or ask a question…  (Enter to send, Shift+Enter for a new line)',
+      placeholder: 'Describe a task or ask a question…',
       'aria-label': 'Message',
       oninput: () => this.autosize(),
       onkeydown: (event: KeyboardEvent) => {
@@ -43,38 +43,43 @@ export class Composer {
       },
       onpaste: (event: ClipboardEvent) => this.paste(event),
     });
-    this.sendButton = h('button', { class: 'btn btn-primary', title: 'Send', onclick: () => void this.submit() }, icon('send'));
+    this.sendButton = h('button', { class: 'btn btn-primary composer-send', title: 'Send', onclick: () => void this.submit() }, icon('send'));
     this.stopButton = h(
       'button',
-      { class: 'btn btn-danger', title: 'Stop (Ctrl+.)', hidden: true, onclick: () => this.actions.stop() },
+      { class: 'btn btn-sm btn-danger', title: 'Stop (Ctrl+.)', hidden: true, onclick: () => this.actions.stop() },
       icon('stop-fill'),
       ' Stop',
     );
     this.resumeButton = h(
       'button',
-      { class: 'btn btn-primary', title: 'Resume stopped task', hidden: true, onclick: () => this.actions.resume() },
+      { class: 'btn btn-sm btn-primary', title: 'Resume stopped task', hidden: true, onclick: () => this.actions.resume() },
       icon('play-fill'),
       ' Resume',
     );
     this.attachmentList = h('div', { class: 'composer-attachments' });
     this.attachButton = h(
       'button',
-      { class: 'btn btn-outline-secondary', title: 'Attach images', 'aria-label': 'Attach images', onclick: () => void this.attach() },
+      { class: 'btn btn-sm btn-ghost', title: 'Attach images', 'aria-label': 'Attach images', onclick: () => void this.attach() },
       icon('paperclip'),
     );
 
     this.element = h(
       'div',
       { class: 'composer' },
-      this.attachmentList,
       h(
         'div',
-        { class: 'composer-row' },
-        this.attachButton,
+        { class: 'composer-box' },
+        this.attachmentList,
         this.input,
-        this.sendButton,
-        this.stopButton,
-        this.resumeButton,
+        h(
+          'div',
+          { class: 'composer-row' },
+          this.attachButton,
+          h('span', { class: 'composer-hint' }, 'Enter to send · Shift+Enter for a new line'),
+          this.resumeButton,
+          this.stopButton,
+          this.sendButton,
+        ),
       ),
     );
   }
@@ -166,7 +171,7 @@ export class Composer {
         h(
           'span',
           {
-            class: `badge ${this.imagesBlocked ? 'text-bg-warning' : 'text-bg-secondary'} me-1`,
+            class: `badge ${this.imagesBlocked ? 'text-bg-warning' : 'text-bg-secondary'}`,
             title: this.imagesBlocked ?? '',
           },
           icon('image'),

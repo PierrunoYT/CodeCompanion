@@ -103,7 +103,7 @@ class TerminalPanel implements Panel {
     fontFamily: 'Cascadia Mono, Consolas, Menlo, monospace',
     fontSize: 13,
     cursorBlink: true,
-    theme: { background: '#1e1e1e' },
+    theme: { background: '#0b0f14' },
   });
   private readonly fit = new FitAddon();
   private started = false;

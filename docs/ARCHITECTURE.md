@@ -147,6 +147,7 @@ JSON files (settings, projects, chats, indexes) are written through a temp file 
 
 - The transcript is re-rendered per streamed chunk, so it is not an `aria-live` region. `TranscriptView.announcer` is a hidden `role="status"` region fed by `newAnnouncements` (`src/shared/announce.ts`): a finished answer (first 300 characters), an approval request, a failed tool, an error or a notice, each once. Opening a saved chat announces nothing.
 - Anything that carries meaning only through an icon or color needs a text alternative (`visually-hidden` text or `aria-label`). `h()` gives icon-only buttons their `title` as `aria-label`.
+- Colors come from the `--patch-*` tokens at the top of `src/renderer/src/styles.css`, one set per theme; Bootstrap's `--bs-*` variables and button variables point at them. Change the palette there, not in individual rules. Keep `--patch-accent-rgb` comma-separated (Bootstrap uses it in `rgba(var(...), a)`).
 - Use Bootstrap's `*-text-emphasis` colors for colored text, not the plain `--bs-info`/`--bs-warning`, which are too light on white.
 
 ## Security model

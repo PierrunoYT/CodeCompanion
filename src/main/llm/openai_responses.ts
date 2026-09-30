@@ -1,5 +1,17 @@
 import type OpenAI from 'openai';
 import type { Effort } from '@shared/models';
+import {
+  clip,
+  MAX_TEXT_CHARS,
+  MAX_TOOL_INPUT_CHARS,
+  MAX_TOOL_RESULT_CHARS,
+  nextState,
+  planCompaction,
+  summaryNote,
+  type CompactionAdapter,
+  type CompactionPlan,
+  type CompactionState,
+} from './compaction';
 import { toolInputSchema } from './tool_schema';
 import type {
   Conversation,
@@ -13,6 +25,49 @@ import type {
 } from './types';
 
 type InputItem = OpenAI.Responses.ResponseInputItem;
+
+interface LooseItem {
+  type?: string;
+  role?: string;
+  content?: unknown;
+  name?: string;
+  arguments?: string;
+  output?: unknown;
+}
+
+function partsText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((part: { type?: string; text?: string; refusal?: string }) =>
+      part.type === 'input_image' ? '[image]' : (part.text ?? part.refusal ?? ''),
+    )
+    .filter(Boolean)
+    .join('\n');
+}
+
+// A cut is safe before a message or a reasoning item. Before a function call it is not: the call needs the reasoning
+// item that precedes it, and before a call's output it would leave the output without its call.
+const compactionAdapter: CompactionAdapter<InputItem> = {
+  safeCut(item, index, all) {
+    const { type } = item as LooseItem;
+    const previous = all[index - 1] as LooseItem | undefined;
+    return (type === undefined || type === 'message' || type === 'reasoning') && previous?.type !== 'function_call';
+  },
+  describe(item) {
+    const { type, role, content, name, arguments: args, output } = item as LooseItem;
+    if (type === 'function_call') return [`Assistant called ${name}: ${clip(args ?? '', MAX_TOOL_INPUT_CHARS)}`];
+    if (type === 'function_call_output') {
+      return [`Tool result: ${clip(typeof output === 'string' ? output : JSON.stringify(output), MAX_TOOL_RESULT_CHARS)}`];
+    }
+    if (type === undefined || type === 'message') {
+      const text = partsText(content);
+      return text ? [`${role === 'user' ? 'User' : 'Assistant'}: ${clip(text, MAX_TEXT_CHARS)}`] : [];
+    }
+    // Reasoning items are encrypted and say nothing a summary could use.
+    return [];
+  },
+};
 
 // OpenAI's own API, through the Responses API. Used instead of Chat Completions because current OpenAI models
 // (GPT-6) only support function calling there with reasoning enabled.
@@ -28,7 +83,23 @@ export class OpenAIResponsesConversation implements Conversation {
     readonly model: string,
     private readonly effort: Effort,
     private readonly items: InputItem[] = [],
+    private compaction: CompactionState | null = null,
   ) {}
+
+  planCompaction(): CompactionPlan | null {
+    return planCompaction(this.items, this.compaction, compactionAdapter);
+  }
+
+  applyCompaction(summary: string, keepFrom: number): void {
+    this.compaction = nextState(this.compaction, this.items.length, summary, keepFrom);
+  }
+
+  // What is sent: the whole history, or the summary followed by the items from the cut on.
+  private requestItems(): InputItem[] {
+    if (!this.compaction) return this.items;
+    const note: InputItem = { role: 'user', content: [{ type: 'input_text', text: summaryNote(this.compaction.summary) }] };
+    return [note, ...this.items.slice(this.compaction.keepFrom)];
+  }
 
   addUserMessage(input: UserInput): void {
     this.items.push({
@@ -60,7 +131,7 @@ export class OpenAIResponsesConversation implements Conversation {
       {
         model: this.model,
         instructions: request.system,
-        input: this.items,
+        input: this.requestItems(),
         tools: request.tools.map((tool) => ({
           type: 'function' as const,
           name: tool.name,
@@ -111,7 +182,13 @@ export class OpenAIResponsesConversation implements Conversation {
   }
 
   serialize(): SerializedConversation {
-    return { provider: this.provider, api: 'responses', model: this.model, messages: this.items };
+    return {
+      provider: this.provider,
+      api: 'responses',
+      model: this.model,
+      messages: this.items,
+      ...(this.compaction ? { compaction: this.compaction } : {}),
+    };
   }
 }
 

@@ -5,12 +5,14 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Added
+- Add a **Compact chat** action (header button, IPC `chat:compact`) that summarizes the older turns with the small model and sends the summary instead of them from then on, for Claude, OpenAI and OpenAI-compatible chats. The history stays append-only: the saved chat keeps every message plus a `compaction` marker, and only the request is shortened. Cuts never separate a tool call from its result. The status bar shows the size of the last prompt ("Context: 96k") and the button turns yellow from 150k tokens. The summarizing request is not counted in the usage totals.
 - Add a user guide (`docs/USAGE.md`) covering approvals, the command and network allow-lists, Stop and Resume, retries, chat history and export, the side panel and the log folder.
 - Retry transient provider errors (HTTP 408, 429, 5xx including 529, errors sent inside a stream, dropped or timed-out connections) up to 4 times with a 2 to 16 second backoff, or the wait the provider asks for in `Retry-After`. Each retry is shown as a notice in the chat, the text the failed attempt streamed is discarded, and Stop works during the wait. Out-of-quota errors, other 4xx errors and refused connections are still shown straight away. Chat turns now use provider clients without SDK-level retries so the app is the only one retrying and every retry is visible; chat titles keep the SDK's silent retries.
 - Log crashes and other problems to `logs/app.log.jsonl` in the user data folder: uncaught errors and unhandled rejections, a crashed or hung UI, helper processes that ended, failed IPC calls (channel and error message, not the arguments), the app page failing to load, errors that reach the top of the UI, and errors shown in the chat. Entries hold error messages and stacks, which can mention file paths, but no chat history; API keys and tokens are redacted. The file stays on the machine and rotates at 512 KB. Help → Show Log Folder opens it.
 - Log tool calls that arrive with required fields missing (tool, model, missing and received field names, never values) to `logs/tool-input-errors.jsonl` in the user data folder, so the dropped `new_string` problem in `edit_file` can be measured. The file stays on the machine and rotates at 512 KB.
 
 ### Changed
+- OpenAI-compatible chats no longer shorten their stored history when it grows past ~100k tokens: only the request is trimmed, so the saved chat keeps every message. Chats saved by earlier versions keep what was already removed.
 - Add unit tests for the chat store, the project store and the file helpers (image picker, save dialog, open in editor).
 - Add unit tests for the agent loop: stop, resume, tool-result pairing, approvals, refusals, the step limit and model errors.
 

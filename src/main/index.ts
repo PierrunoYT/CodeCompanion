@@ -201,6 +201,8 @@ function start(): void {
   handle('chat:resume', () => {
     manager.resume().catch(() => {});
   });
+  // Awaited, unlike send and resume, so a setup problem (no summarizing model, nothing to compact) reaches the UI.
+  handle('chat:compact', () => manager.compact());
   handle('chat:new', () => manager.newChat());
   handle('chat:decide', (approvalId, decision) => manager.decide(approvalId, decision));
   handle('chat:export', () => {

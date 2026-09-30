@@ -12,6 +12,7 @@ import {
 import type { ApprovalMode } from '@shared/settings';
 import type { CompletionClient, Conversation, SerializedConversation } from '../llm/types';
 import type { AgentTool, ToolContext } from '../tools/types';
+import { compactionPrompt } from '../llm/compaction';
 import { Agent, type DroppedFieldError } from './agent';
 
 export interface SavedChat {
@@ -162,6 +163,46 @@ export class ChatSession {
       this.controller = null;
       this.rejectPendingApprovals();
       if (stopped) this.setResumable(true);
+      this.emit({ type: 'busy', busy: false });
+    }
+  }
+
+  // Replaces the older turns, in what is sent to the model, by a summary written by the small model. The stored
+  // history is not changed. Nothing is done when there is too little history to be worth it.
+  async compact(): Promise<void> {
+    if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
+    const { conversation } = this.options;
+    const plan = conversation.planCompaction();
+    if (!plan) {
+      this.emit({ type: 'notice', id: randomUUID(), text: 'There is not enough older history to compact yet.' });
+      return;
+    }
+    const summarizer = this.options.smallModel();
+    if (!summarizer) throw new Error('Compacting needs an API key for the summarizing model. Add one in Settings.');
+
+    const controller = new AbortController();
+    this.controller = controller;
+    this.stopRequested = false;
+    this.emit({ type: 'busy', busy: true });
+    try {
+      const { summary } = await summarizer.complete(compactionPrompt(plan.text), z.object({ summary: z.string() }), controller.signal);
+      // A stop that came in while the answer was being written wins: nothing is applied.
+      if (controller.signal.aborted) throw new DOMException('aborted', 'AbortError');
+      conversation.applyCompaction(summary, plan.keepFrom);
+      this.agent.forgetContextSize();
+      this.emit({
+        type: 'notice',
+        id: randomUUID(),
+        text: `Compacted ${plan.messages} earlier messages into a summary. The next request re-reads the whole prompt once; the full history stays saved with this chat.`,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        this.emit({ type: 'notice', id: randomUUID(), text: 'Compacting stopped. The chat is unchanged.' });
+      } else {
+        this.emit({ type: 'error', id: randomUUID(), text: `Compacting failed: ${error instanceof Error ? error.message : String(error)}` });
+      }
+    } finally {
+      this.controller = null;
       this.emit({ type: 'busy', busy: false });
     }
   }

@@ -1,5 +1,8 @@
 import type { z } from 'zod';
 import type { Provider } from '@shared/models';
+import type { CompactionPlan, CompactionState } from './compaction';
+
+export type { CompactionPlan, CompactionState } from './compaction';
 
 export interface ToolSpec {
   name: string;
@@ -69,7 +72,9 @@ export interface SerializedConversation {
   // OpenAI only: which API the history belongs to. Missing means Chat Completions (chats saved before 'responses').
   api?: 'chat' | 'responses';
   model: string;
+  // Always the complete history. A compaction only changes what is sent, never what is stored.
   messages: unknown[];
+  compaction?: CompactionState;
 }
 
 // One chat's model-facing history, in the provider's native message format. Each provider keeps its own format
@@ -81,6 +86,10 @@ export interface Conversation {
   addToolResults(results: ToolResult[]): void;
   runTurn(request: TurnRequest): Promise<TurnResult>;
   serialize(): SerializedConversation;
+  // Older turns as text for a summarizer, or null when there is not enough history to be worth compacting.
+  planCompaction(): CompactionPlan | null;
+  // From now on the summary is sent in place of the messages before `keepFrom`. Nothing stored is changed.
+  applyCompaction(summary: string, keepFrom: number): void;
 }
 
 // Structured one-shot calls to the small model (titles, re-ranking).

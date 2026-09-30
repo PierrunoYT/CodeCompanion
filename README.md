@@ -18,7 +18,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Built-in browser the assistant uses to check web apps: console output and screenshots
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
 - Web search (Google Custom Search) and page fetching
-- Long chats are handled by server-side compaction (current Claude models)
+- Long chats are handled by server-side compaction (current Claude models), and **Compact chat** (header button) summarizes the older turns on demand for any model; the status bar shows how large the prompt is and the button turns yellow when it is getting big. The full history stays in the saved chat
 - Rate limits (429), server errors (5xx) and dropped connections are retried automatically with a growing wait (up to 4 retries, or as long as the provider asks), and each retry is shown in the chat; **Stop** works during the wait
 - Stop a running task and use **Resume** to continue it, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time

@@ -18,6 +18,8 @@ export interface ScriptedFailure {
 // non-streaming requests (the small-model title) get a fixed structured answer.
 export class MockClaude {
   readonly agentRequests: any[] = [];
+  // Requests to summarize old turns (compact chat).
+  readonly summaryRequests: any[] = [];
   private turns: Array<ScriptedTurn | ScriptedFailure> = [];
   private server: Server;
 
@@ -28,6 +30,12 @@ export class MockClaude {
       req.on('end', () => {
         const body = JSON.parse(raw || '{}');
         if (!body.stream) {
+          // A request to compact the chat asks for a summary; everything else asked for a title.
+          const prompt = JSON.stringify(body.messages?.[0]?.content ?? '');
+          if (prompt.includes('Summarize the earlier part')) this.summaryRequests.push(body);
+          const answer = prompt.includes('Summarize the earlier part')
+            ? '{"summary":"E2E SUMMARY of the earlier work."}'
+            : '{"title":"Explore the project"}';
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(
             JSON.stringify({
@@ -35,7 +43,7 @@ export class MockClaude {
               type: 'message',
               role: 'assistant',
               model: body.model,
-              content: [{ type: 'text', text: '{"title":"Explore the project"}' }],
+              content: [{ type: 'text', text: answer }],
               stop_reason: 'end_turn',
               stop_sequence: null,
               usage: { input_tokens: 1, output_tokens: 1 },

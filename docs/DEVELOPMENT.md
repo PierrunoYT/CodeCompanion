@@ -71,6 +71,8 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 | Add an IPC channel | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts` |
 | Add a chat event | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts` |
 | Change which provider errors are retried, or the backoff | `src/main/agent/retry.ts` (`retryDecision`, `MAX_RETRIES`); the loop is `runTurnWithRetries` in `src/main/agent/agent.ts` |
+| Change how compaction picks the cut or what the summarizer reads | `src/main/llm/compaction.ts` (sizes, `planCompaction`, the prompt); the provider-specific safe cuts and text are `compactionAdapter` in `anthropic.ts`, `openai.ts` and `openai_responses.ts` |
+| Change when the app suggests compacting | `COMPACT_SUGGESTED_TOKENS` in `src/shared/models.ts` |
 | Log a crash or problem | `appLog.error(source, error, context)` from `src/main/app_log.ts`; see "Crash and error log" under Debugging |
 | Add an item to the menu | `src/main/menu.ts` (`MenuCommand` in `src/shared/ipc.ts` if the renderer must react) |
 | UI | `src/renderer/src/app.ts`, `views/`, `styles.css` |

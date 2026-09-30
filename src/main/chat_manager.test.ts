@@ -30,6 +30,8 @@ describe('project chat retention', () => {
         return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } };
       },
       serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
+      planCompaction: () => null,
+      applyCompaction() {},
     });
     vi.spyOn(llm, 'createConversation').mockImplementation(conversation);
     vi.spyOn(llm, 'restoreConversation').mockImplementation(conversation);
@@ -49,6 +51,15 @@ describe('project chat retention', () => {
     projects.open(join(root, name));
     manager.projectChanged();
   }
+
+  it('has nothing to compact before a chat exists, and reports when a short chat needs no compaction', async () => {
+    open('alpha');
+    expect(() => manager.compact()).toThrow(/no chat to compact/);
+
+    await manager.send({ text: 'A short task' });
+    await manager.compact();
+    expect(manager.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('not enough older history') });
+  });
 
   it('retains per-project sessions and starts a new chat only in the active project', async () => {
     open('alpha');

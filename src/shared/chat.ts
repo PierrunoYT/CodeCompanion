@@ -32,6 +32,9 @@ export interface UsageTotals {
   cacheReadTokens: number;
   // Optional so chats saved before cache-write accounting remain valid.
   cacheWriteTokens?: number;
+  // Size of the last request's prompt (input, cache reads and cache writes), which is how full the model's context
+  // is. Unset before the first request and after a compaction, until the next request reports a new size.
+  contextTokens?: number;
   // GPT-6 requests over 272K input tokens are priced as a whole at long-context rates. Keeping that per-request
   // classification here avoids incorrectly selecting a tier from aggregate chat usage.
   longContext?: {

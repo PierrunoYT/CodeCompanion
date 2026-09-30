@@ -54,6 +54,12 @@ export class Agent {
     this.usage = { ...value, cacheWriteTokens: value.cacheWriteTokens ?? 0 };
   }
 
+  // The size of the prompt is not known any more after the history was compacted; the next request reports it.
+  forgetContextSize(): void {
+    delete this.usage.contextTokens;
+    this.options.emit({ type: 'usage', totals: this.totals });
+  }
+
   // send and resume resolve to true when the run was cut short by a stop, and false when it finished on its own.
   async send(input: UserInput, signal: AbortSignal): Promise<boolean> {
     this.options.conversation.addUserMessage(input);
@@ -78,6 +84,7 @@ export class Agent {
       this.usage.outputTokens += result.usage.outputTokens;
       this.usage.cacheReadTokens += result.usage.cacheReadTokens;
       this.usage.cacheWriteTokens = (this.usage.cacheWriteTokens ?? 0) + (result.usage.cacheWriteTokens ?? 0);
+      this.usage.contextTokens = result.usage.inputTokens + result.usage.cacheReadTokens + (result.usage.cacheWriteTokens ?? 0);
       if (result.usage.longContext) {
         const long = this.usage.longContext ? { ...this.usage.longContext } : {
           inputTokens: 0,

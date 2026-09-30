@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
-import type { Conversation, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
+import type { CompactionPlan, CompletionClient, Conversation, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
 import { defineTool, type AgentTool, type ToolContext } from '../tools/types';
 import { ChatSession, type ChatSessionOptions } from './session';
 
@@ -43,6 +43,18 @@ class ScriptedConversation implements Conversation {
 
   serialize() {
     return { provider: this.provider, model: this.model, messages: [] };
+  }
+
+  // Compaction: what the plan is, and what was applied.
+  plan: CompactionPlan | null = null;
+  readonly applied: Array<{ summary: string; keepFrom: number }> = [];
+
+  planCompaction(): CompactionPlan | null {
+    return this.plan;
+  }
+
+  applyCompaction(summary: string, keepFrom: number): void {
+    this.applied.push({ summary, keepFrom });
   }
 }
 
@@ -90,6 +102,7 @@ function setup(
     officialPricing = undefined as boolean | undefined,
     resumable = undefined as boolean | undefined,
     transcript = undefined as ChatSessionOptions['transcript'],
+    smallModel = (() => null) as ChatSessionOptions['smallModel'],
   } = {},
 ) {
   ran.length = 0;
@@ -108,7 +121,7 @@ function setup(
     approvalMode: () => mode,
     isPreApproved,
     toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
-    smallModel: () => null,
+    smallModel,
     onEvent: (event) => events.push(event),
     onChange: () => {},
   });
@@ -440,6 +453,114 @@ describe('agent loop', () => {
     expect(session.snapshot()).toMatchObject({ busy: false, resumable: false });
   });
 
+  describe('compacting the chat', () => {
+    const plan: CompactionPlan = { text: 'OLD TURNS AS TEXT', messages: 7, keepFrom: 3 };
+    // Answers the compaction request; the chat title request that starts every chat is left to fail and fall back.
+    const summarizer = (handler: (prompt: string, signal?: AbortSignal) => Promise<{ summary: string }>): CompletionClient => ({
+      complete: ((prompt: string, _schema: unknown, signal?: AbortSignal) =>
+        prompt.startsWith('Summarize the earlier part') ? handler(prompt, signal) : Promise.reject(new Error('no title'))) as CompletionClient['complete'],
+    });
+
+    it('summarizes the older turns, applies the summary and says so in the chat', async () => {
+      const prompts: string[] = [];
+      const { session, conversation, events } = setup([{ text: 'hello' }], {
+        smallModel: () =>
+          summarizer(async (prompt) => {
+            prompts.push(prompt);
+            return { summary: 'THE SUMMARY' };
+          }),
+      });
+      await session.send({ text: 'hi' });
+      conversation.plan = plan;
+      // The scripted turn read 1 input token and no cache, so that is how large the prompt was.
+      expect(session.snapshot().usage.contextTokens).toBe(1);
+
+      await session.compact();
+
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toContain('OLD TURNS AS TEXT');
+      expect(conversation.applied).toEqual([{ summary: 'THE SUMMARY', keepFrom: 3 }]);
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('Compacted 7 earlier messages') });
+      // The size of the prompt is not known until the next request.
+      expect(session.snapshot().usage.contextTokens).toBeUndefined();
+      expect(events.filter((event) => event.type === 'busy').slice(-2)).toEqual([
+        { type: 'busy', busy: true },
+        { type: 'busy', busy: false },
+      ]);
+      expect(session.busy).toBe(false);
+    });
+
+    it('says so when there is not enough history, without calling the model', async () => {
+      const complete = vi.fn();
+      const { session, conversation } = setup([], { smallModel: () => ({ complete }) as unknown as CompletionClient });
+
+      await session.compact();
+
+      expect(complete).not.toHaveBeenCalled();
+      expect(conversation.applied).toEqual([]);
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('not enough older history') });
+    });
+
+    it('asks for an API key when there is no model to summarize with', async () => {
+      const { session, conversation } = setup([]);
+      conversation.plan = plan;
+
+      await expect(session.compact()).rejects.toThrow(/API key/);
+      expect(conversation.applied).toEqual([]);
+      expect(session.busy).toBe(false);
+    });
+
+    it('shows the error and changes nothing when the summary fails', async () => {
+      const { session, conversation } = setup([], {
+        smallModel: () => summarizer(async () => Promise.reject(new Error('529 overloaded'))),
+      });
+      conversation.plan = plan;
+
+      await session.compact();
+
+      expect(conversation.applied).toEqual([]);
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'error', text: 'Compacting failed: 529 overloaded' });
+      expect(session.busy).toBe(false);
+    });
+
+    it('can be stopped, and then applies nothing even if the summary still arrives', async () => {
+      let finish!: (value: { summary: string }) => void;
+      const { session, conversation } = setup([], {
+        smallModel: () => summarizer(() => new Promise((resolve) => (finish = resolve))),
+      });
+      conversation.plan = plan;
+
+      const compacting = session.compact();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(session.busy).toBe(true);
+      session.stop();
+      finish({ summary: 'TOO LATE' });
+      await compacting;
+
+      expect(conversation.applied).toEqual([]);
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('unchanged') });
+      expect(session.snapshot().resumable).toBe(false);
+      expect(session.busy).toBe(false);
+    });
+
+    it('blocks messages and a second compaction while it runs', async () => {
+      let finish!: (value: { summary: string }) => void;
+      const { session, conversation } = setup([{ text: 'hello' }], {
+        smallModel: () => summarizer(() => new Promise((resolve) => (finish = resolve))),
+      });
+      conversation.plan = plan;
+
+      const compacting = session.compact();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await expect(session.send({ text: 'hi' })).rejects.toThrow(/still working/);
+      await expect(session.compact()).rejects.toThrow(/still working/);
+      finish({ summary: 'S' });
+      await compacting;
+
+      expect(conversation.applied).toHaveLength(1);
+    });
+  });
+
   it('shows model errors in the transcript', async () => {
     const { session } = setup([
       async () => {
@@ -533,6 +654,8 @@ describe('agent loop', () => {
       outputTokens: 5,
       cacheReadTokens: 3,
       cacheWriteTokens: 2,
+      // 7 input + 3 cache reads + 2 cache writes: the size of the prompt that was sent.
+      contextTokens: 12,
       longContext: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
     });
     expect(saved.system).toBe('system prompt');

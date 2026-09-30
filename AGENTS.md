@@ -43,7 +43,7 @@ Don't leave a finished change uncommitted or its docs stale.
 - Adding an IPC channel means editing **both** the type maps and the `INVOKE`/`EVENTS` lists in `src/shared/ipc.ts`, plus the handler in `src/main/index.ts`.
 - Tools use `defineTool` and are registered in `src/main/tools/registry.ts`. Anything that changes files or runs commands must set `requiresApproval`.
 - File access must go through `Workspace.resolve`, which confines paths to the project root.
-- Keep the Claude conversation history append-only. Gate new request features behind `claudeCapabilities` in `src/shared/models.ts`.
+- Keep the Claude conversation history append-only. Gate new request features behind `claudeCapabilities` in `src/shared/models.ts`. Compacting a chat never edits or removes stored messages: it stores a `CompactionState` and changes only what is sent. A new provider needs `planCompaction`/`applyCompaction` with a safe-cut rule that never separates a tool call from its result.
 - Model ids and defaults live only in `src/shared/models.ts`.
 - Don't add telemetry, analytics or update checks; the app deliberately has none. Local logs are fine (`appLog` in `src/main/app_log.ts`, files in `userData/logs`): log names, codes and numbers, never chat text, file contents or keys, and never send a log anywhere.
 - Conversations record an assistant turn only after the request succeeded, and provider clients for chat turns use `maxRetries: 0`: the agent loop retries transient errors itself (`src/main/agent/retry.ts`) so each retry is shown in the chat. Keep both true.

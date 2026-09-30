@@ -1,6 +1,18 @@
 import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import type { z } from 'zod';
+import {
+  clip,
+  MAX_TEXT_CHARS,
+  MAX_TOOL_INPUT_CHARS,
+  MAX_TOOL_RESULT_CHARS,
+  nextState,
+  planCompaction,
+  summaryNote,
+  type CompactionAdapter,
+  type CompactionPlan,
+  type CompactionState,
+} from './compaction';
 import { toolInputSchema } from './tool_schema';
 import type {
   CompletionClient,
@@ -26,14 +38,61 @@ export function createOpenAIClient(apiKey: string, baseURL?: string, maxRetries 
   return new OpenAI({ apiKey, baseURL: baseURL || undefined, maxRetries });
 }
 
+function textOf(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content.map((part) => (part?.type === 'text' ? part.text : part?.type === 'image_url' ? '[image]' : '')).filter(Boolean).join('\n');
+}
+
+// A cut is safe anywhere except before a tool message, whose call would be left behind.
+const compactionAdapter: CompactionAdapter<MessageParam> = {
+  safeCut: (message) => message.role !== 'tool',
+  describe(message) {
+    switch (message.role) {
+      case 'user':
+        return [`User: ${clip(textOf(message.content), MAX_TEXT_CHARS)}`];
+      case 'assistant':
+        return [
+          ...(textOf(message.content) ? [`Assistant: ${clip(textOf(message.content), MAX_TEXT_CHARS)}`] : []),
+          ...(message.tool_calls ?? []).flatMap((call) =>
+            call.type === 'function' ? [`Assistant called ${call.function.name}: ${clip(call.function.arguments, MAX_TOOL_INPUT_CHARS)}`] : [],
+          ),
+        ];
+      case 'tool':
+        return [`Tool result: ${clip(textOf(message.content), MAX_TOOL_RESULT_CHARS)}`];
+      default:
+        return [];
+    }
+  },
+};
+
 export class OpenAIConversation implements Conversation {
   readonly provider = 'openai' as const;
 
   constructor(
     private readonly client: OpenAI,
     readonly model: string,
-    private messages: MessageParam[] = [],
+    private readonly messages: MessageParam[] = [],
+    private compaction: CompactionState | null = null,
   ) {}
+
+  planCompaction(): CompactionPlan | null {
+    return planCompaction(this.messages, this.compaction, compactionAdapter);
+  }
+
+  applyCompaction(summary: string, keepFrom: number): void {
+    this.compaction = nextState(this.compaction, this.messages.length, summary, keepFrom);
+  }
+
+  // What is sent before trimming: the whole history, or the summary joined to the messages from the cut on.
+  private requestMessages(): MessageParam[] {
+    if (!this.compaction) return this.messages;
+    const note = summaryNote(this.compaction.summary);
+    const [first, ...rest] = this.messages.slice(this.compaction.keepFrom);
+    if (first?.role !== 'user') return [{ role: 'user', content: note }, ...(first ? [first] : []), ...rest];
+    const content = typeof first.content === 'string' ? `${note}\n\n${first.content}` : [{ type: 'text' as const, text: note }, ...first.content];
+    return [{ ...first, content }, ...rest];
+  }
 
   addUserMessage(input: UserInput): void {
     if (!input.images?.length) {
@@ -65,11 +124,10 @@ export class OpenAIConversation implements Conversation {
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {
-    this.trimHistory();
     const stream = this.client.chat.completions.stream(
       {
         model: this.model,
-        messages: [{ role: 'system', content: request.system }, ...this.messages],
+        messages: [{ role: 'system', content: request.system }, ...trimHistory(this.requestMessages())],
         tools: request.tools.map((tool) => ({
           type: 'function' as const,
           function: { name: tool.name, description: tool.description, parameters: toolInputSchema(tool) },
@@ -117,25 +175,28 @@ export class OpenAIConversation implements Conversation {
   }
 
   serialize(): SerializedConversation {
-    return { provider: this.provider, api: 'chat', model: this.model, messages: this.messages };
+    return {
+      provider: this.provider,
+      api: 'chat',
+      model: this.model,
+      messages: this.messages,
+      ...(this.compaction ? { compaction: this.compaction } : {}),
+    };
   }
+}
 
-  // Drops whole turns from the front, keeping the first user message (the task) so the goal is never lost.
-  private trimHistory(): void {
-    if (estimateTokens(this.messages) <= MAX_HISTORY_TOKENS) return;
-    const [first, ...rest] = this.messages;
-    const kept = [...rest];
-    while (kept.length > 1 && estimateTokens([first, ...kept]) > MAX_HISTORY_TOKENS) {
-      kept.shift();
-      // A tool or assistant message cannot start the kept history; drop up to the next user message.
-      while (kept.length > 1 && kept[0].role !== 'user') kept.shift();
-    }
-    this.messages = [
-      first,
-      { role: 'user', content: '(Earlier messages were removed to fit the context window.)' },
-      ...kept,
-    ];
+// What is sent when the history is too large: whole turns are dropped from the front, keeping the first user message
+// (the task) so the goal is never lost. Only the copy that is sent is shortened; the stored history is not.
+function trimHistory(messages: MessageParam[]): MessageParam[] {
+  if (estimateTokens(messages) <= MAX_HISTORY_TOKENS) return messages;
+  const [first, ...rest] = messages;
+  const kept = [...rest];
+  while (kept.length > 1 && estimateTokens([first, ...kept]) > MAX_HISTORY_TOKENS) {
+    kept.shift();
+    // A tool or assistant message cannot start the kept history; drop up to the next user message.
+    while (kept.length > 1 && kept[0].role !== 'user') kept.shift();
   }
+  return [first, { role: 'user', content: '(Earlier messages were removed to fit the context window.)' }, ...kept];
 }
 
 function parseArguments(raw: string): unknown {

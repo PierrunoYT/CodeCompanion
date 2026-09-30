@@ -2,6 +2,18 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { z } from 'zod';
 import { claudeCapabilities, type Effort } from '@shared/models';
+import {
+  clip,
+  MAX_TEXT_CHARS,
+  MAX_TOOL_INPUT_CHARS,
+  MAX_TOOL_RESULT_CHARS,
+  nextState,
+  planCompaction,
+  summaryNote,
+  type CompactionAdapter,
+  type CompactionPlan,
+  type CompactionState,
+} from './compaction';
 import { toolInputSchema } from './tool_schema';
 import type {
   CompletionClient,
@@ -35,7 +47,37 @@ export interface AnthropicConversationOptions {
   model: string;
   effort: Effort;
   messages?: MessageParam[];
+  compaction?: CompactionState | null;
 }
+
+const isToolResult = (block: ContentBlockParam) => block.type === 'tool_result';
+
+// A cut is safe before an assistant message (the user message before it holds the results of the calls it follows)
+// and before a user message that answers no tool call. It is never safe before a message of tool results.
+const compactionAdapter: CompactionAdapter<MessageParam> = {
+  safeCut: (message) =>
+    message.role === 'assistant' || typeof message.content === 'string' || !message.content.some(isToolResult),
+  describe(message) {
+    const blocks: ContentBlockParam[] = typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : message.content;
+    return blocks.flatMap((block): string[] => {
+      switch (block.type) {
+        case 'text':
+          return [`${message.role === 'user' ? 'User' : 'Assistant'}: ${clip(block.text, MAX_TEXT_CHARS)}`];
+        case 'tool_use':
+          return [`Assistant called ${block.name}: ${clip(JSON.stringify(block.input), MAX_TOOL_INPUT_CHARS)}`];
+        case 'tool_result': {
+          const content = typeof block.content === 'string' ? block.content : (block.content ?? []).map((part) => (part.type === 'text' ? part.text : '[image]')).join('\n');
+          return [`Tool result${block.is_error ? ' (error)' : ''}: ${clip(content, MAX_TOOL_RESULT_CHARS)}`];
+        }
+        case 'image':
+          return ['[image]'];
+        default:
+          // Thinking and the API's own compaction blocks are not part of what happened.
+          return [];
+      }
+    });
+  },
+};
 
 // History is append-only: assistant turns are stored exactly as returned (thinking, compaction and fallback
 // blocks included) because Claude rejects or ignores edited history. Long chats are shortened by the API's
@@ -45,6 +87,7 @@ export class AnthropicConversation implements Conversation {
   readonly model: string;
   private readonly effort: Effort;
   private readonly messages: MessageParam[];
+  private compaction: CompactionState | null;
 
   constructor(
     private readonly client: Anthropic,
@@ -53,6 +96,26 @@ export class AnthropicConversation implements Conversation {
     this.model = options.model;
     this.effort = options.effort;
     this.messages = options.messages ?? [];
+    this.compaction = options.compaction ?? null;
+  }
+
+  planCompaction(): CompactionPlan | null {
+    return planCompaction(this.messages, this.compaction, compactionAdapter);
+  }
+
+  applyCompaction(summary: string, keepFrom: number): void {
+    this.compaction = nextState(this.compaction, this.messages.length, summary, keepFrom);
+  }
+
+  // What is sent: the whole history, or the summary followed by the messages from the cut on. The stored messages
+  // are never changed; the first kept message is copied when the summary is added to it.
+  private requestMessages(): MessageParam[] {
+    if (!this.compaction) return this.messages;
+    const note: ContentBlockParam = { type: 'text', text: summaryNote(this.compaction.summary) };
+    const [first, ...rest] = this.messages.slice(this.compaction.keepFrom);
+    if (first?.role !== 'user') return [{ role: 'user', content: [note] }, ...(first ? [first] : []), ...rest];
+    const content: ContentBlockParam[] = typeof first.content === 'string' ? [{ type: 'text', text: first.content }] : first.content;
+    return [{ role: 'user', content: [note, ...content] }, ...rest];
   }
 
   addUserMessage(input: UserInput): void {
@@ -141,7 +204,12 @@ export class AnthropicConversation implements Conversation {
   }
 
   serialize(): SerializedConversation {
-    return { provider: this.provider, model: this.model, messages: this.messages };
+    return {
+      provider: this.provider,
+      model: this.model,
+      messages: this.messages,
+      ...(this.compaction ? { compaction: this.compaction } : {}),
+    };
   }
 
   // Exposed for tests.
@@ -154,7 +222,7 @@ export class AnthropicConversation implements Conversation {
       max_tokens: MAX_OUTPUT_TOKENS,
       stream: true,
       system: [{ type: 'text', text: request.system }],
-      messages: this.messages,
+      messages: this.requestMessages(),
       tools: request.tools.map((tool) => ({
         name: tool.name,
         description: tool.description,

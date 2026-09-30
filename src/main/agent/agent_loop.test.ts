@@ -48,6 +48,12 @@ class ScriptedConversation implements Conversation {
   serialize() {
     return { provider: this.provider, model: this.model, messages: [] };
   }
+
+  planCompaction() {
+    return null;
+  }
+
+  applyCompaction(): void {}
 }
 
 const image: ImageData = { mediaType: 'image/png', base64: 'AAAA' };
@@ -765,7 +771,8 @@ describe('Agent: streaming and usage', () => {
     );
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    const expected = { inputTokens: 30, outputTokens: 5, cacheReadTokens: 10, cacheWriteTokens: 1 };
+    // contextTokens is the size of the last prompt (20 input + 6 cache reads), not a running total.
+    const expected = { inputTokens: 30, outputTokens: 5, cacheReadTokens: 10, cacheWriteTokens: 1, contextTokens: 26 };
     expect(agent.totals).toEqual(expected);
     expect(eventsOf(events, 'usage').map((event) => event.totals.inputTokens)).toEqual([10, 30]);
     // Totals are copies, so callers cannot change the running count.

@@ -3,7 +3,13 @@ import type { SettingsStore } from '../settings';
 import { AnthropicCompletionClient, AnthropicConversation, createAnthropicClient } from './anthropic';
 import { createOpenAIClient, OpenAICompletionClient, OpenAIConversation } from './openai';
 import { OpenAIResponsesConversation } from './openai_responses';
-import { MissingApiKeyError, type CompletionClient, type Conversation, type SerializedConversation } from './types';
+import {
+  MissingApiKeyError,
+  type CompactionState,
+  type CompletionClient,
+  type Conversation,
+  type SerializedConversation,
+} from './types';
 
 export * from './types';
 
@@ -25,7 +31,7 @@ export class LlmService {
   }
 
   restoreConversation(saved: SerializedConversation): Conversation {
-    return this.build(saved.model, saved.messages, saved.api ?? 'chat');
+    return this.build(saved.model, saved.messages, saved.api ?? 'chat', saved.compaction ?? null);
   }
 
   // Prefers the provider of the selected model; falls back to whichever provider has a key. Returns null when no
@@ -55,7 +61,12 @@ export class LlmService {
     return this.settings.get().openaiBaseUrl.trim() ? 'chat' : 'responses';
   }
 
-  private build(model: string, messages: unknown[], openaiApi: 'chat' | 'responses'): Conversation {
+  private build(
+    model: string,
+    messages: unknown[],
+    openaiApi: 'chat' | 'responses',
+    compaction: CompactionState | null = null,
+  ): Conversation {
     const settings = this.settings.get();
     if (providerForModel(model) === 'anthropic') {
       const key = this.settings.getSecret('anthropicApiKey');
@@ -64,13 +75,14 @@ export class LlmService {
         model,
         effort: settings.effort,
         messages: messages as never,
+        compaction,
       });
     }
     const key = this.settings.getSecret('openaiApiKey');
     if (!key) throw new MissingApiKeyError('openai');
     const client = createOpenAIClient(key, settings.openaiBaseUrl || TEST_OPENAI_BASE_URL);
     return openaiApi === 'responses'
-      ? new OpenAIResponsesConversation(client, model, settings.effort, messages as never)
-      : new OpenAIConversation(client, model, messages as never);
+      ? new OpenAIResponsesConversation(client, model, settings.effort, messages as never, compaction)
+      : new OpenAIConversation(client, model, messages as never, compaction);
   }
 }

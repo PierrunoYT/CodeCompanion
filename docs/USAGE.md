@@ -95,6 +95,18 @@ Rate limits (429), server errors (5xx) and dropped connections are retried autom
 - **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all.
 - **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
 
+### Compact a long chat
+
+Every request re-sends the conversation, so a long chat gets slower and costs more, and eventually no longer fits in the model's context window. The status bar shows **Context: 96k**, the size of the last prompt. From 150k it says "consider compacting" and the **Compact chat** button in the header (arrows icon) turns yellow.
+
+Press it to have the older turns summarized. The summary is written by the small model (Claude Haiku 4.5 or GPT-6 Luna, whichever key you have), and from then on it is sent in place of those turns, followed by the most recent part of the chat (roughly the last 10k tokens) exactly as it was.
+
+- Your chat on screen does not change; a notice says how many messages were replaced. **Stop** cancels a compaction in progress and leaves the chat unchanged.
+- Nothing is deleted. The saved chat file keeps every message, so a compacted chat can still be searched and exported in full. Compacting again later summarizes the previous summary together with what came after it.
+- The first request afterwards re-reads the whole prompt once, so it costs like the first message of a chat. The summarizing request itself is not counted in the token totals.
+- A summary can lose detail. If the assistant seems to have forgotten something, say it again. For a task that is nearly finished, starting a new chat can work better.
+- Nothing happens for a short chat ("not enough older history"). Current Claude models also compact on the server side; this button works with every model and is what shortens OpenAI chats.
+
 ### Export
 
 The download button in the chat header (*Export chat*) asks where to save and writes the chat as a Markdown file: your messages, the assistant's answers, and the diffs and commands it proposed. Tool output and the assistant's thinking are left out.

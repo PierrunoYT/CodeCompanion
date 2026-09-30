@@ -61,6 +61,8 @@ export interface InvokeApi {
   'chat:send': (message: UserMessage) => void;
   'chat:stop': () => void;
   'chat:resume': () => void;
+  // Replaces older turns, in what is sent to the model, by a summary. Settles when the summary is in place.
+  'chat:compact': () => void;
   'chat:new': () => ChatSnapshot;
   'chat:decide': (approvalId: string, decision: ApprovalDecision) => void;
   // Asks where to save, writes the current chat as Markdown and returns the path (null if cancelled).
@@ -125,6 +127,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'chat:send': true,
   'chat:stop': true,
   'chat:resume': true,
+  'chat:compact': true,
   'chat:new': true,
   'chat:decide': true,
   'chat:export': true,

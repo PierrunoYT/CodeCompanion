@@ -49,7 +49,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 
 ### Features
 
-- [ ] Add a "compact chat" action that summarizes old turns when a chat nears the context limit, keeping the history append-only
+- [x] Add a "compact chat" action that summarizes old turns when a chat nears the context limit, keeping the history append-only
 - [ ] Add an undo for the last approved file edit (keep a backup per edit, restore from the diff card)
 - [ ] Show the running cost of a chat in the chat list, not only in the status bar
 - [ ] Add a per-project setting for allowed commands and network hosts (today they are global)

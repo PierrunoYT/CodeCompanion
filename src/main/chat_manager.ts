@@ -90,6 +90,13 @@ export class ChatManager {
     return this.session.resume();
   }
 
+  // Summarizes the older turns of the open chat. Setup problems throw at once; the result is shown as a notice.
+  compact(): Promise<void> {
+    if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
+    if (!this.session || this.session.isEmpty) throw new Error('There is no chat to compact yet.');
+    return this.session.compact();
+  }
+
   decide(approvalId: string, decision: ApprovalDecision): void {
     this.session?.decide(approvalId, decision);
   }

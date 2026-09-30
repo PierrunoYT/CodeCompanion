@@ -1,6 +1,6 @@
 import { applyChatEvent, type ChatEvent, type ChatSnapshot } from '@shared/chat';
 import type { ImageAttachment } from '@shared/ipc';
-import { estimateCost, formatCost, MODEL_OPTIONS, providerForModel } from '@shared/models';
+import { COMPACT_SUGGESTED_TOKENS, estimateCost, formatCost, MODEL_OPTIONS, providerForModel } from '@shared/models';
 import type { ProjectInfo } from '@shared/project';
 import type { SettingsView } from '@shared/settings';
 import { h, icon, setChildren } from './dom';
@@ -40,7 +40,8 @@ export class App {
   private readonly agentLabel = h('span', { class: 'status-item' });
   private readonly modeButton = h('button', { class: 'btn btn-sm mode-button', onclick: () => this.toggleMode() });
   private readonly titleLabel = h('span', { class: 'chat-title text-truncate' });
-  private readonly usageLabel = h('span', { class: 'status-item ms-auto' });
+  private readonly contextLabel = h('span', { class: 'status-item ms-auto', hidden: true });
+  private readonly usageLabel = h('span', { class: 'status-item' });
   private readonly chatScroll = h('div', { class: 'chat-scroll' });
   private readonly welcome = h('div', { class: 'welcome' });
   private readonly toastArea = h('div', { class: 'toast-area' });
@@ -48,6 +49,11 @@ export class App {
     () => this.settings.theme,
     (error) => this.toast(error),
     () => this.project !== null,
+  );
+  private readonly compactButton = h(
+    'button',
+    { class: 'btn btn-sm btn-outline-secondary', 'aria-label': 'Compact chat', onclick: () => void this.compactChat() },
+    icon('arrows-collapse'),
   );
   private readonly exportButton = h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Export this chat as Markdown', 'aria-label': 'Export chat', onclick: () => void this.exportChat() }, icon('download'));
   private readonly panelHost = h('div', { class: 'panel-host' }, this.panels.element);
@@ -134,6 +140,7 @@ export class App {
           this.modeButton,
           this.panelButton,
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'New chat (Ctrl+N)', onclick: () => void this.newChat() }, icon('plus-lg'), ' New chat'),
+          this.compactButton,
           this.exportButton,
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Chat history', onclick: () => void this.openHistory() }, icon('clock-history')),
           h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() }, icon('gear')),
@@ -146,7 +153,7 @@ export class App {
         h('section', { class: 'chat-pane' }, h('div', { class: 'chat-scroll-wrap' }, this.chatScroll), this.composer.element),
         this.panelHost,
       ),
-      h('footer', { class: 'app-footer' }, this.modelLabel, this.agentLabel, this.usageLabel),
+      h('footer', { class: 'app-footer' }, this.modelLabel, this.agentLabel, this.contextLabel, this.usageLabel),
       this.toastArea,
     );
   }
@@ -184,6 +191,18 @@ export class App {
 
     this.titleLabel.textContent = this.chat.transcript.length > 0 ? this.chat.title : '';
     this.exportButton.disabled = this.chat.transcript.length === 0;
+
+    // How full the context is: the size of the last request's prompt. Nudge towards compacting once it is large.
+    const contextTokens = this.chat.usage.contextTokens;
+    const nearLimit = contextTokens !== undefined && contextTokens >= COMPACT_SUGGESTED_TOKENS;
+    this.compactButton.disabled = this.chat.transcript.length === 0 || this.chat.busy;
+    this.compactButton.className = `btn btn-sm ${nearLimit ? 'btn-warning' : 'btn-outline-secondary'}`;
+    this.compactButton.title = nearLimit
+      ? `The prompt is about ${format(contextTokens)} tokens. Summarize the older messages to free up context.`
+      : 'Compact chat: summarize the older messages to free up context';
+    this.contextLabel.hidden = contextTokens === undefined;
+    this.contextLabel.textContent = contextTokens === undefined ? '' : `Context: ${format(contextTokens)}${nearLimit ? ' · consider compacting' : ''}`;
+    this.contextLabel.classList.toggle('text-warning-emphasis', nearLimit);
 
     const auto = this.settings.approvalMode === 'auto';
     this.modeButton.className = `btn btn-sm mode-button ${auto ? 'btn-warning' : 'btn-outline-secondary'}`;
@@ -377,6 +396,14 @@ export class App {
       indexStatus: () => api.invoke('index:status'),
       rebuildIndex: () => api.invoke('index:rebuild'),
     });
+  }
+
+  private async compactChat(): Promise<void> {
+    try {
+      await api.invoke('chat:compact');
+    } catch (error) {
+      this.toast(error);
+    }
   }
 
   private async exportChat(): Promise<void> {

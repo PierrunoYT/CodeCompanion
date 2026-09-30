@@ -100,6 +100,10 @@ export function formatCost(dollars: number): string {
 
 export const EMBEDDING_MODEL = 'text-embedding-3-small';
 
+// Prompt size (tokens) from which the app suggests compacting the chat. One value for every model: context windows
+// differ (and are unknown for custom endpoints), so this is a nudge well below the common 200k, not a limit.
+export const COMPACT_SUGGESTED_TOKENS = 150_000;
+
 // Any model id can be entered in settings; ids starting with "claude" go to Anthropic, the rest to the
 // OpenAI-compatible endpoint.
 export function providerForModel(model: string): Provider {

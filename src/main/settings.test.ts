@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -81,6 +81,75 @@ describe('SettingsStore', () => {
     store.setSecret('googleApiKey', 'g-key');
     expect(store.view().secretsEncrypted).toBe(false);
     expect(new SettingsStore(file, noCipher).getSecret('googleApiKey')).toBe('g-key');
+  });
+
+  it('migrates loaded plaintext keys before reporting encryption', () => {
+    const plain = new SettingsStore(file, noCipher);
+    plain.setSecret('googleApiKey', 'g-key');
+    plain.setSecret('openaiApiKey', 'o-key');
+    const store = new SettingsStore(file, reversingCipher);
+    const disk = JSON.parse(readFileSync(file, 'utf8'));
+    expect(disk.secrets.googleApiKey).toBe(reversingCipher.encrypt('g-key'));
+    expect(disk.secrets.openaiApiKey).toBe(reversingCipher.encrypt('o-key'));
+    expect(store.view().secretsEncrypted).toBe(true);
+    expect(new SettingsStore(file, reversingCipher).getSecret('googleApiKey')).toBe('g-key');
+  });
+
+  it('migrates when the cipher becomes available in the current process', () => {
+    let available = false;
+    const store = new SettingsStore(file, { ...reversingCipher, isAvailable: () => available });
+    store.setSecret('googleApiKey', 'g-key');
+    available = true;
+    expect(store.view().secretsEncrypted).toBe(true);
+    expect(JSON.parse(readFileSync(file, 'utf8')).secrets.googleApiKey).toBe(reversingCipher.encrypt('g-key'));
+    available = false;
+    expect(store.view().secretsEncrypted).toBe(true);
+  });
+
+  it('retains every plaintext key if encryption fails partway through migration', () => {
+    const plain = new SettingsStore(file, noCipher);
+    plain.setSecret('anthropicApiKey', 'a-key');
+    plain.setSecret('googleApiKey', 'g-key');
+    const original = readFileSync(file, 'utf8');
+    const store = new SettingsStore(file, {
+      ...reversingCipher,
+      encrypt(value) {
+        if (value === 'g-key') throw new Error('keychain failed');
+        return reversingCipher.encrypt(value);
+      },
+    });
+    expect(store.view().secretsEncrypted).toBe(false);
+    expect(store.getSecret('anthropicApiKey')).toBe('a-key');
+    expect(store.getSecret('googleApiKey')).toBe('g-key');
+    expect(readFileSync(file, 'utf8')).toBe(original);
+  });
+
+  it('keeps plaintext status and keys when migration cannot be persisted, then recovers', () => {
+    let available = false;
+    const store = new SettingsStore(file, { ...reversingCipher, isAvailable: () => available });
+    store.setSecret('googleApiKey', 'g-key');
+    const backup = join(dir, 'saved.json');
+    renameSync(file, backup);
+    mkdirSync(file);
+    available = true;
+    expect(store.view().secretsEncrypted).toBe(false);
+    expect(store.getSecret('googleApiKey')).toBe('g-key');
+    expect(JSON.parse(readFileSync(backup, 'utf8')).secrets.googleApiKey).toBe('plain:g-key');
+    rmSync(file, { recursive: true });
+    renameSync(backup, file);
+    expect(store.view().secretsEncrypted).toBe(true);
+    expect(new SettingsStore(file, reversingCipher).getSecret('googleApiKey')).toBe('g-key');
+  });
+
+  it('keeps the previous key when saving a replacement fails', () => {
+    const store = new SettingsStore(file, reversingCipher);
+    store.setSecret('googleApiKey', 'original-key');
+    const backup = join(dir, 'saved.json');
+    renameSync(file, backup);
+    mkdirSync(file);
+    expect(() => store.setSecret('googleApiKey', 'replacement-key')).toThrow();
+    expect(store.getSecret('googleApiKey')).toBe('original-key');
+    expect(new SettingsStore(backup, reversingCipher).getSecret('googleApiKey')).toBe('original-key');
   });
 
   it('emits change events', () => {

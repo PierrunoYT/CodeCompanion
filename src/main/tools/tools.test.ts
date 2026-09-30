@@ -80,6 +80,43 @@ describe('Workspace', () => {
     const files = (await context.workspace.listFiles()).map((file) => context.workspace.relative(file));
     expect(files).toEqual(['.gitignore', 'src/app.ts']);
   });
+
+  it.for(['.gitignore', '.ccignore'])('ignores external %s links without applying their rules', async (name, test) => {
+    const outside = mkdtempSync(join(tmpdir(), 'cc-ignore-outside-'));
+    try {
+      const target = join(outside, 'rules');
+      writeFileSync(target, 'src/app.ts\n');
+      rmSync(join(root, name), { force: true });
+      try {
+        symlinkSync(target, join(root, name), 'file');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EPERM') return test.skip();
+        throw error;
+      }
+      const ordinary = name === '.gitignore' ? '.ccignore' : '.gitignore';
+      writeFileSync(join(root, ordinary), '*.log\n');
+      const files = (await context.workspace.listFiles()).map((file) => context.workspace.relative(file));
+      expect(files).toContain('src/app.ts');
+      expect(files).not.toContain('src/dist.log');
+      expect(files).not.toContain(name);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['.gitignore', '.ccignore'])('ignores external %s junctions without trying to read them', async (name) => {
+    const outside = mkdtempSync(join(tmpdir(), 'cc-ignore-junction-'));
+    try {
+      rmSync(join(root, name), { force: true });
+      symlinkSync(outside, join(root, name), 'junction');
+      const files = (await context.workspace.listFiles()).map((file) => context.workspace.relative(file));
+      expect(files).toContain('src/app.ts');
+      expect(files).not.toContain(name);
+    } finally {
+      rmSync(join(root, name), { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('file tools', () => {
@@ -105,8 +142,7 @@ describe('file tools', () => {
       seen.push(...text.split('\n').map((line) => line.split('\t')[1]));
       if (!note) break;
       const next = Number(/Use offset=(\d+)/.exec(note)![1]);
-      expect(note).toMatch(new RegExp(`^Showing lines ${offset}-${next - 1} of 1500 \\(cut to fit 30,000 characters\\)\\.`));
-      expect(result.summary).toBe(`Read big.txt (lines ${offset}-${next - 1} of 1500)`);
+      expect(next).toBeGreaterThan(offset);
       offset = next;
     }
 
@@ -115,21 +151,53 @@ describe('file tools', () => {
     expect(offset).toBeGreaterThan(1);
   });
 
-  it('says why a read stopped when it hit the line limit rather than the size limit', async () => {
+  it('honors the requested whole-line limit', async () => {
     writeFileSync(join(root, 'short-lines.txt'), Array.from({ length: 50 }, (_, index) => `${index}`).join('\n'));
     const result = await call(readFileTool, { path: 'short-lines.txt', limit: 10 });
-    expect(result.content).toContain('(Showing lines 1-10 of 50. Use offset=11 to read more.)');
-    expect(result.content).not.toContain('cut to fit');
+    const [text, note] = result.content.split('\n\n(');
+    expect(text.split('\n').map((line) => line.split('\t')[1])).toEqual(Array.from({ length: 10 }, (_, index) => `${index}`));
+    expect(Number(/Use offset=(\d+)/.exec(note)![1])).toBe(11);
   });
 
-  it('shows the start of a line that is too long on its own, and moves on to the next line', async () => {
-    writeFileSync(join(root, 'min.js'), `${'x'.repeat(50_000)}\nsecond line`);
-    const first = await call(readFileTool, { path: 'min.js' });
-    expect(first.content.length).toBeLessThan(30_300);
-    expect(first.content).toContain('Line 1 is 50,000 characters long; only its start is shown.');
-    expect(first.content).toContain('Use offset=2 to read more.');
-    const second = await call(readFileTool, { path: 'min.js', offset: 2 });
-    expect(second.content).toBe('2\tsecond line');
+  it.each([
+    'x'.repeat(29_998),
+    'x'.repeat(29_999),
+    `${'x'.repeat(29_997)}😀${'é漢😀'.repeat(20_000)}`,
+  ])('reconstructs long lines through the returned continuation without losing Unicode', async (line) => {
+    const original = [line, '', 'last 😀 line'];
+    writeFileSync(join(root, 'min.js'), original.join('\n'));
+    const reconstructed = ['', '', ''];
+    let offset = 1;
+    let char_offset = 0;
+    for (let page = 0; page < 20; page++) {
+      const result = await call(readFileTool, { path: 'min.js', offset, char_offset, limit: 1 });
+      const [text, note] = result.content.split('\n\n(');
+      expect(text.length).toBeLessThanOrEqual(30_000);
+      for (const numbered of text.split('\n')) {
+        const tab = numbered.indexOf('\t');
+        const fragment = numbered.slice(tab + 1);
+        expect(fragment).not.toMatch(/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/u);
+        reconstructed[Number(numbered.slice(0, tab)) - 1] += fragment;
+      }
+      if (!note) break;
+      const next = /Use offset=(\d+)(?: and char_offset=(\d+))?/.exec(note)!;
+      const nextLine = Number(next[1]);
+      const nextChar = Number(next[2] ?? 0);
+      expect(nextLine > offset || (nextLine === offset && nextChar > char_offset)).toBe(true);
+      offset = nextLine;
+      char_offset = nextChar;
+    }
+    expect(reconstructed).toEqual(original);
+  });
+
+  it('validates character offsets and applies them only to the first line', async () => {
+    writeFileSync(join(root, 'unicode.txt'), 'a😀b\nnext');
+    await expect(call(readFileTool, { path: 'unicode.txt', char_offset: 2 })).rejects.toThrow(/surrogate pair/);
+    await expect(call(readFileTool, { path: 'unicode.txt', char_offset: 5 })).rejects.toThrow(/within/);
+    const result = await call(readFileTool, { path: 'unicode.txt', char_offset: 3 });
+    expect(result.content).toBe('1\tb\n2\tnext');
+    const end = await call(readFileTool, { path: 'unicode.txt', char_offset: 4 });
+    expect(end.content).toBe('1\t\n2\tnext');
   });
 
   it('reads a small file whole, with no note', async () => {

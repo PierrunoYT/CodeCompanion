@@ -11,14 +11,15 @@ const DEFAULT_READ_LINES = 2000;
 export const readFileTool = defineTool({
   name: 'read_file',
   description:
-    'Read a text file from the project. Returns the content with line numbers. A large file is returned one page at a time (at most 2,000 lines or 30,000 characters); a note at the end then says which lines were shown and the offset to read the next page. Use offset and limit to read a range. Read a file before editing or overwriting it.',
+    'Read a text file from the project with line numbers. Pages default to 2,000 lines and contain at most 30,000 characters of numbered text. Use offset and limit for whole-line ranges. If a line exceeds the character budget, follow the returned offset and char_offset to read its remainder without losing text. Read a file before editing or overwriting it.',
   schema: z.object({
     path: z.string().describe('File path, relative to the project root.'),
     offset: z.number().int().min(1).optional().describe('First line to read (1-based).'),
     limit: z.number().int().min(1).optional().describe(`Number of lines to read (default ${DEFAULT_READ_LINES}).`),
+    char_offset: z.number().int().min(0).optional().describe('Zero-based UTF-16 code-unit offset within the first requested line (default 0). Use the returned continuation value for an overlong line; subsequent lines start at 0. Must not split a Unicode surrogate pair.'),
   }),
   requiresApproval: false,
-  async run({ path, offset = 1, limit = DEFAULT_READ_LINES }, context) {
+  async run({ path, offset = 1, limit = DEFAULT_READ_LINES, char_offset = 0 }, context) {
     const file = context.workspace.resolve(path);
     if (!existsSync(file)) throw new ToolError(`File not found: ${path}`);
     if (statSync(file).isDirectory()) throw new ToolError(`${path} is a directory. Use list_directory.`);
@@ -27,6 +28,11 @@ export const readFileTool = defineTool({
 
     const lines = (await readFile(file, 'utf8')).split(/\r?\n/);
     const selected = lines.slice(offset - 1, offset - 1 + limit);
+    const first = selected[0] ?? '';
+    if (char_offset > first.length || splitsSurrogatePair(first, char_offset)) {
+      throw new ToolError('char_offset must be within the first requested line and must not split a Unicode surrogate pair.');
+    }
+    if (selected.length > 0) selected[0] = first.slice(char_offset);
     context.readFiles.add(file);
 
     const rel = context.workspace.relative(file);
@@ -34,15 +40,16 @@ export const readFileTool = defineTool({
     const last = offset + page.lines - 1;
     const notes: string[] = [];
     if (page.cutLine) {
-      notes.push(`Line ${offset} is ${selected[0].length.toLocaleString('en-US')} characters long; only its start is shown.`);
-    }
-    if (last < lines.length) {
+      const prefixLength = String(offset + selected.length - 1).length + 1;
+      const nextChar = char_offset + page.text.length - prefixLength;
+      notes.push(`Line ${offset} continues. Use offset=${offset} and char_offset=${nextChar} to read more.`);
+    } else if (last < lines.length) {
       const reason = page.lines < selected.length ? ` (cut to fit ${MAX_OUTPUT_CHARS.toLocaleString('en-US')} characters)` : '';
-      notes.push(`Showing lines ${offset}-${last} of ${lines.length}${reason}. Use offset=${last + 1} to read more.`);
+      notes.push(`Showing lines ${offset}-${last} of ${lines.length}${reason}. Use offset=${last + 1}${char_offset > 0 ? ' and char_offset=0' : ''} to read more.`);
     }
     return {
       content: page.text + (notes.length > 0 ? `\n\n(${notes.join(' ')})` : ''),
-      summary: last < lines.length || offset > 1 ? `Read ${rel} (lines ${offset}-${last} of ${lines.length})` : `Read ${rel} (${lines.length} lines)`,
+      summary: page.cutLine || last < lines.length || offset > 1 || char_offset > 0 ? `Read ${rel} (lines ${offset}-${last} of ${lines.length})` : `Read ${rel} (${lines.length} lines)`,
       path: rel,
     };
   },
@@ -188,9 +195,7 @@ export const editFileTool = defineTool({
   },
 });
 
-// The first whole lines that fit in `budget` characters, so a large file is read page by page with nothing missing in
-// between (cutting the middle out would leave the model a gap it may not notice). A first line that alone is longer
-// than the budget, as in minified code, is cut so something is still shown.
+// Keep whole lines when possible. An overlong first line is split at a Unicode-safe boundary and continued explicitly.
 export function fitLines(lines: string[], budget: number): { text: string; lines: number; cutLine: boolean } {
   let size = 0;
   let count = 0;
@@ -200,8 +205,17 @@ export function fitLines(lines: string[], budget: number): { text: string; lines
     size = next;
     count++;
   }
-  if (count === 0 && lines.length > 0) return { text: lines[0].slice(0, budget), lines: 1, cutLine: true };
+  if (count === 0 && lines.length > 0) {
+    const end = splitsSurrogatePair(lines[0], budget) ? budget - 1 : budget;
+    return { text: lines[0].slice(0, end), lines: 1, cutLine: true };
+  }
   return { text: lines.slice(0, count).join('\n'), lines: count, cutLine: false };
+}
+
+function splitsSurrogatePair(text: string, offset: number): boolean {
+  const before = text.charCodeAt(offset - 1);
+  const after = text.charCodeAt(offset);
+  return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
 }
 
 function requireRead(file: string, path: string, context: ToolContext): void {

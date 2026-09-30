@@ -34,6 +34,7 @@ export class SettingsStore extends EventEmitter {
     const stored = readJson<StoredSettings>(path, { settings: {}, secrets: {} });
     this.settings = sanitize({ ...DEFAULT_SETTINGS, ...stored.settings });
     this.secrets = stored.secrets ?? {};
+    this.migratePlainSecrets();
   }
 
   get(): Settings {
@@ -41,20 +42,25 @@ export class SettingsStore extends EventEmitter {
   }
 
   view(): SettingsView {
+    this.migratePlainSecrets();
     const secrets = Object.fromEntries(SECRET_NAMES.map((name) => [name, Boolean(this.secrets[name])])) as Record<
       SecretName,
       boolean
     >;
-    return { ...this.settings, secrets, secretsEncrypted: this.cipher.isAvailable() };
+    const stored = Object.values(this.secrets).filter(Boolean);
+    const secretsEncrypted = stored.length > 0
+      ? stored.every((value) => !value.startsWith('plain:'))
+      : this.cipher.isAvailable();
+    return { ...this.settings, secrets, secretsEncrypted };
   }
 
   update(patch: Partial<Settings>): SettingsView {
-    this.settings = sanitize({ ...this.settings, ...pickKnown(patch) });
-    this.persist();
+    this.persist(sanitize({ ...this.settings, ...pickKnown(patch) }), this.secrets);
     return this.view();
   }
 
   getSecret(name: SecretName): string {
+    this.migratePlainSecrets();
     const stored = this.secrets[name];
     if (!stored) return '';
     if (stored.startsWith('plain:')) return stored.slice('plain:'.length);
@@ -67,19 +73,38 @@ export class SettingsStore extends EventEmitter {
 
   setSecret(name: SecretName, value: string): SettingsView {
     const trimmed = value.trim();
+    const secrets = { ...this.secrets };
     if (!trimmed) {
-      delete this.secrets[name];
+      delete secrets[name];
     } else if (this.cipher.isAvailable()) {
-      this.secrets[name] = this.cipher.encrypt(trimmed);
+      secrets[name] = this.cipher.encrypt(trimmed);
     } else {
-      this.secrets[name] = `plain:${trimmed}`;
+      secrets[name] = `plain:${trimmed}`;
     }
-    this.persist();
+    this.persist(this.settings, secrets);
     return this.view();
   }
 
-  private persist(): void {
-    writeJson(this.path, { settings: this.settings, secrets: this.secrets } satisfies StoredSettings);
+  private migratePlainSecrets(): void {
+    if (!this.cipher.isAvailable() || !Object.values(this.secrets).some((value) => value?.startsWith('plain:'))) return;
+    // Stage the complete migration before writing or changing memory. A failed cipher or write must leave keys usable.
+    try {
+      const secrets = { ...this.secrets };
+      for (const name of SECRET_NAMES) {
+        const value = secrets[name];
+        if (value?.startsWith('plain:')) secrets[name] = this.cipher.encrypt(value.slice('plain:'.length));
+      }
+      writeJson(this.path, { settings: this.settings, secrets } satisfies StoredSettings);
+      this.secrets = secrets;
+    } catch {
+      // Retain the original storage representation; a later access can retry when encryption/storage recovers.
+    }
+  }
+
+  private persist(settings: Settings, secrets: Partial<Record<SecretName, string>>): void {
+    writeJson(this.path, { settings, secrets } satisfies StoredSettings);
+    this.settings = settings;
+    this.secrets = secrets;
     this.emit('change', this.view());
   }
 }

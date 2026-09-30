@@ -100,8 +100,13 @@ export class Workspace {
     if (!this.ignoreRules) {
       const rules = ignore().add(ALWAYS_IGNORED);
       for (const name of ['.gitignore', '.ccignore']) {
-        const file = join(this.root, name);
-        if (existsSync(file)) rules.add(readFileSync(file, 'utf8'));
+        try {
+          const file = this.resolve(name);
+          if (existsSync(file)) rules.add(readFileSync(file, 'utf8'));
+        } catch (error) {
+          // Ignore rules cannot opt a project into reading outside its root, including through dangling links.
+          if (!(error instanceof ToolError)) throw error;
+        }
       }
       this.ignoreRules = rules;
     }

@@ -173,7 +173,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     {},
     h('h3', { class: 'h6 text-body-secondary' }, 'API keys'),
     !settings.secretsEncrypted
-      ? h('div', { class: 'alert alert-warning py-2 small' }, 'System encryption is unavailable, so keys are stored unencrypted.')
+      ? h('div', { class: 'alert alert-warning py-2 small' }, 'Keys are stored unencrypted. System encryption may be unavailable or migration may have failed.')
       : null,
     ...secretFields,
     h('h3', { class: 'h6 text-body-secondary mt-4' }, 'Assistant'),

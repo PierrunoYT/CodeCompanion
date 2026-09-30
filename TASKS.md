@@ -29,6 +29,37 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [ ] ~~Test on macOS: build the DMG, check signing and notarization~~ (won't fix for now)
 - [ ] ~~Test on Linux (`node-pty` compiles from source there) and add a Linux build target~~ (won't fix for now)
 
+## Next: 0.2.0 (planned)
+
+Proposed, in rough priority order. Reorder or drop as you see fit.
+
+### Reliability
+
+- [ ] Add unit tests for `chat_store`, `projects` and `files` (only `chat_manager`, `settings` and `stores` are covered in `src/main`)
+- [ ] Add unit tests for the agent loop (`src/main/agent`): stop, resume, tool-result pairing and error paths
+- [ ] Log dropped-field tool errors (tool name and missing fields, never file contents) to make the open `edit_file` bug measurable
+- [ ] Retry transient provider errors (429, 5xx, network) with backoff, and show the retry in the chat
+
+### Features
+
+- [ ] Add a "compact chat" action that summarizes old turns when a chat nears the context limit, keeping the history append-only
+- [ ] Add an undo for the last approved file edit (keep a backup per edit, restore from the diff card)
+- [ ] Show the running cost of a chat in the chat list, not only in the status bar
+- [ ] Add a per-project setting for allowed commands and network hosts (today they are global)
+- [ ] Let the user attach an image to a message for models that accept images, gated behind `claudeCapabilities`
+
+### Quality
+
+- [ ] Add an end-to-end test for stop and resume of a long agent run
+- [ ] Add an end-to-end test for multi-project switching (separate chats and drafts)
+- [ ] Add a size limit and truncation notice for very large tool results shown in the UI
+- [ ] Review the renderer for long-chat performance (virtualize or paginate the message list) and record a measurement
+
+### Docs
+
+- [ ] Add a short user guide (`docs/USAGE.md`) covering approvals, allow-lists, resume and export
+- [ ] Keep `CHANGELOG.md` `[Unreleased]` in sync as each item above lands
+
 ## Project setup
 
 - [x] Prepare Amp orb lifecycle scripts with snapshot dependency reuse and headless Electron test prerequisites

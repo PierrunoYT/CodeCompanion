@@ -118,6 +118,7 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - [ ] Bring the Linux and macOS CI jobs back once `node-pty` works on the macOS runners and `long_run` passes on Linux ([#14](https://github.com/PierrunoYT/patch/issues/14))
 - [x] Add Prettier with `format` and `format:check` scripts, and a CI job that checks formatting
 - [x] Add ESLint with typescript-eslint (`npm run lint`), a CI lint job, and a rule against Node globals in the renderer
+- [x] Require one approving review for pull requests into `main` (ruleset "Require approval on main", admin bypass)
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them)
 - [x] Add more README screenshots (settings, Git and browser panels) without local paths

@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Fixed
+- A command is no longer started when Stop was pressed just before it could run; the stop used to be missed and the command ran to the end.
+
 ## [0.3.0] - 2026-09-30
 
 ### Fixed

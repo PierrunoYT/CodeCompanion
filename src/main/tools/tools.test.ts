@@ -369,6 +369,16 @@ describe('shell tools', () => {
     expect(result.aborted).toBe(true);
   }, 20_000);
 
+  it('does not start a command when the chat was stopped before it could run', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const marker = join(root, 'should-not-exist.txt');
+    const result = await context.shell.run(`node -e "require('fs').writeFileSync('should-not-exist.txt','x')"`, { signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    expect(result.aborted).toBe(true);
+    expect(existsSync(marker)).toBe(false);
+  }, 20_000);
+
   it('starts background commands and reads their output', async () => {
     const command =
       process.platform === 'win32'

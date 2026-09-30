@@ -48,6 +48,8 @@ export class ShellRunner {
     { timeoutSeconds = DEFAULT_TIMEOUT_SECONDS, signal, onOutput }: { timeoutSeconds?: number; signal?: AbortSignal; onOutput?: (text: string) => void } = {},
   ): Promise<CommandResult> {
     return new Promise((resolve) => {
+      // A stop that came in before the command could start: an abort listener added now would never fire.
+      if (signal?.aborted) return resolve({ exitCode: null, output: '', timedOut: false, aborted: true });
       const child = this.spawn(command);
       let output = '';
       let timedOut = false;

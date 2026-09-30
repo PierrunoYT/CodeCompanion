@@ -491,8 +491,6 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
   search.focus();
 }
 
-// One line per server for the settings dialog: "docs: connected — 3 tools" or the error.
-
 // The renderer never sees secret values, only their names. Show each stored key with an empty value so saving keeps
 // it; a key the user deletes is removed, and a value they type replaces the stored one.
 function mcpServersForEditing(servers: McpServerView[]): string {
@@ -508,6 +506,7 @@ function mcpServersForEditing(servers: McpServerView[]): string {
   return JSON.stringify(editable, null, 2);
 }
 
+// One line per server for the settings dialog: "docs: connected — 3 tools" or the error.
 function describeMcpStatus(statuses: McpStatus[]): string {
   if (statuses.length === 0) return 'No MCP servers configured.';
   return statuses

@@ -10,16 +10,6 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
-- MCP server tools always ask for approval, including in Auto mode. A server's environment variables and HTTP headers are encrypted at rest and never sent to the renderer, and a server that fails to connect or a quit closes its process instead of leaving it running.
-
-
-
-
-
-
-- Model Context Protocol (MCP) client support: configure servers in Settings as JSON (stdio child processes or Streamable HTTP endpoints). Their tools are offered to the agent namespaced as `mcp_<server>_<tool>`, always behind an approval card, and per-server connection status is shown in the dialog.
-
-
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.
 - Workspace tools for reading, searching and editing files, running foreground and background commands, fetching pages, web search and optional semantic code search.
 - Approval cards with command and diff previews, feedback when declining, Ask first and Auto modes, and global and per-project command and network allow-lists.
@@ -34,6 +24,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Prettier formatting for the whole repository (`npm run format`, `npm run format:check`), enforced by a `format` job in CI.
 - ESLint with the typescript-eslint recommended rules (`eslint.config.mjs`, `npm run lint`), enforced by a `lint` job in CI. Renderer code may not use Node globals such as `process` or `require`. Test files, the end-to-end harness, performance measurements and mock servers may use `any`; production sources may not.
 - Stricter TypeScript checks (`noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters`, `forceConsistentCasingInFileNames`) in both tsconfigs, and a declared minimum Node version (`engines.node` `>=22.12.0`).
+- A task interrupted by a crash can be resumed: the conversation is checkpointed after every tool batch, and on load a chat whose history ends with unanswered tool calls offers Resume, which repairs the history with synthetic failed results and continues.
+- Model Context Protocol (MCP) client support: configure servers in Settings as JSON (stdio child processes or Streamable HTTP endpoints). Their tools are offered to the agent namespaced as `mcp_<server>_<tool>` and always ask for approval, including in Auto mode. Per-server connection status is shown in the dialog. A server's environment variables and HTTP headers are encrypted at rest and never sent to the renderer, and a server that fails to connect, or the app quitting, closes its process tree instead of leaving it running.
 
 ### Changed
 

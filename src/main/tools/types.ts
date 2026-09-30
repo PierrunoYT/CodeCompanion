@@ -32,8 +32,6 @@ export interface ToolPreview {
   title: string;
   diff?: string;
   command?: string;
-  // Free-form markdown (e.g. the plan in plan mode) shown on the approval card instead of a diff or command.
-  text?: string;
 }
 
 export interface CodeSearch {

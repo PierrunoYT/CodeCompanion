@@ -76,13 +76,14 @@ export function estimateCost(
   if (!officialProvider) return null;
   const price = MODEL_PRICING[model];
   if (!price) return null;
-  const long = usage.longContext;
+  // Long-context tokens are split out only when the model has a long-context price; otherwise they stay at list price.
+  const longPrice = price.longContext;
+  const long = longPrice ? usage.longContext : undefined;
   const shortCost =
     (usage.inputTokens - (long?.inputTokens ?? 0)) * price.input +
     (usage.outputTokens - (long?.outputTokens ?? 0)) * price.output +
     (usage.cacheReadTokens - (long?.cacheReadTokens ?? 0)) * price.cacheRead +
     ((usage.cacheWriteTokens ?? 0) - (long?.cacheWriteTokens ?? 0)) * price.cacheWrite;
-  const longPrice = price.longContext;
   const longCost =
     long && longPrice
       ? long.inputTokens * longPrice.input +

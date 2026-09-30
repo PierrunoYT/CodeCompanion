@@ -41,6 +41,9 @@ class StreamingConversation implements Conversation {
     return null;
   }
   applyCompaction(): void {}
+  hasPendingToolCalls(): boolean {
+    return false;
+  }
 }
 
 function session(items: TranscriptItem[], onEvent: (event: ChatEvent) => void): ChatSession {

@@ -85,10 +85,12 @@ export class ChatSession {
     this.createdAt = options.createdAt ?? new Date().toISOString();
     this.updatedAt = this.createdAt;
     this.title = options.title ?? 'New chat';
-    this.transcript = options.transcript ?? [];
+    this.transcript = options.transcript ? closeStaleRows(options.transcript) : [];
     this.readFiles = new Set(options.readFiles ?? []);
     this.notes = [...(options.pendingNotes ?? [])];
-    this.resumable = options.resumable ?? false;
+    // A chat whose saved history ends in unanswered tool calls was interrupted by a crash; it resumes like a
+    // user-stopped run.
+    this.resumable = (options.resumable ?? false) || options.conversation.hasPendingToolCalls();
     this.agent = new Agent({
       conversation: options.conversation,
       system: options.system,
@@ -97,6 +99,7 @@ export class ChatSession {
       isPreApproved: options.isPreApproved,
       requestApproval: (id, signal) => this.waitForApproval(id, signal),
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
+      onCheckpoint: () => this.options.onChange(true),
       emit: (event) => this.emit(event),
       onDroppedFields: options.onDroppedFields,
       onEditApplied: options.onEditApplied,
@@ -342,4 +345,21 @@ export class ChatSession {
     this.title = title;
     this.emit({ type: 'title', title });
   }
+}
+
+// A chat saved while a crash interrupted it can hold tool rows that never finished (the crash happened before
+// their end event was saved). No session is running while a chat is being loaded, so such rows are stale; mark
+// them failed so they do not render as running forever.
+function closeStaleRows(items: TranscriptItem[]): TranscriptItem[] {
+  return items.map((item) => {
+    // A crash while an answer streams saves the row still marked streaming; nothing will finish it on load.
+    if (item.kind === 'assistant' && item.streaming) return { ...item, streaming: false };
+    if (item.kind !== 'tool' || (item.status !== 'running' && item.status !== 'awaiting-approval')) return item;
+    return {
+      ...item,
+      status: 'error' as const,
+      summary: `${item.name} was interrupted`,
+      output: item.output ?? 'Interrupted by an app restart before this action finished.',
+    };
+  });
 }

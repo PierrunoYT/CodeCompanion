@@ -23,6 +23,7 @@ import type {
   TurnResult,
   UserInput,
 } from './types';
+import { INTERRUPTED_TOOL_RESULT } from './types';
 
 type InputItem = OpenAI.Responses.ResponseInputItem;
 
@@ -139,6 +140,9 @@ export class OpenAIResponsesConversation implements Conversation {
   }
 
   addUserMessage(input: UserInput): void {
+    // A history saved mid-task can end with function calls that never got outputs (an app crash); the API rejects
+    // requests until they are closed, so answer them synthetically before appending the new message.
+    this.closePendingToolCalls();
     this.items.push({
       role: 'user',
       content: [
@@ -165,6 +169,32 @@ export class OpenAIResponsesConversation implements Conversation {
     if (images.length > 0) {
       this.addUserMessage({ text: 'Images returned by the tool calls above.', images });
     }
+  }
+
+  hasPendingToolCalls(): boolean {
+    return this.pendingCallIds().length > 0;
+  }
+
+  // Unanswered function calls of the latest batch only. A batch is stored as its calls followed by their outputs, so
+  // both are collected and a call with an output in the batch is answered. Compatible servers reuse call ids across
+  // turns, so matching against the whole history would treat a new call that reuses an answered id as answered.
+  private pendingCallIds(): string[] {
+    const calls: string[] = [];
+    const answered = new Set<string>();
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const item = this.items[i];
+      if (!item) continue;
+      if (item.type === 'function_call_output' && item.call_id) answered.add(item.call_id);
+      else if (item.type === 'function_call') calls.unshift(item.call_id);
+      else break;
+    }
+    return calls.filter((id) => !answered.has(id));
+  }
+
+  private closePendingToolCalls(): void {
+    const pending = this.pendingCallIds();
+    if (pending.length === 0) return;
+    this.addToolResults(pending.map((id) => ({ id, content: INTERRUPTED_TOOL_RESULT, isError: true })));
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {

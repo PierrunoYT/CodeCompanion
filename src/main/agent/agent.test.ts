@@ -22,6 +22,8 @@ class ScriptedConversation implements Conversation {
   readonly users: UserInput[] = [];
   readonly toolResults: ToolResult[][] = [];
   turns = 0;
+  // Simulates a chat saved mid-task: the history ends with tool calls that have no results.
+  pending = false;
 
   constructor(
     private readonly steps: Step[],
@@ -36,6 +38,11 @@ class ScriptedConversation implements Conversation {
 
   addToolResults(results: ToolResult[]): void {
     this.toolResults.push(results);
+    this.pending = false;
+  }
+
+  hasPendingToolCalls(): boolean {
+    return this.pending;
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {
@@ -118,11 +125,14 @@ function setup(
     pendingNotes = undefined as string[] | undefined,
     smallModel = (() => null) as ChatSessionOptions['smallModel'],
     onEditApplied = undefined as ChatSessionOptions['onEditApplied'],
+    pending = false,
   } = {},
 ) {
   ran.length = 0;
   const conversation = new ScriptedConversation(steps, provider);
+  conversation.pending = pending;
   const events: ChatEvent[] = [];
+  const saves: boolean[] = [];
   const session = new ChatSession({
     projectPath: '/project',
     conversation,
@@ -149,7 +159,7 @@ function setup(
     smallModel,
     onEditApplied,
     onEvent: (event) => events.push(event),
-    onChange: () => {},
+    onChange: (immediate) => saves.push(immediate),
   });
   const nextApproval = () =>
     new Promise<string>((resolve) => {
@@ -162,7 +172,7 @@ function setup(
       };
       check();
     });
-  return { conversation, session, events, nextApproval };
+  return { conversation, session, events, saves, nextApproval };
 }
 
 describe('agent loop', () => {
@@ -371,6 +381,19 @@ describe('agent loop', () => {
     await resuming;
     await expect(session.resume()).rejects.toThrow(/no stopped run/);
     expect(conversation.users.map((user) => user.text).filter((text) => text === 'start once')).toHaveLength(1);
+  });
+
+  it('closes rows a crash left running or still streaming when the chat is reopened', () => {
+    const { session } = setup([], {
+      transcript: [
+        { kind: 'assistant', id: 'a1', text: 'Half an answer', thinking: '', streaming: true },
+        { kind: 'tool', id: 't1', name: 'read_file', status: 'running' },
+      ],
+    });
+    expect(session.snapshot().transcript).toEqual([
+      { kind: 'assistant', id: 'a1', text: 'Half an answer', thinking: '', streaming: false },
+      expect.objectContaining({ kind: 'tool', id: 't1', status: 'error', summary: 'read_file was interrupted' }),
+    ]);
   });
 
   it('persists resumable state for a reopened chat', async () => {
@@ -904,5 +927,37 @@ describe('agent loop', () => {
     await session.send({ text: 'two' });
     expect(first.usage.longContext?.inputTokens).toBe(280_000);
     expect(session.snapshot().usage.longContext?.inputTokens).toBe(560_000);
+  });
+});
+
+describe('crash recovery', () => {
+  it('saves a checkpoint immediately after every tool-result batch', async () => {
+    const { session, saves } = setup([
+      { toolCalls: [{ id: 't1', name: 'look', input: { what: 'a' } }] },
+      { toolCalls: [{ id: 't2', name: 'look', input: { what: 'b' } }] },
+      { text: 'done' },
+    ]);
+    await session.send({ text: 'go' });
+    // Two checkpoints (one per tool batch) plus the immediate save when the run finishes.
+    expect(saves.filter((immediate) => immediate)).toHaveLength(3);
+  });
+
+  it('treats a conversation with unanswered tool calls as resumable', async () => {
+    const { session } = setup([{ text: 'Continued.' }], { pending: true });
+    expect(session.snapshot().resumable).toBe(true);
+
+    await session.resume();
+    expect(session.snapshot().resumable).toBe(false);
+  });
+
+  it('marks tool rows left unfinished by a crash as interrupted', () => {
+    const { session } = setup([{ text: 'ok' }], {
+      transcript: [
+        { kind: 'user', id: 'u1', text: 'go', imageCount: 0 },
+        { kind: 'tool', id: 't1', name: 'look', status: 'running' },
+      ],
+    });
+    const tool = session.snapshot().transcript.find((item) => item.kind === 'tool');
+    expect(tool).toMatchObject({ status: 'error', summary: 'look was interrupted' });
   });
 });

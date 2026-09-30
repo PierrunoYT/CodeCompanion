@@ -31,6 +31,9 @@ export interface AgentOptions {
   isPreApproved?: (toolName: string, input: unknown) => boolean;
   requestApproval: (id: string, signal: AbortSignal) => Promise<ApprovalDecision>;
   toolContext: (signal: AbortSignal, onProgress: (text: string) => void) => ToolContext;
+  // Called after every tool-result batch is appended to the conversation, so a crash mid-task can be resumed
+  // from the last completed batch instead of losing the whole run.
+  onCheckpoint?: () => void;
   emit: (event: ChatEvent) => void;
   // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
   onDroppedFields?: (error: DroppedFieldError) => void;
@@ -140,6 +143,7 @@ export class Agent {
       const truncated = result.stopReason === 'max_tokens' || result.stopReason === 'context_exceeded';
       const { results, stop } = await this.runTools(tools, result.toolCalls, truncated, signal);
       conversation.addToolResults(results);
+      this.options.onCheckpoint?.();
       if (stop || signal.aborted) return signal.aborted;
     }
 

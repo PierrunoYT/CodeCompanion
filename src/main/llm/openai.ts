@@ -26,6 +26,7 @@ import type {
   TurnResult,
   UserInput,
 } from './types';
+import { INTERRUPTED_TOOL_RESULT } from './types';
 
 type MessageParam = OpenAI.Chat.ChatCompletionMessageParam;
 
@@ -104,6 +105,9 @@ export class OpenAIConversation implements Conversation {
   }
 
   addUserMessage(input: UserInput): void {
+    // A history saved mid-task can end with tool calls that never got results (an app crash); the API rejects
+    // requests until they are closed, so answer them synthetically before appending the new message.
+    this.closePendingToolCalls();
     if (!input.images?.length) {
       this.messages.push({ role: 'user', content: input.text });
       return;
@@ -134,6 +138,19 @@ export class OpenAIConversation implements Conversation {
     if (images.length > 0) {
       this.addUserMessage({ text: 'Images returned by the tool calls above.', images });
     }
+  }
+
+  hasPendingToolCalls(): boolean {
+    const last = this.messages[this.messages.length - 1];
+    return last?.role === 'assistant' && 'tool_calls' in last && (last.tool_calls?.length ?? 0) > 0;
+  }
+
+  private closePendingToolCalls(): void {
+    if (!this.hasPendingToolCalls()) return;
+    const last = this.messages[this.messages.length - 1];
+    if (!last || last.role !== 'assistant' || !('tool_calls' in last)) return;
+    const ids = (last.tool_calls ?? []).flatMap((call) => (call.id ? [call.id] : []));
+    this.addToolResults(ids.map((id) => ({ id, content: INTERRUPTED_TOOL_RESULT, isError: true })));
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {

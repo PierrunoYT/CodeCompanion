@@ -14,7 +14,9 @@ Contributions are welcome. This document describes the process.
 
 - Fork the repository and create your branch from `main`.
 - Add tests for new behavior: unit tests next to the code (`*.test.ts`), end-to-end tests in `tests/e2e/` for user-visible changes.
-- Make sure `npm run typecheck` and `npm test` pass.
+- Make sure `npm run format:check`, `npm run lint`, `npm run typecheck` and `npm test` pass; CI runs the same checks. `npm run format` fixes formatting.
+- Base your branch on the current `main`, not on another open pull request. Stacked branches conflict once the earlier PR is merged.
+- A pull request needs one approving review before it can be merged.
 - Update the docs (`README.md`, `docs/`) and `CHANGELOG.md` when behavior changes.
 - Mention the issue a pull request resolves (`Fixes #123`) so it closes on merge.
 

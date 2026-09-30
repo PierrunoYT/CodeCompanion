@@ -120,6 +120,32 @@ api.example.com
 - `localhost` allows `http://localhost:3000/`. `example.com` does **not** allow `www.example.com`; list each subdomain.
 - Approved hosts can receive whatever the assistant sends them, and this is not a network sandbox: page subresources and Google search are not filtered. Keep projects with secrets out of chats that read untrusted pages.
 
+## MCP servers
+
+Model Context Protocol servers give the assistant extra tools (a database, an issue tracker, documentation search, and so on). Add them in **Settings → MCP servers (JSON)** as a JSON list. A server either runs as a program on your computer (`stdio`) or is reached over HTTP (`http`):
+
+```json
+[
+  {
+    "name": "fs",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+    "env": { "SOME_TOKEN": "…" }
+  },
+  { "name": "docs", "transport": "http", "url": "https://example.com/mcp", "headers": { "Authorization": "Bearer …" } }
+]
+```
+
+- The line under the box shows each server's state: connected with its number of tools, connecting, or the error. A server that fails does not affect the others.
+- Its tools appear to the assistant as `mcp_<server>_<tool>`. **Every MCP tool call asks for approval, even in Auto mode**, because a server can do anything its program or endpoint allows.
+- `env` values and `headers` are stored encrypted, like API keys, and are not shown again. When you reopen Settings, each one appears with an empty value (`"SOME_TOKEN": ""`): leave it empty to keep the stored value, type a new value to replace it, or delete the line to remove it. Renaming a server drops its stored values, so enter them again after a rename.
+- A stdio server starts in the project that is open when it connects, runs with your permissions, and keeps running until you change its settings or quit Patch.
+
+## Research subagent
+
+For broad questions ("find every caller of this function", "summarize how settings are saved"), the assistant can hand the research to a **subagent** with the `task` tool. The subagent has its own context, so the main chat stays small, and it can only read: it lists folders, reads and searches files and loads project skills, but cannot edit files, run commands or use the web, so it never needs an approval. Its progress appears on the tool card while it works, its answer comes back to the assistant, and its tokens count toward the chat's totals. It stops after 25 steps. A file only the subagent read still has to be read by the assistant before it can be edited.
+
 ## Stop and Resume
 
 - **Stop** (the red button, or `Ctrl+.`) aborts the current request, running foreground commands and background commands belonging to the active project, including commands still starting. Other projects' background jobs and the interactive terminal are unaffected. It also cancels a wait before a retry.
@@ -162,6 +188,7 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 - **Model**, and **Other model id…** for a model that is not in the list. A chat keeps the model it started with.
 - **Effort**: how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
 - **Plan mode**: see [Plan mode](#plan-mode) above.
+- **MCP servers**: see [MCP servers](#mcp-servers) above.
 - **Theme**: dark or light.
 - **Editor command**: what the **Open in editor** link on a tool card runs, e.g. `code`, `cursor` or `subl`.
 - **OpenAI-compatible base URL**: for Ollama, OpenRouter, LM Studio and similar. Leave it empty for OpenAI itself.

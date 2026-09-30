@@ -43,7 +43,7 @@ Don't leave a finished change uncommitted or its docs stale.
 
 - Renderer code builds DOM with `h()`; use `trustedHtml` only for output of `renderMarkdown`/`renderDiff`. Never send API keys or unsanitized model output to the renderer.
 - Adding an IPC channel means editing **both** the type maps and the `INVOKE`/`EVENTS` lists in `src/shared/ipc.ts`, plus the handler in `src/main/index.ts`.
-- Tools use `defineTool` and are registered in `src/main/tools/registry.ts`. Anything that changes files or runs commands must set `requiresApproval`.
+- Tools use `defineTool` and are registered in `src/main/tools/registry.ts` (MCP tools come from `McpHub` in `tools/mcp.ts`, and the `task` tool is created per chat in `chat_manager.ts`). Anything that changes files or runs commands must set `requiresApproval`; tools that must ask even in Auto mode (MCP tools, `propose_plan`) also set `alwaysAsk`. The `task` subagent only gets the tools in `READ_ONLY_TOOLS` (`tools/task.ts`): add a tool there only if it cannot change anything.
 - File access must go through `Workspace.resolve`, which confines paths to the project root.
 - Keep the Claude conversation history append-only. Gate new request features behind `claudeCapabilities` in `src/shared/models.ts`. Compacting a chat never edits or removes stored messages: it stores a `CompactionState` and changes only what is sent. A new provider needs `planCompaction`/`applyCompaction` with a safe-cut rule that never separates a tool call from its result.
 - Model ids and defaults live only in `src/shared/models.ts`.

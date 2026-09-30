@@ -73,6 +73,20 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 
 ## Next
 
+### Paused implementation checkpoint
+
+Stopped at the user's request, then prepared this unfinished checkpoint for their requested push. This batch is not feature-complete.
+
+- **Windows teardown:** `TerminalService` now selects `useConptyDll` on Windows, with spawn-option and rapid restart unit tests. The worker reported 9 terminal tests, 435 unit tests and typecheck passing before later edits. Native Windows teardown remains unverified.
+- **Performance:** `docs/PERFORMANCE.md` records three-run Linux orb comparisons. No renderer optimization was retained: candidates did not improve frame percentiles or broke scroll-follow. The original Windows/high-refresh regression remains open.
+- **App-owned tool IDs:** `Agent.runTool` now generates a UUID for card/approval/backup events while preserving provider IDs for API results. Unit and E2E assertion updates are partially written. Resume by reviewing these changes and completing the repeated-provider-ID Undo regression and `tests/e2e/undo.test.ts` updates.
+- **Pending Undo notes:** `SavedChat`/`ChatSessionOptions.pendingNotes`, copy-on-load/save, manager restoration, and session tests are partially written. Review and verify save/reopen, once-only send/resume delivery and compatibility with older chats.
+- **Undo/send locking:** not started. `ChatManager.undoEdit` still awaits the file restore without reserving the session; sends, switches and other conflicting operations need to stay blocked until the undo notice is queued and saved.
+- **Checkpoint verification:** typecheck and all 438 unit tests pass. `xvfb-run -a npm test` builds successfully; 73 Electron tests pass and 3 fail in `tests/e2e/undo.test.ts`. Its first failure is the obsolete `toolu_edit` card-ID lookup (line 64); later tests fail with the state left by that interrupted test. The repeated-provider-ID Undo regression remains to be completed.
+- **Before completing:** review the cancelled workers' partial changes, finish the Undo E2E updates and locking, rerun the full suite, update affected docs/changelog, and commit each coherent change separately. Do not mark the remaining boxes complete from this checkpoint alone.
+
+### Remaining work
+
 - [x] Add a per-project setting for allowed commands and network hosts (today they are global): Project settings…, added to the global lists
 - [x] Measure the main process's per-event transcript updates during streaming in long chats: 30 µs per streamed piece at 5,000 items, no change needed (`docs/PERFORMANCE.md`)
 - [ ] Find what makes streaming in a 5,000-item chat 14–21 ms per frame since the scroll-to-bottom fix instead of 7 ms (`docs/PERFORMANCE.md`, follow-up section)

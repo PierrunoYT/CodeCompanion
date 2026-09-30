@@ -28,6 +28,7 @@ export interface SavedChat {
   usage: UsageTotals;
   conversation: SerializedConversation;
   readFiles: string[];
+  pendingNotes?: string[];
   agentFile?: string | null;
   resumable?: boolean;
   // False for custom OpenAI-compatible endpoints, whose prices are unknown. Missing in chats saved by older versions.
@@ -47,6 +48,7 @@ export interface ChatSessionOptions {
   transcript?: TranscriptItem[];
   usage?: UsageTotals;
   readFiles?: string[];
+  pendingNotes?: string[];
   resumable?: boolean;
   approvalMode: () => ApprovalMode;
   isPreApproved?: (toolName: string, input: unknown) => boolean;
@@ -73,8 +75,8 @@ export class ChatSession {
   private resumable: boolean;
   private stopRequested = false;
   private updatedAt: string;
-  // Things that happened to the project outside the conversation, for the model's next message. Kept in memory only.
-  private readonly notes: string[] = [];
+  // Things that happened to the project outside the conversation, for the model's next message.
+  private readonly notes: string[];
 
   constructor(private readonly options: ChatSessionOptions) {
     this.id = options.id ?? randomUUID();
@@ -83,6 +85,7 @@ export class ChatSession {
     this.title = options.title ?? 'New chat';
     this.transcript = options.transcript ?? [];
     this.readFiles = new Set(options.readFiles ?? []);
+    this.notes = [...(options.pendingNotes ?? [])];
     this.resumable = options.resumable ?? false;
     this.agent = new Agent({
       conversation: options.conversation,
@@ -262,6 +265,7 @@ export class ChatSession {
       usage: this.agent.totals,
       conversation: this.options.conversation.serialize(),
       readFiles: [...this.readFiles],
+      pendingNotes: [...this.notes],
       agentFile: this.options.agentFile,
       resumable: this.resumable,
       officialPricing: this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',

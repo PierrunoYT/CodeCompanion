@@ -251,6 +251,7 @@ export class ChatManager {
       transcript: saved?.transcript,
       usage: saved?.usage,
       readFiles: saved?.readFiles,
+      pendingNotes: saved?.pendingNotes,
       resumable: saved?.resumable,
       approvalMode: () => this.deps.settings.get().approvalMode,
       isPreApproved: (toolName, input) => {

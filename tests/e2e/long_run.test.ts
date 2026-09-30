@@ -68,15 +68,16 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
     );
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Do the three steps' }));
 
-    await waitFor((chat) => chat.transcript.some((item) => item.id === 'step-long' && item.kind === 'tool' && item.status === 'running'));
+    await waitFor((chat) => chat.transcript.filter((item) => item.kind === 'tool').at(-1)?.status === 'running');
     await running.page.getByRole('button', { name: /Stop/ }).click();
     const stopped = await waitFor((chat) => !chat.busy && chat.resumable);
 
     // The finished steps stay done; the command that was running is ended, not left behind.
-    const status = (id: string) => stopped.transcript.find((item) => item.id === id);
-    expect(status('step-write')).toMatchObject({ kind: 'tool', status: 'done' });
-    expect(status('step-read')).toMatchObject({ kind: 'tool', status: 'done' });
-    expect(status('step-long')).toMatchObject({ kind: 'tool', status: 'error' });
+    const cards = stopped.transcript.filter((item) => item.kind === 'tool');
+    expect(cards).toHaveLength(3);
+    expect(cards[0]).toMatchObject({ name: 'run_command', status: 'done' });
+    expect(cards[1]).toMatchObject({ name: 'read_file', status: 'done' });
+    expect(cards[2]).toMatchObject({ name: 'run_command', status: 'error' });
     expect(readFileSync(join(project, 'step1.txt'), 'utf8')).toBe('done');
     expect(claude.agentRequests).toHaveLength(3);
     await new Promise((resolve) => setTimeout(resolve, 4_000));

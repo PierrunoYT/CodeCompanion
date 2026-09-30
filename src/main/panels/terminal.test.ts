@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 interface FakePty {
   onData: (callback: (data: string) => void) => void;
@@ -47,11 +47,26 @@ beforeEach(() => {
   service = new TerminalService(onData, onExit);
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('TerminalService', () => {
   it('starts a shell in the given folder with a sane minimum size', () => {
     service.start('/project', 1, 0);
     expect(created).toHaveLength(1);
     expect(created[0].options).toMatchObject({ cwd: '/project', cols: 2, rows: 2 });
+  });
+
+  it('uses the bundled ConPTY implementation on Windows only', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    service.start('C:\\project', 80, 24);
+    expect(created[0].options).toMatchObject({ useConptyDll: true });
+
+    service.stop();
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    service.start('/project', 80, 24);
+    expect(created[1].options).not.toHaveProperty('useConptyDll');
   });
 
   it('forwards shell output and user input', () => {
@@ -109,5 +124,22 @@ describe('TerminalService', () => {
     });
     expect(() => service.stop()).not.toThrow();
     expect(() => service.write('x')).not.toThrow();
+  });
+
+  it('can rapidly stop and restart without stale exits clearing the active shell', () => {
+    for (let i = 0; i < 20; i++) {
+      service.start(`/project-${i}`, 80, 24);
+      service.stop();
+      created[i].pty.emitExit();
+    }
+
+    service.start('/active', 80, 24);
+    created[19].pty.emitExit();
+    service.write('still active');
+
+    expect(created).toHaveLength(21);
+    expect(created.slice(0, 20).every(({ pty }) => pty.kill.mock.calls.length === 1)).toBe(true);
+    expect(created[20].pty.write).toHaveBeenCalledWith('still active');
+    expect(onExit).not.toHaveBeenCalled();
   });
 });

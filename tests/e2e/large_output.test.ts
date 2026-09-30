@@ -57,7 +57,7 @@ describe('very large tool results in the chat (mock Claude API)', () => {
     await card.getByRole('button', { name: 'Approve' }).click();
     const done = await waitFor((chat) => !chat.busy && chat.transcript.at(-1)?.kind === 'assistant');
     expect(readFileSync(join(project, 'big.txt'), 'utf8')).toBe(content);
-    const item = done.transcript.find((entry) => entry.id === 'big-write');
+    const item = done.transcript.find((entry) => entry.kind === 'tool' && entry.path === 'big.txt');
     expect(item).toMatchObject({ kind: 'tool', status: 'done' });
     expect(item?.kind === 'tool' && item.preview?.diffOmittedLines).toBeGreaterThan(0);
   });
@@ -81,12 +81,13 @@ describe('very large tool results in the chat (mock Claude API)', () => {
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Print a lot' }));
     const done = await waitFor((chat) => !chat.busy && chat.transcript.at(-1)?.kind === 'assistant');
 
-    const item = done.transcript.find((entry) => entry.id === 'loud');
+    const item = done.transcript.find((entry) => entry.kind === 'tool' && entry.name === 'run_command');
     expect(item?.kind === 'tool' && item.output?.length).toBeLessThanOrEqual(20_000);
     expect(item?.kind === 'tool' && item.output).toContain('THE-END');
     expect(item?.kind === 'tool' && item.outputOmittedChars).toBeGreaterThan(0);
 
-    const card = running.page.locator('.tool-card[data-id="loud"]');
+    expect(item?.kind).toBe('tool');
+    const card = running.page.locator(`.tool-card[data-id="${item?.id}"]`);
     await card.locator('summary').click();
     await card.getByText(/Output too long to show in full/).waitFor();
   });

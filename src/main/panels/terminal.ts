@@ -29,6 +29,9 @@ export class TerminalService {
       rows: Math.max(rows, 2),
       cwd,
       env: process.env as Record<string, string>,
+      // node-pty's default Windows ConPTY kill path forks a console-list helper which can race a quick close.
+      // The bundled ConPTY implementation tears down synchronously without spawning that helper.
+      ...(process.platform === 'win32' ? { useConptyDll: true } : {}),
     });
     pty.onData((data) => this.onData(data));
     pty.onExit(() => {

@@ -102,6 +102,8 @@ function setup(
     officialPricing = undefined as boolean | undefined,
     resumable = undefined as boolean | undefined,
     transcript = undefined as ChatSessionOptions['transcript'],
+    readFiles = undefined as string[] | undefined,
+    pendingNotes = undefined as string[] | undefined,
     smallModel = (() => null) as ChatSessionOptions['smallModel'],
     onEditApplied = undefined as ChatSessionOptions['onEditApplied'],
   } = {},
@@ -119,6 +121,8 @@ function setup(
     usage,
     resumable,
     transcript,
+    readFiles,
+    pendingNotes,
     approvalMode: () => mode,
     isPreApproved,
     toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
@@ -493,19 +497,20 @@ describe('agent loop', () => {
       const { session, events, kept } = edited();
       await session.send({ text: 'edit it' });
 
-      expect(kept).toEqual(['t1']);
-      expect(session.snapshot().transcript.find((item) => item.id === 't1')).toMatchObject({ undo: 'available' });
-      session.editUndone('t1', restored, '/abs/a.ts');
+      expect(kept).toHaveLength(1);
+      const editId = kept[0];
+      expect(session.snapshot().transcript.find((item) => item.id === editId)).toMatchObject({ undo: 'available' });
+      session.editUndone(editId, restored, '/abs/a.ts');
 
-      expect(session.snapshot().transcript.find((item) => item.id === 't1')).toMatchObject({ undo: 'undone' });
-      expect(events.at(-1)).toEqual({ type: 'tool-undone', id: 't1' });
-      expect(session.serialize().transcript.find((item) => item.id === 't1')).toMatchObject({ undo: 'undone' });
+      expect(session.snapshot().transcript.find((item) => item.id === editId)).toMatchObject({ undo: 'undone' });
+      expect(events.at(-1)).toEqual({ type: 'tool-undone', id: editId });
+      expect(session.serialize().transcript.find((item) => item.id === editId)).toMatchObject({ undo: 'undone' });
     });
 
     it('tells the model with the next message, once, and shows the user only what they typed', async () => {
-      const { session, conversation } = edited();
+      const { session, conversation, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone('t1', restored, '/abs/a.ts');
+      session.editUndone(kept[0], restored, '/abs/a.ts');
 
       await session.send({ text: 'now what?' });
       await session.send({ text: 'and then?' });
@@ -520,10 +525,10 @@ describe('agent loop', () => {
     });
 
     it('says that a created file was deleted, and lists several undos together', async () => {
-      const { session, conversation } = edited();
+      const { session, conversation, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone('t1', { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
-      session.editUndone('t1', restored, '/abs/a.ts');
+      session.editUndone(kept[0], { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
+      session.editUndone(kept[0], restored, '/abs/a.ts');
       await session.send({ text: 'go on' });
 
       expect(conversation.users[1].text).toContain('The user undid your creation of src/new.ts: the file was deleted.');
@@ -532,25 +537,64 @@ describe('agent loop', () => {
     });
 
     it('makes the model read the file again: it no longer counts as read', async () => {
-      const { session } = edited();
+      const { session, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone('t1', restored, '/abs/a.ts');
+      session.editUndone(kept[0], restored, '/abs/a.ts');
       await session.send({ text: 'probe' });
 
       expect(seenAsRead).toEqual([false]);
     });
 
+    it('persists pending undo notes through JSON and consumes them only once', async () => {
+      const { session, kept } = edited();
+      await session.send({ text: 'edit it' });
+      session.editUndone(kept[0], { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
+      session.editUndone(kept[0], restored, '/abs/a.ts');
+
+      const saved = JSON.parse(JSON.stringify(session.serialize())) as ReturnType<ChatSession['serialize']>;
+      expect(saved.pendingNotes).toHaveLength(2);
+      expect(saved.readFiles).not.toContain('/abs/a.ts');
+      const reopened = setup([{ text: 'Continued.' }], {
+        pendingNotes: saved.pendingNotes,
+        readFiles: saved.readFiles,
+      });
+      saved.pendingNotes?.push('This must not alias the reopened session.');
+
+      await reopened.session.send({ text: 'continue' });
+      expect(reopened.conversation.users[0].text).toContain('The user undid your creation of src/new.ts');
+      expect(reopened.conversation.users[0].text).toContain('The user undid your edit to src/a.ts');
+      expect(reopened.conversation.users[0].text).not.toContain('must not alias');
+      const consumed = JSON.parse(JSON.stringify(reopened.session.serialize())) as ReturnType<ChatSession['serialize']>;
+      expect(consumed.pendingNotes).toEqual([]);
+
+      const reloaded = setup([{ text: 'Again.' }], { pendingNotes: consumed.pendingNotes });
+      await reloaded.session.send({ text: 'next' });
+      expect(reloaded.conversation.users[0].text).toBe('next');
+    });
+
+    it('loads old saves without pending notes', async () => {
+      const reopened = setup([{ text: 'Done.' }], { pendingNotes: undefined });
+      await reopened.session.send({ text: 'continue' });
+      expect(reopened.conversation.users[0].text).toBe('continue');
+      expect(reopened.session.serialize().pendingNotes).toEqual([]);
+    });
+
     it('also tells the model when the stopped task is resumed', async () => {
-      const { session, conversation } = setup([abortingTurn, { text: 'Continued.' }]);
+      const kept: string[] = [];
+      const { session, conversation } = setup(
+        [{ toolCalls: [{ id: 't1', name: 'file', input: {} }] }, { text: 'Edited.' }, abortingTurn, { text: 'Continued.' }],
+        { tools: () => [fileTool], mode: 'auto', onEditApplied: (toolId) => kept.push(toolId) },
+      );
+      await session.send({ text: 'edit it' });
       const sending = session.send({ text: 'start' });
       await new Promise((resolve) => setTimeout(resolve, 5));
       session.stop();
       await sending;
 
-      session.editUndone('t9', restored, '/abs/a.ts');
+      session.editUndone(kept[0], restored, '/abs/a.ts');
       await session.resume();
 
-      expect(conversation.users[1].text).toMatch(/^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/);
+      expect(conversation.users[2].text).toMatch(/^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/);
     });
   });
 

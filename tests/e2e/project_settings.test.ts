@@ -55,12 +55,12 @@ describe('per-project allow-lists (mock Claude API)', () => {
     await running.page.evaluate(() => window.api.invoke('chat:new'));
     await running.page.evaluate((text) => window.api.invoke('chat:send', { text }), `Run ${command}`);
     const chat = await waitFor((current) =>
-      current.transcript.some((item) => item.id === id && item.kind === 'tool' && item.status !== 'running'),
+      current.transcript.some((item) => item.kind === 'tool' && item.name === 'run_command' && item.status !== 'running'),
     );
-    const card = chat.transcript.find((item) => item.id === id);
+    const card = chat.transcript.find((item) => item.kind === 'tool' && item.name === 'run_command');
     if (card?.kind === 'tool' && card.status === 'awaiting-approval') {
       // Approve rather than stop, so the scripted follow-up answer is used up (the commands are harmless).
-      await running.page.evaluate((cardId) => window.api.invoke('chat:decide', cardId, { approved: true }), id);
+      await running.page.evaluate((cardId) => window.api.invoke('chat:decide', cardId, { approved: true }), card.id);
       await waitFor((current) => !current.busy);
       return 'asked';
     }

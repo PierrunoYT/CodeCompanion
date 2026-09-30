@@ -172,12 +172,14 @@ describe('Agent: tool-result pairing', () => {
     expect(conversation.results[0][0].isError).toBeUndefined();
 
     // Unknown tools and invalid input never show up as started tools; everything else ends with a status.
-    expect(eventsOf(events, 'tool-start').map((event) => event.id)).toEqual(['t1', 't4', 't5', 't6']);
+    const starts = eventsOf(events, 'tool-start');
+    expect(starts.map((event) => event.name)).toEqual(['strict', 'denied', 'crash', 'soft']);
+    expect(new Set(starts.map((event) => event.id))).toHaveLength(4);
     expect(eventsOf(events, 'tool-end').map((event) => [event.id, event.status, event.summary])).toEqual([
-      ['t1', 'done', 'Saw a'],
-      ['t4', 'error', 'denied failed'],
-      ['t5', 'error', 'crash failed'],
-      ['t6', 'error', 'Soft fail'],
+      [starts[0].id, 'done', 'Saw a'],
+      [starts[1].id, 'error', 'denied failed'],
+      [starts[2].id, 'error', 'crash failed'],
+      [starts[3].id, 'error', 'Soft fail'],
     ]);
   });
 
@@ -214,10 +216,11 @@ describe('Agent: tool-result pairing', () => {
     );
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    expect(eventsOf(events, 'tool-progress')).toEqual([{ type: 'tool-progress', id: 'c1', text: 'line 1' }]);
+    const starts = eventsOf(events, 'tool-start');
+    expect(eventsOf(events, 'tool-progress')).toEqual([{ type: 'tool-progress', id: starts[0].id, text: 'line 1' }]);
     expect(eventsOf(events, 'tool-end').map((event) => [event.id, event.output])).toEqual([
-      ['c1', 'exit code 0'],
-      ['c2', undefined],
+      [starts[0].id, 'exit code 0'],
+      [starts[1].id, undefined],
     ]);
   });
 
@@ -238,8 +241,10 @@ describe('Agent: tool-result pairing', () => {
     expect(run).not.toHaveBeenCalled();
     expect(requestApproval).not.toHaveBeenCalled();
     expect(conversation.results[0]).toEqual([{ id: 'e1', content: 'target file is missing', isError: true }]);
-    expect(eventsOf(events, 'tool-start')[0]).toMatchObject({ id: 'e1', awaitingApproval: false });
-    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: 'e1', status: 'error', output: 'target file is missing' });
+    const eventId = eventsOf(events, 'tool-start')[0].id;
+    expect(eventId).not.toBe('e1');
+    expect(eventsOf(events, 'tool-start')[0]).toMatchObject({ awaitingApproval: false });
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: eventId, status: 'error', output: 'target file is missing' });
   });
 });
 
@@ -325,8 +330,9 @@ describe('Agent: undoable edits', () => {
     const kept: Array<[string, EditUndo]> = [];
     const { events } = await run(editing(), (toolId, edit) => kept.push([toolId, edit]));
 
-    expect(kept).toEqual([['t1', undo]]);
-    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: 't1', status: 'done', path: 'src/a.ts', undoable: true });
+    const eventId = eventsOf(events, 'tool-start')[0].id;
+    expect(kept).toEqual([[eventId, undo]]);
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: eventId, status: 'done', path: 'src/a.ts', undoable: true });
   });
 
   it('does not show the backup to the model', async () => {
@@ -380,14 +386,15 @@ describe('Agent: approvals', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const change = tool('change', () => ({ content: 'changed' }), { requiresApproval: true });
     const controller = new AbortController();
-    const { agent, requestApproval } = setup(
+    const { agent, events, requestApproval } = setup(
       [{ toolCalls: [call('t1', 'look'), call('t2', 'change')] }, { text: 'done' }],
       { mode: 'ask', tools: [look, change] },
     );
     await agent.send({ text: 'go' }, controller.signal);
 
     expect(requestApproval).toHaveBeenCalledTimes(1);
-    expect(requestApproval).toHaveBeenCalledWith('t2', controller.signal);
+    const changeId = eventsOf(events, 'tool-start').find((event) => event.name === 'change')?.id;
+    expect(requestApproval).toHaveBeenCalledWith(changeId, controller.signal);
   });
 
   it('treats a decline with a blank note as a decline without feedback and skips the rest of the turn', async () => {
@@ -410,7 +417,41 @@ describe('Agent: approvals', () => {
       { id: 't2', content: 'The user declined this action. Wait for further instructions.', isError: true },
       { id: 't3', content: 'Not run: the user declined an earlier action.', isError: true },
     ]);
-    expect(eventsOf(events, 'tool-end').find((event) => event.id === 't2')).toMatchObject({ status: 'declined' });
+    const changeId = eventsOf(events, 'tool-start').find((event) => event.name === 'change')?.id;
+    expect(eventsOf(events, 'tool-end').find((event) => event.id === changeId)).toMatchObject({ status: 'declined' });
+  });
+
+  it('keeps repeated provider call ids separate while pairing results with the provider', async () => {
+    const backups: string[] = [];
+    const edit = tool(
+      'edit',
+      ({ what }) => ({
+        content: `edited ${what}`,
+        summary: `Edited ${what}`,
+        undo: { path: String(what), before: Buffer.from('before'), afterHash: String(what) },
+      }),
+      { requiresApproval: true },
+    );
+    const { agent, conversation, events, requestApproval } = setup(
+      [
+        { toolCalls: [call('reused', 'edit', { what: 'a.ts' })] },
+        { toolCalls: [call('reused', 'edit', { what: 'b.ts' })] },
+        { text: 'done' },
+      ],
+      { mode: 'ask', tools: [edit], onEditApplied: (id) => backups.push(id) },
+    );
+
+    await agent.send({ text: 'edit both' }, new AbortController().signal);
+
+    const cardIds = eventsOf(events, 'tool-start').map((event) => event.id);
+    expect(cardIds).toHaveLength(2);
+    expect(new Set(cardIds)).toHaveLength(2);
+    expect(requestApproval).toHaveBeenCalledTimes(2);
+    cardIds.forEach((id, index) => expect(requestApproval).toHaveBeenNthCalledWith(index + 1, id, expect.any(AbortSignal)));
+    expect(backups).toEqual(cardIds);
+    expect(eventsOf(events, 'tool-end').map((event) => event.id)).toEqual(cardIds);
+    expect(conversation.results.map(([result]) => result.id)).toEqual(['reused', 'reused']);
+    expect(conversation.results.map(([result]) => result.content)).toEqual(['edited a.ts', 'edited b.ts']);
   });
 
   it('does not run an approved tool when the stop arrived while waiting', async () => {

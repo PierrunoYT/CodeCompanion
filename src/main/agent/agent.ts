@@ -230,7 +230,8 @@ export class Agent {
   private async runTool(tools: AgentTool[], call: ToolCall, signal: AbortSignal): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
     const { emit } = this.options;
     const tool = tools.find((candidate) => candidate.name === call.name);
-    const eventId = call.id || randomUUID();
+    // Provider IDs pair API results only; compatible servers can reuse them across turns.
+    const eventId = randomUUID();
 
     if (!tool) {
       return { result: { id: call.id, content: `Unknown tool: ${call.name}`, isError: true } };

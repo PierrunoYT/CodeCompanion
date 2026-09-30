@@ -82,6 +82,37 @@ Opening times are unchanged. For comparison, the same 1,000-turn chat was at 42 
 
 **The benchmark is noisy:** the same build sometimes measures 7 ms and sometimes 21 ms, so compare at least three runs.
 
+#### Linux orb follow-up (2026-09-30)
+
+The regression was investigated again in a 4-vCPU Linux orb with Electron under Xvfb. This environment is much slower
+than the Windows/144 Hz machine above, so these numbers are separate evidence and must not be compared directly with
+that table. The measured command (after `npm run build`) was run three times for each variant:
+
+```bash
+E2E_SHOW_WINDOW=1 PERF_TURNS=1000 xvfb-run -a npx vitest run --project perf tests/perf/long_chat.perf.ts
+```
+
+`E2E_SHOW_WINDOW=1` matters under Xvfb: without it Chromium rendered the hidden window at about 1 frame/second, making
+frame percentiles meaningless. With the checked-in implementation, the 5,000-item stream measured 50 / 67 ms p50 /
+p95 in all three runs (layout 431, 450 and 429 ms; open 2,856, 2,789 and 3,013 ms). The empty-chat reference was 17 /
+50 ms in all three runs, showing that this constrained orb cannot reproduce the original 7 ms reference either.
+
+Tracing `TranscriptView.render()` confirmed one synchronous geometry path during each followed streaming update: it
+reads `scrollHeight`, `scrollTop` and `clientHeight` to decide whether to follow, then assigns `scrollTop` from
+`scrollHeight`. Two bounded candidates were measured and dropped:
+
+- Caching the follow state removed the decision read but left the exact-bottom write. Three runs remained 50 / 67–83
+  ms, with 434–452 ms of layout: no improvement.
+- Caching the state and throttling the exact-bottom write to every 50 ms (plus a final write when streaming finished)
+  reduced layout to 378–393 ms, but frame results remained 50 / 67–83 ms. The transcript E2E checks, extended locally
+  to cover following a growing answer and stopping after a user scroll, passed, but the frame result did not justify
+  the added timing and input-state complexity.
+
+Removing the write entirely was not viable: a tall streamed answer finished about 740 px above the bottom, so browser
+scroll anchoring does not preserve resize-follow here. No renderer change was kept. A useful next experiment needs a
+Windows/high-refresh environment that reproduces the 14–21 ms regression; the Linux orb evidence bounds geometry
+bookkeeping to part of layout cost, not the observed frame regression.
+
 ### Not changed, and why
 
 - **Re-rendering the streaming message's Markdown on each frame.** The whole answer so far is re-parsed, highlighted and sanitized on every frame: about 2.2 s of script over the 20,000-character answer, or about 3 ms per frame. This cost depends on the answer, not the chat, and is the same in an empty chat. If very long answers stutter, render only the last Markdown block while streaming.

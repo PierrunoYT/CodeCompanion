@@ -86,6 +86,7 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 - [User guide](docs/USAGE.md) — approvals, allow-lists, stop and resume, chat history and export
 - [Architecture](docs/ARCHITECTURE.md) — processes, IPC contract, agent loop, providers, tools, storage, security model
 - [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
+- [Performance](docs/PERFORMANCE.md) — long-chat measurements and what was changed
 - [Contributing](CONTRIBUTING.md)
 - [Tasks](TASKS.md) — roadmap with checkboxes
 - [AGENTS.md](AGENTS.md) — guidance for AI coding agents working on this repo

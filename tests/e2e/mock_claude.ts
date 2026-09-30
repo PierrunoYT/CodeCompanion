@@ -19,13 +19,18 @@ export interface ScriptedHang {
   hang: { text: string };
 }
 
+// An answer streamed as `chunks` text deltas, `intervalMs` apart, like a real model writing (for performance runs).
+export interface ScriptedSlow {
+  slow: { text: string; chunks: number; intervalMs: number };
+}
+
 // Mock Anthropic API for end-to-end tests. Streaming requests (agent turns) get the scripted turns in order;
 // non-streaming requests (the small-model title) get a fixed structured answer.
 export class MockClaude {
   readonly agentRequests: any[] = [];
   // Requests to summarize old turns (compact chat).
   readonly summaryRequests: any[] = [];
-  private turns: Array<ScriptedTurn | ScriptedFailure | ScriptedHang> = [];
+  private turns: Array<ScriptedTurn | ScriptedFailure | ScriptedHang | ScriptedSlow> = [];
   // Set once a hanging answer's text has been sent, and cleared when the app gives up on it.
   hanging = false;
   private server: Server;
@@ -84,6 +89,27 @@ export class MockClaude {
           res.on('close', () => (this.hanging = false));
           return;
         }
+        if ('slow' in turn) {
+          const { text, chunks, intervalMs } = turn.slow;
+          const events = anthropicStream([{ type: 'text', text: '' }], 'end_turn');
+          const send = ({ event, data }: { event: string; data: unknown }) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+          // message_start and content_block_start, then the deltas, then the rest without the empty delta.
+          events.slice(0, 2).forEach(send);
+          const size = Math.ceil(text.length / chunks);
+          let index = 0;
+          const timer = setInterval(() => {
+            if (index * size >= text.length) {
+              clearInterval(timer);
+              events.slice(3).forEach(send);
+              res.end();
+              return;
+            }
+            send({ event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(index * size, (index + 1) * size) } } });
+            index++;
+          }, intervalMs);
+          res.on('close', () => clearInterval(timer));
+          return;
+        }
         for (const { event, data } of anthropicStream(turn.blocks, turn.stopReason)) {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         }
@@ -92,7 +118,7 @@ export class MockClaude {
     });
   }
 
-  script(...turns: Array<ScriptedTurn | ScriptedFailure | ScriptedHang>): void {
+  script(...turns: Array<ScriptedTurn | ScriptedFailure | ScriptedHang | ScriptedSlow>): void {
     this.turns.push(...turns);
   }
 

@@ -117,12 +117,16 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Explain it slowly' }));
 
     await running.page.getByText('Here is the first half of the ans').waitFor();
+    // Changes to a message update its element in place (a new element would make a long chat restyle every frame).
+    const bubble = await running.page.locator('.message.assistant').last().elementHandle();
     await running.page.getByRole('button', { name: /Stop/ }).click();
     const stopped = await waitFor((chat) => !chat.busy && chat.resumable);
 
     expect(stopped.transcript.map((item) => item.kind)).toEqual(['user', 'assistant', 'notice']);
     expect(stopped.transcript[1]).toMatchObject({ text: 'Here is the first half of the ans', streaming: false });
     expect(stopped.transcript[2]).toMatchObject({ text: 'Stopped.' });
+    // The message went from streaming to finished in the same element.
+    await expect.poll(() => bubble!.evaluate((node) => node.isConnected && !node.classList.contains('streaming'))).toBe(true);
     // The app gave up on the request: the mock saw the connection close.
     await expect.poll(() => claude.hanging).toBe(false);
 

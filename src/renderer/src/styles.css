@@ -116,6 +116,14 @@ body {
   gap: 0.75rem;
 }
 
+/* A long chat has hundreds of thousands of nodes. Items off screen are skipped for layout and paint, so the item being
+   streamed at the bottom does not make the browser lay out the whole chat on every frame. They stay in the DOM and in
+   the accessibility tree; `auto` remembers each item's size once it has been shown, so scrolling stays steady. */
+.transcript > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 80px;
+}
+
 .message.user {
   align-self: flex-end;
   max-width: 85%;

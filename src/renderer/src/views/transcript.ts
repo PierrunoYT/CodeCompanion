@@ -11,6 +11,14 @@ export interface TranscriptActions {
   theme(): 'dark' | 'light';
 }
 
+// Gives `target` the attributes and children of `source`, keeping `target` itself in place. Listeners set by h() are
+// on the children, which move along; the item elements themselves have none.
+function morph(target: HTMLElement, source: HTMLElement): void {
+  for (const { name } of [...target.attributes]) if (!source.hasAttribute(name)) target.removeAttribute(name);
+  for (const { name, value } of [...source.attributes]) if (target.getAttribute(name) !== value) target.setAttribute(name, value);
+  target.replaceChildren(...source.childNodes);
+}
+
 const TOOL_ICONS: Record<string, string> = {
   read_file: 'file-earmark-text',
   list_directory: 'folder2-open',
@@ -57,8 +65,11 @@ export class TranscriptView {
       let entry = this.nodes.get(item.id);
       if (!entry || entry.item !== item) {
         const node = this.renderItem(item);
-        if (entry) entry.node.replaceWith(node);
-        entry = { item, node };
+        // Update a changed item in place rather than swapping its element: a new element among the transcript's
+        // children makes the browser recheck the styles of the whole (long) list, on every streamed frame.
+        if (entry && entry.node.tagName === node.tagName) morph(entry.node, node);
+        else if (entry) entry.node.replaceWith(node);
+        entry = { item, node: entry && entry.node.tagName === node.tagName ? entry.node : node };
         this.nodes.set(item.id, entry);
       }
       const expectedNext: ChildNode | null = previous ? previous.nextSibling : this.element.firstChild;
@@ -165,8 +176,8 @@ export class TranscriptView {
       h('span', { class: 'ms-auto' }, status[item.status]),
     );
 
-    const preview = this.renderPreview(item);
-    const output = item.output
+    const preview = () => this.renderPreview(item);
+    const output = () => item.output
       ? h(
           'div',
           {},
@@ -189,7 +200,7 @@ export class TranscriptView {
         'div',
         { class: 'tool-card awaiting', role: 'group', 'aria-label': `Approval needed: ${title}`, dataset: { id: item.id } },
         header,
-        preview,
+        preview(),
         h(
           'div',
           { class: 'approval' },
@@ -201,14 +212,16 @@ export class TranscriptView {
     }
 
     if (item.status === 'running') {
-      return h('div', { class: 'tool-card running', dataset: { id: item.id } }, header, output);
+      return h('div', { class: 'tool-card running', dataset: { id: item.id } }, header, output());
     }
 
-    const body = [preview, output].filter(Boolean) as HTMLElement[];
+    const hasBody = Boolean(item.preview?.diff || item.preview?.command || item.output);
     return h(
       'div',
       { class: `tool-card ${item.status}`, dataset: { id: item.id } },
-      body.length > 0 ? this.details(item.id, header, ...body) : header,
+      // Built when the card is first opened: a long chat has many finished cards, most of them never opened, and their
+      // diffs are by far the largest part of the page.
+      hasBody ? this.details(item.id, header, () => [preview(), output()].filter(Boolean) as HTMLElement[]) : header,
     );
   }
 
@@ -238,9 +251,20 @@ export class TranscriptView {
     return null;
   }
 
-  private details(id: string, summary: HTMLElement, ...content: HTMLElement[]): HTMLElement {
-    const details = h('details', { open: this.expanded.has(id) }, h('summary', {}, summary), ...content);
-    details.addEventListener('toggle', () => (details.open ? this.expanded.add(id) : this.expanded.delete(id)));
+  // `content` may be a function, which is then called only when the details are first opened.
+  private details(id: string, summary: HTMLElement, content: HTMLElement | (() => HTMLElement[])): HTMLElement {
+    const open = this.expanded.has(id);
+    const build = typeof content === 'function' ? content : () => [content];
+    const details = h('details', { open }, h('summary', {}, summary), ...(open ? build() : []));
+    let built = open;
+    details.addEventListener('toggle', () => {
+      if (details.open && !built) {
+        built = true;
+        details.append(...build());
+      }
+      if (details.open) this.expanded.add(id);
+      else this.expanded.delete(id);
+    });
     return details;
   }
 }

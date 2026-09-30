@@ -26,6 +26,17 @@ export default defineConfig({
           fileParallelism: false,
         },
       },
+      {
+        // Measurements, not pass/fail tests: `npm run perf`. Not part of `npm test`.
+        extends: true,
+        test: {
+          name: 'perf',
+          include: ['tests/perf/**/*.perf.ts'],
+          testTimeout: 180_000,
+          hookTimeout: 120_000,
+          fileParallelism: false,
+        },
+      },
     ],
   },
 });

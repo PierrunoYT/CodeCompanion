@@ -37,6 +37,7 @@ Both lifecycle scripts must be executable. They become available to future proje
 | `npm run typecheck` | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
 | `npm test` | Unit tests, then build + end-to-end tests |
 | `npm run test:unit` / `npm run test:e2e` | One of the two |
+| `npm run perf` | Build, then measure long-chat rendering (`tests/perf/`, results in `out/perf-long-chat.json`; `PERF_TURNS=1000` for a longer chat). Not part of `npm test`; see `docs/PERFORMANCE.md` |
 | `npm run pack` | Unpacked app in `dist/` |
 | `npm run dist` | Installer (NSIS on Windows, DMG on macOS) |
 

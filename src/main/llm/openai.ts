@@ -20,8 +20,10 @@ type MessageParam = OpenAI.Chat.ChatCompletionMessageParam;
 // passes this rough size (characters / 4 is close enough to tokens for a budget check).
 const MAX_HISTORY_TOKENS = 100_000;
 
-export function createOpenAIClient(apiKey: string, baseURL?: string): OpenAI {
-  return new OpenAI({ apiKey, baseURL: baseURL || undefined, maxRetries: 3 });
+// Conversations pass 0 retries: the agent loop retries their requests itself and shows each retry in the chat.
+// Background calls (chat titles) keep the SDK's silent retries.
+export function createOpenAIClient(apiKey: string, baseURL?: string, maxRetries = 0): OpenAI {
+  return new OpenAI({ apiKey, baseURL: baseURL || undefined, maxRetries });
 }
 
 export class OpenAIConversation implements Conversation {

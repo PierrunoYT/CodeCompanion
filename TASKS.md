@@ -45,7 +45,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Log dropped-field tool errors (tool name and missing fields, never file contents) to make the open `edit_file` bug measurable
 - [x] Log crashes and other problems locally (`logs/app.log.jsonl`): uncaught errors, crashed or hung UI, failed IPC calls, chat errors
 - [x] Add a Help menu item that opens the log folder, and log renderer errors (`window.onerror`) through a new IPC channel
-- [ ] Retry transient provider errors (429, 5xx, network) with backoff, and show the retry in the chat
+- [x] Retry transient provider errors (429, 5xx, network) with backoff, and show the retry in the chat
 
 ### Features
 

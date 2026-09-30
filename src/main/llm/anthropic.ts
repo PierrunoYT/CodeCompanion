@@ -25,8 +25,10 @@ const MAX_JSON_RETRIES = 2;
 const MAX_CONTINUATIONS = 5;
 
 // The SDK runs in the Electron main process (Node), never in the renderer. baseURL is only overridden in tests.
-export function createAnthropicClient(apiKey: string, baseURL?: string): Anthropic {
-  return new Anthropic({ apiKey, baseURL, maxRetries: 3 });
+// Conversations pass 0: the agent loop retries their requests itself and shows each retry in the chat. Background
+// calls (chat titles) keep the SDK's silent retries.
+export function createAnthropicClient(apiKey: string, baseURL?: string, maxRetries = 0): Anthropic {
+  return new Anthropic({ apiKey, baseURL, maxRetries });
 }
 
 export interface AnthropicConversationOptions {

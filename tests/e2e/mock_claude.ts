@@ -9,11 +9,16 @@ export interface ScriptedTurn {
   stopReason: 'end_turn' | 'tool_use';
 }
 
+// A request the API rejects, e.g. a rate limit. retryAfterSeconds is sent as the Retry-After header.
+export interface ScriptedFailure {
+  failure: { status: number; type: string; retryAfterSeconds?: number };
+}
+
 // Mock Anthropic API for end-to-end tests. Streaming requests (agent turns) get the scripted turns in order;
 // non-streaming requests (the small-model title) get a fixed structured answer.
 export class MockClaude {
   readonly agentRequests: any[] = [];
-  private turns: ScriptedTurn[] = [];
+  private turns: Array<ScriptedTurn | ScriptedFailure> = [];
   private server: Server;
 
   constructor() {
@@ -45,6 +50,15 @@ export class MockClaude {
           res.end(JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'no scripted turn' } }));
           return;
         }
+        if ('failure' in turn) {
+          const { status, type, retryAfterSeconds } = turn.failure;
+          res.writeHead(status, {
+            'content-type': 'application/json',
+            ...(retryAfterSeconds === undefined ? {} : { 'retry-after': String(retryAfterSeconds) }),
+          });
+          res.end(JSON.stringify({ type: 'error', error: { type, message: `scripted ${status}` } }));
+          return;
+        }
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         for (const { event, data } of anthropicStream(turn.blocks, turn.stopReason)) {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -54,7 +68,7 @@ export class MockClaude {
     });
   }
 
-  script(...turns: ScriptedTurn[]): void {
+  script(...turns: Array<ScriptedTurn | ScriptedFailure>): void {
     this.turns.push(...turns);
   }
 

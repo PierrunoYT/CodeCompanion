@@ -87,6 +87,8 @@ function setup(
     mode = 'auto' as ApprovalMode,
     requestApproval = vi.fn(async (): Promise<ApprovalDecision> => ({ approved: true })),
     onDroppedFields = undefined as ((error: DroppedFieldError) => void) | undefined,
+    // Retries wait through this instead of real timers; the default returns at once.
+    sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => {}),
   } = {},
 ) {
   const conversation = new ScriptedConversation(steps);
@@ -100,8 +102,10 @@ function setup(
     toolContext: (signal, onProgress) => ({ signal, onProgress, readFiles: new Set() }) as unknown as ToolContext,
     emit: (event) => events.push(event),
     onDroppedFields,
+    sleep,
+    random: () => 0.5,
   });
-  return { agent, conversation, events, requestApproval };
+  return { agent, conversation, events, requestApproval, sleep };
 }
 
 function eventsOf<T extends ChatEvent['type']>(events: ChatEvent[], type: T): Array<Extract<ChatEvent, { type: T }>> {
@@ -560,6 +564,169 @@ describe('Agent: error and limit paths', () => {
     expect(conversation.turns).toBe(200);
     expect(conversation.results).toHaveLength(200);
     expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual(['Stopped after 200 steps.']);
+  });
+});
+
+describe('Agent: retrying transient provider errors', () => {
+  const httpError = (code: number, extra: Record<string, unknown> = {}) =>
+    Object.assign(new Error(`HTTP ${code}`), { status: code, ...extra });
+  const fail = (error: Error): Step => async () => {
+    throw error;
+  };
+
+  it('waits, says so in the chat, and tries the request again', async () => {
+    const { agent, conversation, events, sleep } = setup([fail(httpError(503)), { text: 'Recovered.' }]);
+
+    expect(await agent.send({ text: 'go' }, new AbortController().signal)).toBe(false);
+
+    expect(conversation.turns).toBe(2);
+    expect(conversation.users).toHaveLength(1);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep.mock.calls[0][0]).toBe(2000);
+    expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual(['Server error (503). Retrying in 2 s (retry 1 of 4)…']);
+    expect(eventsOf(events, 'assistant-end').at(-1)).toMatchObject({ text: 'Recovered.' });
+    expect(eventsOf(events, 'error')).toEqual([]);
+  });
+
+  it('puts the retry notice before the answer and drops the text the failed attempt streamed', async () => {
+    const { agent, events } = setup([
+      async (request) => {
+        request.callbacks.onText('half an answ');
+        throw httpError(429);
+      },
+      { text: 'Full answer.' },
+    ]);
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    const starts = eventsOf(events, 'assistant-start').map((event) => event.id);
+    expect(starts).toHaveLength(2);
+    expect(events.map((event) => event.type).filter((type) => type !== 'usage')).toEqual([
+      'assistant-start',
+      'assistant-delta',
+      'assistant-restart',
+      'assistant-end',
+      'notice',
+      'assistant-start',
+      'assistant-delta',
+      'assistant-end',
+    ]);
+    // The restart and end belong to the first attempt, the answer to the second.
+    expect(eventsOf(events, 'assistant-restart')[0].id).toBe(starts[0]);
+    expect(eventsOf(events, 'assistant-end').at(-1)).toMatchObject({ id: starts[1], text: 'Full answer.' });
+  });
+
+  it('backs off longer each time and gives up with the original error after four retries', async () => {
+    const original = httpError(500);
+    const { agent, conversation, events, sleep } = setup([fail(original), fail(original), fail(original), fail(original), fail(original)]);
+
+    await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toBe(original);
+
+    expect(conversation.turns).toBe(5);
+    expect(sleep.mock.calls.map((call) => call[0])).toEqual([2000, 4000, 8000, 16000]);
+    expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual([
+      'Server error (500). Retrying in 2 s (retry 1 of 4)…',
+      'Server error (500). Retrying in 4 s (retry 2 of 4)…',
+      'Server error (500). Retrying in 8 s (retry 3 of 4)…',
+      'Server error (500). Retrying in 16 s (retry 4 of 4)…',
+    ]);
+    // Every attempt's message is closed, including the last.
+    expect(eventsOf(events, 'assistant-end')).toHaveLength(5);
+  });
+
+  it('keeps the text streamed by an attempt that is not retried', async () => {
+    const { agent, events, sleep } = setup([
+      async (request) => {
+        request.callbacks.onText('partial answer');
+        throw httpError(401);
+      },
+    ]);
+
+    await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toThrow('HTTP 401');
+    expect(sleep).not.toHaveBeenCalled();
+    expect(eventsOf(events, 'assistant-restart')).toEqual([]);
+    expect(eventsOf(events, 'notice')).toEqual([]);
+  });
+
+  it('shows errors that will not pass right away instead of retrying', async () => {
+    for (const error of [httpError(400), httpError(404), httpError(429, { code: 'insufficient_quota' }), new Error('plain failure')]) {
+      const { agent, conversation, sleep } = setup([fail(error)]);
+      await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toBe(error);
+      expect(conversation.turns).toBe(1);
+      expect(sleep).not.toHaveBeenCalled();
+    }
+  });
+
+  it('waits as long as the provider asks', async () => {
+    const { agent, sleep, events } = setup([
+      fail(httpError(429, { headers: new Headers({ 'retry-after': '7' }) })),
+      { text: 'ok' },
+    ]);
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    expect(sleep.mock.calls[0][0]).toBe(7000);
+    expect(eventsOf(events, 'notice')[0].text).toBe('Rate limited (429). Retrying in 7 s (retry 1 of 4)…');
+  });
+
+  it('retries a dropped connection', async () => {
+    const dropped = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
+    const { agent, events } = setup([fail(dropped), { text: 'ok' }]);
+    await agent.send({ text: 'go' }, new AbortController().signal);
+    expect(eventsOf(events, 'notice')[0].text).toContain('Connection problem (ECONNRESET)');
+  });
+
+  it('retries only the failed request, after the tools of earlier turns have run and been recorded', async () => {
+    const run = vi.fn(() => ({ content: 'ok' }));
+    const look = tool('look', run);
+    const { agent, conversation } = setup(
+      [
+        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 } },
+        fail(httpError(503)),
+        { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 0 } },
+      ],
+      { tools: [look] },
+    );
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(conversation.log).toEqual(['user:go', 'turn', 'results:t1', 'turn', 'turn']);
+    // The failed attempt used no tokens.
+    expect(agent.totals).toMatchObject({ inputTokens: 30, outputTokens: 5 });
+  });
+
+  it('ends the run without another attempt when the user stops during the wait', async () => {
+    const controller = new AbortController();
+    const { started, running } = signalPair();
+    const waitForStop = vi.fn(
+      (_ms: number, signal: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          started();
+          signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+    );
+    const { agent, conversation, events } = setup([fail(httpError(503)), { text: 'never' }], { sleep: waitForStop });
+
+    const sending = agent.send({ text: 'go' }, controller.signal);
+    await running;
+    controller.abort();
+
+    await expect(sending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(conversation.turns).toBe(1);
+    expect(eventsOf(events, 'notice')).toHaveLength(1);
+  });
+
+  it('does not retry once the user has stopped', async () => {
+    const controller = new AbortController();
+    const { agent, conversation, sleep } = setup([
+      async () => {
+        controller.abort();
+        throw httpError(503);
+      },
+      { text: 'never' },
+    ]);
+
+    await expect(agent.send({ text: 'go' }, controller.signal)).rejects.toThrow('HTTP 503');
+    expect(conversation.turns).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 });
 

@@ -12,6 +12,10 @@ const TEST_ANTHROPIC_BASE_URL = process.env.CODECOMPANION_TEST_ANTHROPIC_URL || 
 // Only used when no custom base URL is set in settings, so the Responses API path can be tested.
 const TEST_OPENAI_BASE_URL = process.env.CODECOMPANION_TEST_OPENAI_URL || undefined;
 
+// Requests that are not part of a chat turn (titles) retry silently inside the SDK. Chat turns are retried by the
+// agent loop instead, where the retry can be shown.
+const BACKGROUND_RETRIES = 3;
+
 // Creates conversations and small-model clients from the current settings and keys.
 export class LlmService {
   constructor(private readonly settings: SettingsStore) {}
@@ -32,12 +36,12 @@ export class LlmService {
     for (const provider of order) {
       if (provider === 'anthropic') {
         const key = this.settings.getSecret('anthropicApiKey');
-        if (key) return new AnthropicCompletionClient(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL), SMALL_MODELS.anthropic);
+        if (key) return new AnthropicCompletionClient(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL, BACKGROUND_RETRIES), SMALL_MODELS.anthropic);
       } else {
         const key = this.settings.getSecret('openaiApiKey');
         if (key) {
           return new OpenAICompletionClient(
-            createOpenAIClient(key, this.settings.get().openaiBaseUrl || TEST_OPENAI_BASE_URL),
+            createOpenAIClient(key, this.settings.get().openaiBaseUrl || TEST_OPENAI_BASE_URL, BACKGROUND_RETRIES),
             SMALL_MODELS.openai,
           );
         }

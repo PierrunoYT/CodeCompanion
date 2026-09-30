@@ -19,6 +19,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
 - Web search (Google Custom Search) and page fetching
 - Long chats are handled by server-side compaction (current Claude models)
+- Rate limits (429), server errors (5xx) and dropped connections are retried automatically with a growing wait (up to 4 retries, or as long as the provider asks), and each retry is shown in the chat; **Stop** works during the wait
 - Stop a running task and use **Resume** to continue it, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions

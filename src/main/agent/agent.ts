@@ -4,6 +4,7 @@ import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ToolCall, ToolResult, UserInput } from '../llm/types';
 import { toToolSpecs } from '../tools/registry';
 import { ToolError, type AgentTool, type ToolContext, type ToolPreview } from '../tools/types';
+import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 
 // Safety net against a model that never stops calling tools.
 const MAX_TURNS = 200;
@@ -33,6 +34,9 @@ export interface AgentOptions {
   emit: (event: ChatEvent) => void;
   // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
   onDroppedFields?: (error: DroppedFieldError) => void;
+  // Test hooks for the retry backoff: how to wait, and the jitter (0 to 1).
+  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  random?: () => number;
 }
 
 // Runs the model/tool loop for one user message: call the model, run the tools it asks for (with approval where
@@ -67,26 +71,7 @@ export class Agent {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal.aborted) return true;
       const tools = this.options.tools();
-      const messageId = randomUUID();
-      emit({ type: 'assistant-start', id: messageId });
-
-      let result;
-      try {
-        result = await conversation.runTurn({
-          system: this.options.system,
-          tools: toToolSpecs(tools),
-          signal,
-          callbacks: {
-            onText: (text) => emit({ type: 'assistant-delta', id: messageId, text }),
-            onThinking: (text) => emit({ type: 'thinking-delta', id: messageId, text }),
-            onRestart: () => emit({ type: 'assistant-restart', id: messageId }),
-          },
-        });
-      } catch (error) {
-        // Keep whatever was streamed before the failure.
-        emit({ type: 'assistant-end', id: messageId });
-        throw error;
-      }
+      const { result, messageId } = await this.runTurnWithRetries(tools, signal);
       emit({ type: 'assistant-end', id: messageId, text: result.text });
 
       this.usage.inputTokens += result.usage.inputTokens;
@@ -128,6 +113,49 @@ export class Agent {
 
     emit({ type: 'notice', id: randomUUID(), text: `Stopped after ${MAX_TURNS} steps.` });
     return false;
+  }
+
+  // Repeats a model request that failed for a reason that usually passes (rate limit, server error, dropped
+  // connection), after a backoff, and says so in the chat. The conversation only records a turn once it has
+  // succeeded, so repeating the request cannot duplicate anything in the history.
+  //
+  // Each attempt streams into its own message. A failed attempt that is retried is discarded, so the notice comes
+  // before the answer; one that is not retried keeps whatever text it streamed.
+  private async runTurnWithRetries(tools: AgentTool[], signal: AbortSignal) {
+    const { conversation, emit } = this.options;
+    for (let retries = 0; ; retries++) {
+      const messageId = randomUUID();
+      emit({ type: 'assistant-start', id: messageId });
+      try {
+        const result = await conversation.runTurn({
+          system: this.options.system,
+          tools: toToolSpecs(tools),
+          signal,
+          callbacks: {
+            onText: (text) => emit({ type: 'assistant-delta', id: messageId, text }),
+            onThinking: (text) => emit({ type: 'thinking-delta', id: messageId, text }),
+            onRestart: () => emit({ type: 'assistant-restart', id: messageId }),
+          },
+        });
+        return { result, messageId };
+      } catch (error) {
+        const decision = signal.aborted ? null : retryDecision(error, retries, this.options.random);
+        if (!decision) {
+          emit({ type: 'assistant-end', id: messageId });
+          throw error;
+        }
+
+        emit({ type: 'assistant-restart', id: messageId });
+        emit({ type: 'assistant-end', id: messageId });
+        const seconds = Math.max(1, Math.round(decision.delayMs / 1000));
+        emit({
+          type: 'notice',
+          id: randomUUID(),
+          text: `${decision.reason}. Retrying in ${seconds} s (retry ${retries + 1} of ${MAX_RETRIES})…`,
+        });
+        await (this.options.sleep ?? abortableSleep)(decision.delayMs, signal);
+      }
+    }
   }
 
   // Every tool call gets a result, even when skipped, because the API requires one per call.

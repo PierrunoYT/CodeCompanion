@@ -5,6 +5,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Added
+- Retry transient provider errors (HTTP 408, 429, 5xx including 529, errors sent inside a stream, dropped or timed-out connections) up to 4 times with a 2 to 16 second backoff, or the wait the provider asks for in `Retry-After`. Each retry is shown as a notice in the chat, the text the failed attempt streamed is discarded, and Stop works during the wait. Out-of-quota errors, other 4xx errors and refused connections are still shown straight away. Chat turns now use provider clients without SDK-level retries so the app is the only one retrying and every retry is visible; chat titles keep the SDK's silent retries.
 - Log crashes and other problems to `logs/app.log.jsonl` in the user data folder: uncaught errors and unhandled rejections, a crashed or hung UI, helper processes that ended, failed IPC calls (channel and error message, not the arguments), the app page failing to load, errors that reach the top of the UI, and errors shown in the chat. Entries hold error messages and stacks, which can mention file paths, but no chat history; API keys and tokens are redacted. The file stays on the machine and rotates at 512 KB. Help → Show Log Folder opens it.
 - Log tool calls that arrive with required fields missing (tool, model, missing and received field names, never values) to `logs/tool-input-errors.jsonl` in the user data folder, so the dropped `new_string` problem in `edit_file` can be measured. The file stays on the machine and rotates at 512 KB.
 

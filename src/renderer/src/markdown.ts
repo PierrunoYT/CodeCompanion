@@ -23,6 +23,7 @@ export function renderMarkdown(text: string): string {
   return DOMPurify.sanitize(marked.parse(text, { async: false }) as string, {
     ADD_ATTR: ['target'],
     FORBID_TAGS: ['img', 'picture', 'video', 'audio', 'source', 'iframe', 'object', 'embed', 'form', 'input', 'style'],
+    FORBID_ATTR: ['style'],
   });
 }
 

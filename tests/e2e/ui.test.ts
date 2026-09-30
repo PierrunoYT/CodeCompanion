@@ -87,6 +87,49 @@ describe('user interface', () => {
     expect(result.html).not.toMatch(/onerror|<script|javascript:/i);
   });
 
+  it('strips model CSS overlays while preserving markdown and syntax highlighting', async () => {
+    claude.script({
+      blocks: [
+        {
+          type: 'text',
+          text: [
+            '<style>.model-overlay { position: fixed; inset: 0; z-index: 2147483647; }</style>',
+            '',
+            '<span class="model-overlay" style="position:fixed;inset:0;z-index:2147483647">Overlay payload</span>',
+            '',
+            '**Safe formatting** and [safe link](https://example.com/).',
+            '',
+            '```javascript',
+            'const safe = true;',
+            '```',
+            '',
+            'CSS payload complete.',
+          ].join('\n'),
+        },
+      ],
+      stopReason: 'end_turn',
+    });
+    const input = running.page.getByLabel('Message', { exact: true });
+    await input.fill('Show styled markdown');
+    await input.press('Enter');
+    const markdown = running.page.locator('.message.assistant .markdown', { hasText: 'CSS payload complete.' });
+    await markdown.waitFor();
+
+    expect(await markdown.locator('style, [style]').count()).toBe(0);
+    const overlay = markdown.locator('.model-overlay');
+    expect(await overlay.textContent()).toBe('Overlay payload');
+    expect(
+      await overlay.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { position: style.position, zIndex: style.zIndex };
+      }),
+    ).toEqual({ position: 'static', zIndex: 'auto' });
+    expect(await markdown.locator('strong').textContent()).toBe('Safe formatting');
+    expect(await markdown.locator('a', { hasText: 'safe link' }).getAttribute('href')).toBe('https://example.com/');
+    expect(await markdown.locator('pre code.hljs.language-javascript').textContent()).toBe('const safe = true;\n');
+    expect(await markdown.locator('pre code .hljs-keyword').textContent()).toBe('const');
+  });
+
   it('shows a diff for approval and applies the edit when Approve is clicked', async () => {
     claude.script(
       {
@@ -116,6 +159,7 @@ describe('user interface', () => {
     const card = running.page.locator('.tool-card.awaiting');
     await card.waitFor();
     await expect(card.locator('.tool-diff').textContent()).resolves.toContain('hello, world');
+    await card.locator('.tool-diff .d2h-wrapper .d2h-code-line').first().waitFor();
     await expect(running.page.getByRole('button', { name: 'Stop' })).toBeTruthy();
     await shot('3-approval');
 

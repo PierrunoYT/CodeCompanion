@@ -188,3 +188,7 @@ Same machine as above. The numbers were stable across three runs.
 - **Linear up to 5,000 items, faster than linear after.** The cost grows linearly with the chat up to 5,000 items. From 5,000 to 20,000 items it grows 7.5 times for 4 times the items, probably because of garbage collection.
 - **Where it could start to matter:** at 20,000 items and a fast stream of about 100 pieces a second, the copies would take roughly 2% of a core.
 - **Nothing to change now.** If chats that long become common, the fix is to update the streaming item in place in the main process's copy, which is not shared with anything. The renderer already needs new objects for its own copy.
+
+### Crash-resume checkpoints (2026-09-30)
+
+A crash-resume checkpoint writes the whole chat synchronously after every tool-result batch: pretty-printed JSON, including base64 screenshots, plus the chat index and a `history:changed` broadcast. Quick read-only batches, and batches that return browser screenshots, block the main process once per batch, and the stall grows with the chat. Checkpointing only batches that need approval or change state, or skipping the index rewrite and the broadcast until the run finishes, is tracked as a follow-up.

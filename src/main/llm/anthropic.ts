@@ -26,6 +26,7 @@ import type {
   TurnResult,
   UserInput,
 } from './types';
+import { INTERRUPTED_TOOL_RESULT } from './types';
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type ContentBlockParam = Anthropic.Beta.BetaContentBlockParam;
@@ -124,6 +125,9 @@ export class AnthropicConversation implements Conversation {
   }
 
   addUserMessage(input: UserInput): void {
+    // A history saved mid-task can end with tool calls that never got results (an app crash); the API rejects
+    // requests until they are closed, so answer them synthetically before appending the new message.
+    this.closePendingToolCalls();
     const content: ContentBlockParam[] = [
       ...(input.images ?? []).map((image): ContentBlockParam => ({
         type: 'image',
@@ -149,6 +153,23 @@ export class AnthropicConversation implements Conversation {
       ],
     }));
     this.messages.push({ role: 'user', content });
+  }
+
+  hasPendingToolCalls(): boolean {
+    const last = this.messages[this.messages.length - 1];
+    return (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.some((block) => block.type === 'tool_use')
+    );
+  }
+
+  private closePendingToolCalls(): void {
+    if (!this.hasPendingToolCalls()) return;
+    const last = this.messages[this.messages.length - 1];
+    if (!last || last.role !== 'assistant' || !Array.isArray(last.content)) return;
+    const ids = last.content.flatMap((block) => (block.type === 'tool_use' ? [block.id] : []));
+    this.addToolResults(ids.map((id) => ({ id, content: INTERRUPTED_TOOL_RESULT, isError: true })));
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {

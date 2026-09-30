@@ -92,7 +92,16 @@ export interface Conversation {
   planCompaction(): CompactionPlan | null;
   // From now on the summary is sent in place of the messages before `keepFrom`. Nothing stored is changed.
   applyCompaction(summary: string, keepFrom: number): void;
+  // True when the history ends with tool calls that never got their results — a task the app interrupted.
+  // addUserMessage() repairs such a history with synthetic results, so the next request is valid again.
+  hasPendingToolCalls(): boolean;
 }
+
+// Returned to the model for tool calls whose result was never recorded, because the app stopped first. The action
+// may already have run (an edit applied, a command finished) and only the result was lost, so the model must check
+// before retrying it.
+export const INTERRUPTED_TOOL_RESULT =
+  "The app stopped before this action's result was recorded; it may or may not have run. Check the current state before retrying it.";
 
 // Structured one-shot calls to the small model (titles, re-ranking).
 export interface CompletionClient {

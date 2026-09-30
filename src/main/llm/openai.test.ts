@@ -282,6 +282,55 @@ describe('OpenAIConversation', () => {
     expect(sent[1]).toEqual({ role: 'user', content: 'THE TASK' });
     expect(sent[2].content).toContain('removed to fit');
     expect(JSON.stringify(sent).length / 4).toBeLessThan(110_000);
-    expect(sent.at(-1).content).toBe('follow-up 9');
+    expect(sent.at(-1)!.content).toBe('follow-up 9');
+  });
+
+  it('closes tool calls left pending by an interrupted task when the next message is added', async () => {
+    server.queueSse([
+      chunk({ role: 'assistant' }),
+      chunk({
+        tool_calls: [
+          { index: 0, id: 'call_9', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } },
+        ],
+      }),
+      chunk({}, 'tool_calls'),
+      { data: '[DONE]' },
+    ]);
+    const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test');
+    conversation.addUserMessage({ text: 'read a.ts' });
+    await conversation.runTurn(request());
+    expect(conversation.hasPendingToolCalls()).toBe(true);
+
+    conversation.addUserMessage({ text: 'Continue.' });
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+    const messages = conversation.serialize().messages as Array<{ role: string; content: unknown }>;
+    expect(messages.at(-1)).toEqual({ role: 'user', content: 'Continue.' });
+    expect(messages.at(-2)).toEqual({
+      role: 'tool',
+      tool_call_id: 'call_9',
+      content: expect.stringContaining('may or may not have run'),
+    });
+  });
+
+  it('stays settled after a tool result that carries images', async () => {
+    server.queueSse([
+      chunk({ role: 'assistant' }),
+      chunk({
+        tool_calls: [{ index: 0, id: 'call_img', type: 'function', function: { name: 'browser', arguments: '{}' } }],
+      }),
+      chunk({}, 'tool_calls'),
+      { data: '[DONE]' },
+    ]);
+    const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test');
+    conversation.addUserMessage({ text: 'Look' });
+    await conversation.runTurn(request());
+    conversation.addToolResults([
+      { id: 'call_img', content: 'screenshot', images: [{ mediaType: 'image/png', base64: 'AAAA' }] },
+    ]);
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+    const messages = conversation.serialize().messages as Array<{ role: string; tool_call_id?: string }>;
+    expect(messages.filter((message) => message.role === 'tool' && message.tool_call_id === 'call_img')).toHaveLength(
+      1,
+    );
   });
 });

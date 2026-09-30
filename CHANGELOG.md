@@ -10,6 +10,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- A task interrupted by a crash can be resumed: the conversation is checkpointed after every tool batch, and on load a chat whose history ends with unanswered tool calls offers Resume, which repairs the history with synthetic failed results and continues.
+
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.
 - Workspace tools for reading, searching and editing files, running foreground and background commands, fetching pages, web search and optional semantic code search.
 - Approval cards with command and diff previews, feedback when declining, Ask first and Auto modes, and global and per-project command and network allow-lists.

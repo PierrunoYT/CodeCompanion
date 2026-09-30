@@ -64,6 +64,10 @@ class ScriptedConversation implements Conversation {
   }
 
   applyCompaction(): void {}
+
+  hasPendingToolCalls(): boolean {
+    return false;
+  }
 }
 
 const image: ImageData = { mediaType: 'image/png', base64: 'AAAA' };

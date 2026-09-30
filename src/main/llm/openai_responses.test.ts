@@ -309,6 +309,105 @@ describe('OpenAIResponsesConversation', () => {
     const result = await conversation.runTurn(request());
     expect(result.stopReason).toBe('max_tokens');
   });
+
+  it('does not repair a batch whose calls already have outputs', () => {
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'high', [
+      { role: 'user', content: [{ type: 'input_text', text: 'read both' }] },
+      {
+        type: 'function_call',
+        call_id: 'call_a',
+        name: 'read_file',
+        arguments: '{}',
+        id: 'fc_a',
+        status: 'completed',
+      } as never,
+      {
+        type: 'function_call',
+        call_id: 'call_b',
+        name: 'read_file',
+        arguments: '{}',
+        id: 'fc_b',
+        status: 'completed',
+      } as never,
+      { type: 'function_call_output', call_id: 'call_a', output: 'alpha' } as never,
+      { type: 'function_call_output', call_id: 'call_b', output: 'beta' } as never,
+    ]);
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+
+    conversation.addUserMessage({ text: 'Continue.' });
+    const items = conversation.serialize().messages as Array<Record<string, unknown>>;
+    expect(items.filter((item) => item.type === 'function_call_output')).toHaveLength(2);
+  });
+
+  it('records exactly one output per call when a tool result carries images', () => {
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'high', [
+      { role: 'user', content: [{ type: 'input_text', text: 'look' }] },
+      {
+        type: 'function_call',
+        call_id: 'call_s',
+        name: 'browser',
+        arguments: '{}',
+        id: 'fc_s',
+        status: 'completed',
+      } as never,
+    ]);
+    conversation.addToolResults([
+      { id: 'call_s', content: 'screenshot', images: [{ mediaType: 'image/png', base64: 'AAAA' }] },
+    ]);
+    const items = conversation.serialize().messages as Array<Record<string, unknown>>;
+    expect(items.filter((item) => item.type === 'function_call_output' && item.call_id === 'call_s')).toHaveLength(1);
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+  });
+
+  it('does not treat a new call as answered when it reuses an already-answered call id', () => {
+    // The earlier turn answered call_9; the latest batch is a new call that reuses the id and has no output yet.
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'high', [
+      {
+        type: 'function_call',
+        call_id: 'call_9',
+        name: 'read_file',
+        arguments: '{}',
+        id: 'fc_1',
+        status: 'completed',
+      } as never,
+      { type: 'function_call_output', call_id: 'call_9', output: 'done' } as never,
+      { role: 'user', content: [{ type: 'input_text', text: 'again' }] },
+      {
+        type: 'function_call',
+        call_id: 'call_9',
+        name: 'read_file',
+        arguments: '{}',
+        id: 'fc_2',
+        status: 'completed',
+      } as never,
+    ]);
+    expect(conversation.hasPendingToolCalls()).toBe(true);
+  });
+
+  it('closes function calls left pending by an interrupted task when the next message is added', () => {
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'high', [
+      { role: 'user', content: [{ type: 'input_text', text: 'read a.ts' }] },
+      {
+        type: 'function_call',
+        call_id: 'call_9',
+        name: 'read_file',
+        arguments: '{"path":"a.ts"}',
+        id: 'fc_9',
+        status: 'completed',
+      } as never,
+    ]);
+    expect(conversation.hasPendingToolCalls()).toBe(true);
+
+    conversation.addUserMessage({ text: 'Continue.' });
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+    const items = conversation.serialize().messages as Array<Record<string, unknown>>;
+    expect(items.at(-1)).toEqual({ role: 'user', content: [{ type: 'input_text', text: 'Continue.' }] });
+    expect(items.at(-2)).toMatchObject({
+      type: 'function_call_output',
+      call_id: 'call_9',
+      output: expect.stringContaining('may or may not have run'),
+    });
+  });
 });
 
 describe('LlmService OpenAI routing', () => {

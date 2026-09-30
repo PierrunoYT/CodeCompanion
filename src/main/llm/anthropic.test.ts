@@ -274,6 +274,53 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await expect(conversation.runTurn(request())).rejects.toThrow(/invalid x-api-key/);
   });
+
+  it('closes tool calls left pending by an interrupted task when the next message is added', async () => {
+    server.queueSse(
+      anthropicStream([{ type: 'tool_use', id: 'toolu_9', name: 'read_file', input: { path: 'a.ts' } }], 'tool_use'),
+    );
+    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+    });
+    conversation.addUserMessage({ text: 'Read a.ts' });
+    await conversation.runTurn(request());
+    expect(conversation.hasPendingToolCalls()).toBe(true);
+
+    conversation.addUserMessage({ text: 'Continue.' });
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+    const messages = conversation.serialize().messages as Array<{
+      role: string;
+      content: Array<Record<string, unknown>>;
+    }>;
+    expect(messages.at(-1)).toEqual({ role: 'user', content: [{ type: 'text', text: 'Continue.' }] });
+    const repaired = messages.at(-2)!;
+    expect(repaired.role).toBe('user');
+    expect(repaired.content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 'toolu_9', is_error: true });
+    expect(JSON.stringify(repaired)).toContain('may or may not have run');
+  });
+
+  it('stays settled after a tool result that carries images', async () => {
+    server.queueSse(
+      anthropicStream(
+        [{ type: 'tool_use', id: 'toolu_img', name: 'browser', input: { url: 'https://x' } }],
+        'tool_use',
+      ),
+    );
+    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+    });
+    conversation.addUserMessage({ text: 'Look' });
+    await conversation.runTurn(request());
+    conversation.addToolResults([
+      { id: 'toolu_img', content: 'screenshot', images: [{ mediaType: 'image/png', base64: 'AAAA' }] },
+    ]);
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+    const messages = conversation.serialize().messages as Array<{ content: Array<Record<string, unknown>> }>;
+    const results = messages.flatMap((message) => message.content.filter((block) => block.type === 'tool_result'));
+    expect(results).toHaveLength(1);
+  });
 });
 
 describe('AnthropicCompletionClient', () => {

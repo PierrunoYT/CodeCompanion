@@ -50,6 +50,7 @@ describe('project chat retention', () => {
       serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
       planCompaction: () => null,
       applyCompaction() {},
+      hasPendingToolCalls: () => false,
     });
     vi.spyOn(llm, 'createConversation').mockImplementation(conversation);
     vi.spyOn(llm, 'restoreConversation').mockImplementation(conversation);
@@ -315,6 +316,7 @@ describe('project chat retention', () => {
         serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
         planCompaction: () => null,
         applyCompaction() {},
+        hasPendingToolCalls: () => false,
       };
     });
     settings.update({ approvalMode: 'auto' });
@@ -405,6 +407,7 @@ describe('project chat retention', () => {
       serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
       planCompaction: () => null,
       applyCompaction() {},
+      hasPendingToolCalls: () => false,
     });
     vi.spyOn(llm, 'createConversation').mockImplementation(conversation);
     vi.spyOn(llm, 'restoreConversation').mockImplementation(conversation);

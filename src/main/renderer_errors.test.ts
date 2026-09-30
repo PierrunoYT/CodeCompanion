@@ -19,7 +19,7 @@ describe('RendererErrorReporter', () => {
     });
 
     expect(log.error).toHaveBeenCalledTimes(1);
-    const [source, error] = log.error.mock.calls[0];
+    const [source, error] = log.error.mock.calls[0]!;
     expect(source).toBe('renderer');
     expect(error).toBeInstanceOf(Error);
     expect(error).toMatchObject({ name: 'RendererError', message: 'x is undefined', stack: 'at render (app.js:1)' });
@@ -29,7 +29,7 @@ describe('RendererErrorReporter', () => {
     const log = fakeLog();
     new RendererErrorReporter(log).report({ source: 'unhandledrejection', message: 'failed' });
 
-    const [, error] = log.error.mock.calls[0];
+    const [, error] = log.error.mock.calls[0]!;
     expect(error.name).toBe('RendererUnhandledRejection');
     // Empty, not this file's own stack.
     expect(error.stack).toBe('');
@@ -57,7 +57,7 @@ describe('RendererErrorReporter', () => {
     const log = fakeLog();
     new RendererErrorReporter(log).report({ source: 'error', message: 'm'.repeat(50_000), stack: 's'.repeat(50_000) });
 
-    const [, error] = log.error.mock.calls[0];
+    const [, error] = log.error.mock.calls[0]!;
     expect(error.message).toHaveLength(5000);
     expect(error.stack).toHaveLength(8000);
   });

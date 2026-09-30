@@ -79,7 +79,7 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
 
     await waitFor((chat) => {
       const cards = chat.transcript.filter((item) => item.kind === 'tool');
-      return cards.length === 3 && cards[2].status === 'running';
+      return cards.length === 3 && cards[2]!.status === 'running';
     });
     // Stop once the command is really running: stopping a shell that is still starting is a different, racy case.
     await expect.poll(() => existsSync(join(project, 'started.txt')), { timeout: 20_000 }).toBe(true);

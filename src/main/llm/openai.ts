@@ -153,6 +153,7 @@ export class OpenAIConversation implements Conversation {
 
     const completion = await stream.finalChatCompletion();
     const choice = completion.choices[0];
+    if (!choice) throw new Error('The model response contained no choices.');
     const message = choice.message;
 
     const toolCalls: ToolCall[] = (message.tool_calls ?? [])
@@ -205,12 +206,13 @@ export class OpenAIConversation implements Conversation {
 export function trimHistory(messages: MessageParam[]): MessageParam[] {
   if (estimateTokens(messages) <= MAX_HISTORY_TOKENS) return messages;
   const [first, ...rest] = messages;
+  if (!first) return messages;
   let lastGroup = rest.length - 1;
-  while (lastGroup > 0 && rest[lastGroup].role === 'tool') lastGroup--;
+  while (lastGroup > 0 && rest[lastGroup]?.role === 'tool') lastGroup--;
   let start = 0;
   while (start < lastGroup && estimateTokens([first, ...rest.slice(start)]) > MAX_HISTORY_TOKENS) {
     start++;
-    while (start < lastGroup && rest[start].role === 'tool') start++;
+    while (start < lastGroup && rest[start]?.role === 'tool') start++;
   }
   if (start === 0) return messages;
   return [

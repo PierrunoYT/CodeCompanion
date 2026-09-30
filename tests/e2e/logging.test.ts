@@ -72,7 +72,7 @@ describe('crash and error log', () => {
       };
       try {
         const help = Menu.getApplicationMenu()?.items.find((item) => item.role === 'help');
-        help?.submenu?.items[0].click();
+        help?.submenu?.items[0]!.click();
         await new Promise((resolve) => setTimeout(resolve, 50));
       } finally {
         shell.openPath = original;

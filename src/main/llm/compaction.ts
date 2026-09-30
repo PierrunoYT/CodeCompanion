@@ -47,8 +47,8 @@ export function planCompaction<T>(
   let tail = 0;
   let cut = -1;
   for (let index = messages.length - 1; index > start; index--) {
-    tail += sizes[index];
-    if (tail >= KEEP_TAIL_CHARS && adapter.safeCut(messages[index], index, messages)) {
+    tail += sizes[index] ?? 0;
+    if (tail >= KEEP_TAIL_CHARS && adapter.safeCut(messages[index]!, index, messages)) {
       cut = index;
       break;
     }

@@ -101,7 +101,7 @@ describe('long chat performance', () => {
     Object.fromEntries(
       ['ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration'].map((name) => [
         name,
-        Math.round((after[name] - before[name]) * 1000),
+        Math.round(((after[name] ?? 0) - (before[name] ?? 0)) * 1000),
       ]),
     );
 
@@ -149,7 +149,7 @@ describe('long chat performance', () => {
       return { frames: state.frames as number[], long: state.long as number[] };
     });
     const sorted = [...perf.frames].sort((a, b) => a - b);
-    const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] * 10) / 10;
+    const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]! * 10) / 10;
     results.push({
       label,
       items,

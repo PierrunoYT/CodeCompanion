@@ -170,7 +170,7 @@ describe('Agent: tool-result pairing', () => {
     expect(await agent.send({ text: 'go' }, new AbortController().signal)).toBe(false);
 
     expect(conversation.results).toHaveLength(1);
-    expect(conversation.results[0].map((result) => result.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6']);
+    expect(conversation.results[0]!.map((result) => result.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6']);
     expect(conversation.results[0]).toMatchObject([
       { content: 'saw a', images: [image] },
       { content: 'Unknown tool: missing', isError: true },
@@ -179,17 +179,17 @@ describe('Agent: tool-result pairing', () => {
       { content: 'Error: kaput', isError: true },
       { content: 'failed softly', isError: true },
     ]);
-    expect(conversation.results[0][0].isError).toBeUndefined();
+    expect(conversation.results[0]![0]!.isError).toBeUndefined();
 
     // Unknown tools and invalid input never show up as started tools; everything else ends with a status.
     const starts = eventsOf(events, 'tool-start');
     expect(starts.map((event) => event.name)).toEqual(['strict', 'denied', 'crash', 'soft']);
     expect(new Set(starts.map((event) => event.id))).toHaveLength(4);
     expect(eventsOf(events, 'tool-end').map((event) => [event.id, event.status, event.summary])).toEqual([
-      [starts[0].id, 'done', 'Saw a'],
-      [starts[1].id, 'error', 'denied failed'],
-      [starts[2].id, 'error', 'crash failed'],
-      [starts[3].id, 'error', 'Soft fail'],
+      [starts[0]!.id, 'done', 'Saw a'],
+      [starts[1]!.id, 'error', 'denied failed'],
+      [starts[2]!.id, 'error', 'crash failed'],
+      [starts[3]!.id, 'error', 'Soft fail'],
     ]);
   });
 
@@ -209,11 +209,11 @@ describe('Agent: tool-result pairing', () => {
     });
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    const [start] = eventsOf(events, 'tool-start');
-    const [end] = eventsOf(events, 'tool-end');
+    const start = eventsOf(events, 'tool-start')[0]!;
+    const end = eventsOf(events, 'tool-end')[0]!;
     expect(start.id).not.toBe('');
     expect(end.id).toBe(start.id);
-    expect(conversation.results[0][0].id).toBe('');
+    expect(conversation.results[0]![0]!.id).toBe('');
   });
 
   it('streams tool progress and only shows the output of command tools', async () => {
@@ -229,10 +229,10 @@ describe('Agent: tool-result pairing', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     const starts = eventsOf(events, 'tool-start');
-    expect(eventsOf(events, 'tool-progress')).toEqual([{ type: 'tool-progress', id: starts[0].id, text: 'line 1' }]);
+    expect(eventsOf(events, 'tool-progress')).toEqual([{ type: 'tool-progress', id: starts[0]!.id, text: 'line 1' }]);
     expect(eventsOf(events, 'tool-end').map((event) => [event.id, event.output])).toEqual([
-      [starts[0].id, 'exit code 0'],
-      [starts[1].id, undefined],
+      [starts[0]!.id, 'exit code 0'],
+      [starts[1]!.id, undefined],
     ]);
   });
 
@@ -255,8 +255,8 @@ describe('Agent: tool-result pairing', () => {
 
     expect(run).not.toHaveBeenCalled();
     expect(requestApproval).not.toHaveBeenCalled();
-    expect(conversation.results[0]).toEqual([{ id: 'e1', content: 'target file is missing', isError: true }]);
-    const eventId = eventsOf(events, 'tool-start')[0].id;
+    expect(conversation.results[0]![0]).toEqual({ id: 'e1', content: 'target file is missing', isError: true });
+    const eventId = eventsOf(events, 'tool-start')[0]!.id;
     expect(eventId).not.toBe('e1');
     expect(eventsOf(events, 'tool-start')[0]).toMatchObject({ awaitingApproval: false });
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({
@@ -341,7 +341,7 @@ describe('Agent: dropped-field reporting', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(reported[0]).toMatchObject({ missing: ['path', 'old_string', 'new_string'], received: [] });
-    expect(conversation.results[0][0]).toMatchObject({ isError: true });
+    expect(conversation.results[0]![0]).toMatchObject({ isError: true });
   });
 });
 
@@ -365,7 +365,7 @@ describe('Agent: undoable edits', () => {
     const kept: Array<[string, EditUndo]> = [];
     const { events } = await run(editing(), (toolId, edit) => kept.push([toolId, edit]));
 
-    const eventId = eventsOf(events, 'tool-start')[0].id;
+    const eventId = eventsOf(events, 'tool-start')[0]!.id;
     expect(kept).toEqual([[eventId, undo]]);
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({
       id: eventId,
@@ -378,7 +378,7 @@ describe('Agent: undoable edits', () => {
   it('does not show the backup to the model', async () => {
     const { conversation } = await run(editing(), () => {});
     expect(JSON.stringify(conversation.results)).not.toContain('afterHash');
-    expect(conversation.results[0][0]).toEqual({
+    expect(conversation.results[0]![0]).toEqual({
       id: 't1',
       content: 'Edited src/a.ts.',
       isError: undefined,
@@ -392,16 +392,16 @@ describe('Agent: undoable edits', () => {
     });
 
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'done', undoable: false });
-    expect(conversation.results[0][0].isError).toBeUndefined();
+    expect(conversation.results[0]![0]!.isError).toBeUndefined();
   });
 
   it('offers no undo when nothing keeps backups, when the tool has none, or when the edit failed', async () => {
     const noKeeper = await run(editing());
-    expect(eventsOf(noKeeper.events, 'tool-end')[0].undoable).toBe(false);
+    expect(eventsOf(noKeeper.events, 'tool-end')[0]!.undoable).toBe(false);
 
     const kept = vi.fn();
     const plain = await run(editing({ undo: undefined }), kept);
-    expect(eventsOf(plain.events, 'tool-end')[0].undoable).toBeUndefined();
+    expect(eventsOf(plain.events, 'tool-end')[0]!.undoable).toBeUndefined();
 
     const failed = await run(editing({ isError: true }), kept);
     expect(eventsOf(failed.events, 'tool-end')[0]).toMatchObject({ status: 'error', undoable: undefined });
@@ -497,8 +497,8 @@ describe('Agent: approvals', () => {
     );
     expect(backups).toEqual(cardIds);
     expect(eventsOf(events, 'tool-end').map((event) => event.id)).toEqual(cardIds);
-    expect(conversation.results.map(([result]) => result.id)).toEqual(['reused', 'reused']);
-    expect(conversation.results.map(([result]) => result.content)).toEqual(['edited a.ts', 'edited b.ts']);
+    expect(conversation.results.map(([result]) => result!.id)).toEqual(['reused', 'reused']);
+    expect(conversation.results.map(([result]) => result!.content)).toEqual(['edited a.ts', 'edited b.ts']);
   });
 
   it('does not run an approved tool when the stop arrived while waiting', async () => {
@@ -517,8 +517,8 @@ describe('Agent: approvals', () => {
     expect(await agent.send({ text: 'go' }, controller.signal)).toBe(true);
 
     expect(run).not.toHaveBeenCalled();
-    expect(conversation.results[0][0]).toMatchObject({ id: 't1', isError: true });
-    expect(conversation.results[0][0].content).toContain('Stopped by the user before this action was approved');
+    expect(conversation.results[0]![0]).toMatchObject({ id: 't1', isError: true });
+    expect(conversation.results[0]![0]!.content).toContain('Stopped by the user before this action was approved');
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'error', summary: 'Stopped' });
   });
 });
@@ -597,7 +597,7 @@ describe('Agent: stop', () => {
     ]);
 
     await expect(agent.send({ text: 'go' }, controller.signal)).rejects.toThrow('aborted');
-    const start = eventsOf(events, 'assistant-start')[0];
+    const start = eventsOf(events, 'assistant-start')[0]!;
     expect(eventsOf(events, 'assistant-end')).toEqual([{ type: 'assistant-end', id: start.id }]);
   });
 });
@@ -635,9 +635,9 @@ describe('Agent: resume', () => {
 
     // Every call was answered before the continuation message, so the history stays valid for the provider.
     expect(conversation.log).toEqual(['user:go', 'turn', 'results:t1,t2', 'user:Continue the', 'turn']);
-    expect(conversation.users[0].text).toBe('go');
-    expect(conversation.users[1].text).toContain('do not repeat the original request');
-    expect(conversation.users[1].text).toContain('inspect the current state');
+    expect(conversation.users[0]!.text).toBe('go');
+    expect(conversation.users[1]!.text).toContain('do not repeat the original request');
+    expect(conversation.users[1]!.text).toContain('inspect the current state');
     expect(ran).toEqual([]);
   });
 
@@ -665,7 +665,7 @@ describe('Agent: error and limit paths', () => {
 
     const [start] = eventsOf(events, 'assistant-start');
     expect(events.map((event) => event.type)).toEqual(['assistant-start', 'assistant-delta', 'assistant-end']);
-    expect(eventsOf(events, 'assistant-end')[0]).toEqual({ type: 'assistant-end', id: start.id });
+    expect(eventsOf(events, 'assistant-end')[0]).toEqual({ type: 'assistant-end', id: start!.id });
     expect(conversation.results).toEqual([]);
     expect(agent.totals).toEqual({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
   });
@@ -730,7 +730,7 @@ describe('Agent: error and limit paths', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(run).not.toHaveBeenCalled();
-    expect(conversation.results[0][0]).toMatchObject({
+    expect(conversation.results[0]![0]).toMatchObject({
       id: 't1',
       isError: true,
       content: expect.stringContaining('may be cut off'),
@@ -784,7 +784,7 @@ describe('Agent: retrying transient provider errors', () => {
     expect(conversation.turns).toBe(2);
     expect(conversation.users).toHaveLength(1);
     expect(sleep).toHaveBeenCalledTimes(1);
-    expect(sleep.mock.calls[0][0]).toBe(2000);
+    expect(sleep.mock.calls[0]![0]).toBe(2000);
     expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual([
       'Server error (503). Retrying in 2 s (retry 1 of 4)…',
     ]);
@@ -815,7 +815,7 @@ describe('Agent: retrying transient provider errors', () => {
       'assistant-end',
     ]);
     // The restart and end belong to the first attempt, the answer to the second.
-    expect(eventsOf(events, 'assistant-restart')[0].id).toBe(starts[0]);
+    expect(eventsOf(events, 'assistant-restart')[0]!.id).toBe(starts[0]);
     expect(eventsOf(events, 'assistant-end').at(-1)).toMatchObject({ id: starts[1], text: 'Full answer.' });
   });
 
@@ -878,15 +878,15 @@ describe('Agent: retrying transient provider errors', () => {
     ]);
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    expect(sleep.mock.calls[0][0]).toBe(7000);
-    expect(eventsOf(events, 'notice')[0].text).toBe('Rate limited (429). Retrying in 7 s (retry 1 of 4)…');
+    expect(sleep.mock.calls[0]![0]).toBe(7000);
+    expect(eventsOf(events, 'notice')[0]!.text).toBe('Rate limited (429). Retrying in 7 s (retry 1 of 4)…');
   });
 
   it('retries a dropped connection', async () => {
     const dropped = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
     const { agent, events } = setup([fail(dropped), { text: 'ok' }]);
     await agent.send({ text: 'go' }, new AbortController().signal);
-    expect(eventsOf(events, 'notice')[0].text).toContain('Connection problem (ECONNRESET)');
+    expect(eventsOf(events, 'notice')[0]!.text).toContain('Connection problem (ECONNRESET)');
   });
 
   it('retries only the failed request, after the tools of earlier turns have run and been recorded', async () => {
@@ -962,7 +962,7 @@ describe('Agent: streaming and usage', () => {
     ]);
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    const [start] = eventsOf(events, 'assistant-start');
+    const start = eventsOf(events, 'assistant-start')[0]!;
     expect(events.filter((event) => event.type !== 'usage')).toEqual([
       { type: 'assistant-start', id: start.id },
       { type: 'thinking-delta', id: start.id, text: 'hmm' },

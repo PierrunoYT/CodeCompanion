@@ -102,7 +102,7 @@ Before tagging, use the built app once against the real Anthropic and OpenAI API
 
 ## Conventions
 
-- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes. ESLint (`npm run lint`, flat config in `eslint.config.mjs`) is also enforced in CI; test files, the end-to-end harness, performance measurements and mock servers may use `any`, production sources may not.
+- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes. ESLint (`npm run lint`, flat config in `eslint.config.mjs`) is also enforced in CI; test files, the end-to-end harness, performance measurements and mock servers may use `any`, production sources may not. `noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters` and `forceConsistentCasingInFileNames` are on in both tsconfigs, and `engines.node` requires `>=22.12.0`.
 - Renderer code builds DOM with `h()` (`src/renderer/src/dom.ts`), which inserts text safely. Use `trustedHtml` only for HTML that went through `renderMarkdown`/`renderDiff` (DOMPurify).
 - Never pass API keys or unsanitized model output to the renderer as HTML.
 - Keep the Claude conversation history append-only; add new request features through `claudeCapabilities` so models that do not support them keep working.

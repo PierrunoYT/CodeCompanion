@@ -72,8 +72,8 @@ describe('LlmService summarizer selection', () => {
 
     await session.compact();
 
-    expect(custom.requests[0].body.model).toBe('local-model');
-    expect(custom.requests[0].body.response_format.type).toBe('json_schema');
+    expect(custom.requests[0]!.body.model).toBe('local-model');
+    expect(custom.requests[0]!.body.response_format.type).toBe('json_schema');
     expect(standard.requests).toEqual([]);
     expect(conversation.serialize().compaction?.summary).toBe('The saved conversation summary');
     expect(conversation.serialize().messages).toEqual(messages);
@@ -112,7 +112,7 @@ describe('LlmService summarizer selection', () => {
     const result = await llm.smallModel(conversation)!.complete('Summarize', z.object({ summary: z.string() }));
 
     expect(result).toEqual({ summary: 'Summary' });
-    expect(standard.requests[0].body.model).toBe(testCase.expected);
+    expect(standard.requests[0]!.body.model).toBe(testCase.expected);
     expect(custom.requests).toEqual([]);
   });
 });

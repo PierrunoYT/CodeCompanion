@@ -89,7 +89,7 @@ describe('OpenAIConversation', () => {
       if (reason === 'content_filter') await agent.send({ text: 'Try another approach' }, new AbortController().signal);
 
       expect(executions).toBe(0);
-      const sent = server.requests[1].body.messages;
+      const sent = server.requests[1]!.body.messages;
       expect(sent[2].tool_calls.map((call: { id: string }) => call.id)).toEqual(['complete', 'incomplete']);
       expect(sent.slice(3, 5)).toEqual([
         expect.objectContaining({ role: 'tool', tool_call_id: 'complete' }),
@@ -143,7 +143,7 @@ describe('OpenAIConversation', () => {
     });
     expect(result.contextTokens).toBe(272_000);
 
-    const body = server.requests[0].body;
+    const body = server.requests[0]!.body;
     expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' });
     expect(body.tools[0].function.parameters).toMatchObject({ type: 'object', required: ['path'] });
   });
@@ -198,7 +198,7 @@ describe('OpenAIConversation', () => {
     const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test');
     conversation.addUserMessage({ text: 'x' });
     const result = await conversation.runTurn(request());
-    expect(result.toolCalls[0].input).toEqual({ __invalidJson: '{"path":' });
+    expect(result.toolCalls[0]!.input).toEqual({ __invalidJson: '{"path":' });
   });
 
   it('sends tool screenshots as a follow-up user message', () => {
@@ -278,7 +278,7 @@ describe('OpenAIConversation', () => {
     const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test', history as any);
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     expect(sent[1]).toEqual({ role: 'user', content: 'THE TASK' });
     expect(sent[2].content).toContain('removed to fit');
     expect(JSON.stringify(sent).length / 4).toBeLessThan(110_000);

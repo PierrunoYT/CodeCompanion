@@ -231,7 +231,7 @@ describe('agent loop', () => {
 
     expect(ran).toEqual([]);
     expect(conversation.turns).toBe(1);
-    expect(conversation.toolResults[0].map((result) => [result.id, result.isError])).toEqual([
+    expect(conversation.toolResults[0]!.map((result) => [result.id, result.isError])).toEqual([
       ['t1', true],
       ['t2', true],
     ]);
@@ -247,7 +247,7 @@ describe('agent loop', () => {
     await sending;
 
     expect(conversation.turns).toBe(2);
-    expect(conversation.toolResults[0][0].content).toContain('use y');
+    expect(conversation.toolResults[0]![0]!.content).toContain('use y');
   });
 
   it('skips approval in auto mode', async () => {
@@ -265,8 +265,8 @@ describe('agent loop', () => {
     ]);
     await session.send({ text: 'go' });
     expect(ran).toEqual([]);
-    expect(conversation.toolResults[0][0]).toMatchObject({ isError: true });
-    expect(conversation.toolResults[0][0].content).toContain('Invalid input for look');
+    expect(conversation.toolResults[0]![0]!).toMatchObject({ isError: true });
+    expect(conversation.toolResults[0]![0]!.content).toContain('Invalid input for look');
   });
 
   it('names missing fields and the fields that were received', async () => {
@@ -275,7 +275,7 @@ describe('agent loop', () => {
       { text: 'retrying' },
     ]);
     await session.send({ text: 'go' });
-    const content = conversation.toolResults[0][0].content;
+    const content = conversation.toolResults[0]![0]!.content;
     expect(content).toContain('required but missing');
     expect(content).toContain('Received fields: (none)');
   });
@@ -287,7 +287,7 @@ describe('agent loop', () => {
     ]);
     await session.send({ text: 'go' });
     expect(ran).toEqual([]);
-    expect(conversation.toolResults[0][0].content).toContain('output limit');
+    expect(conversation.toolResults[0]![0]!.content).toContain('output limit');
   });
 
   it('answers every pending call when stopped during approval', async () => {
@@ -330,8 +330,8 @@ describe('agent loop', () => {
 
     expect(ran).toEqual([]);
     expect(conversation.users).toHaveLength(2);
-    expect(conversation.users[0].text).toBe('change it');
-    expect(conversation.users[1].text).toContain('inspect the current state');
+    expect(conversation.users[0]!.text).toBe('change it');
+    expect(conversation.users[1]!.text).toContain('inspect the current state');
     expect(session.snapshot().transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
     expect(session.snapshot().resumable).toBe(false);
   });
@@ -527,7 +527,7 @@ describe('agent loop', () => {
       await session.send({ text: 'edit it' });
 
       expect(kept).toHaveLength(1);
-      const editId = kept[0];
+      const editId = kept[0]!;
       expect(session.snapshot().transcript.find((item) => item.id === editId)).toMatchObject({ undo: 'available' });
       session.editUndone(editId, restored, '/abs/a.ts');
 
@@ -539,16 +539,16 @@ describe('agent loop', () => {
     it('tells the model with the next message, once, and shows the user only what they typed', async () => {
       const { session, conversation, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
 
       await session.send({ text: 'now what?' });
       await session.send({ text: 'and then?' });
 
-      expect(conversation.users[0].text).toBe('edit it');
-      expect(conversation.users[1].text).toBe(
+      expect(conversation.users[0]!.text).toBe('edit it');
+      expect(conversation.users[1]!.text).toBe(
         '[Note from the app: The user undid your edit to src/a.ts: the file is back to how it was before that edit. Read it again before editing it.]\n\nnow what?',
       );
-      expect(conversation.users[2].text).toBe('and then?');
+      expect(conversation.users[2]!.text).toBe('and then?');
       const shown = session
         .snapshot()
         .transcript.filter((item) => item.kind === 'user')
@@ -559,19 +559,21 @@ describe('agent loop', () => {
     it('says that a created file was deleted, and lists several undos together', async () => {
       const { session, conversation, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
       await session.send({ text: 'go on' });
 
-      expect(conversation.users[1].text).toContain('The user undid your creation of src/new.ts: the file was deleted.');
-      expect(conversation.users[1].text).toContain('The user undid your edit to src/a.ts');
-      expect(conversation.users[1].text.endsWith('go on')).toBe(true);
+      expect(conversation.users[1]!.text).toContain(
+        'The user undid your creation of src/new.ts: the file was deleted.',
+      );
+      expect(conversation.users[1]!.text).toContain('The user undid your edit to src/a.ts');
+      expect(conversation.users[1]!.text.endsWith('go on')).toBe(true);
     });
 
     it('makes the model read the file again: it no longer counts as read', async () => {
       const { session, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
       await session.send({ text: 'probe' });
 
       expect(seenAsRead).toEqual([false]);
@@ -580,8 +582,8 @@ describe('agent loop', () => {
     it('persists pending undo notes through JSON and consumes them only once', async () => {
       const { session, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
 
       const saved = JSON.parse(JSON.stringify(session.serialize())) as ReturnType<ChatSession['serialize']>;
       expect(saved.pendingNotes).toHaveLength(2);
@@ -593,21 +595,21 @@ describe('agent loop', () => {
       saved.pendingNotes?.push('This must not alias the reopened session.');
 
       await reopened.session.send({ text: 'continue' });
-      expect(reopened.conversation.users[0].text).toContain('The user undid your creation of src/new.ts');
-      expect(reopened.conversation.users[0].text).toContain('The user undid your edit to src/a.ts');
-      expect(reopened.conversation.users[0].text).not.toContain('must not alias');
+      expect(reopened.conversation.users[0]!.text).toContain('The user undid your creation of src/new.ts');
+      expect(reopened.conversation.users[0]!.text).toContain('The user undid your edit to src/a.ts');
+      expect(reopened.conversation.users[0]!.text).not.toContain('must not alias');
       const consumed = JSON.parse(JSON.stringify(reopened.session.serialize())) as ReturnType<ChatSession['serialize']>;
       expect(consumed.pendingNotes).toEqual([]);
 
       const reloaded = setup([{ text: 'Again.' }], { pendingNotes: consumed.pendingNotes });
       await reloaded.session.send({ text: 'next' });
-      expect(reloaded.conversation.users[0].text).toBe('next');
+      expect(reloaded.conversation.users[0]!.text).toBe('next');
     });
 
     it('loads old saves without pending notes', async () => {
       const reopened = setup([{ text: 'Done.' }], { pendingNotes: undefined });
       await reopened.session.send({ text: 'continue' });
-      expect(reopened.conversation.users[0].text).toBe('continue');
+      expect(reopened.conversation.users[0]!.text).toBe('continue');
       expect(reopened.session.serialize().pendingNotes).toEqual([]);
     });
 
@@ -628,10 +630,10 @@ describe('agent loop', () => {
       session.stop();
       await sending;
 
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
       await session.resume();
 
-      expect(conversation.users[2].text).toMatch(
+      expect(conversation.users[2]!.text).toMatch(
         /^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/,
       );
     });

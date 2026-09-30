@@ -69,7 +69,7 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await conversation.runTurn(request());
 
-    const { body, headers } = server.requests[0];
+    const { body, headers } = server.requests[0]!;
     expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     expect(body.output_config).toEqual({ effort: 'xhigh' });
     expect(body.context_management).toEqual({ edits: [{ type: 'compact_20260112' }] });
@@ -95,7 +95,7 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await conversation.runTurn(request());
 
-    const { body, headers } = server.requests[0];
+    const { body, headers } = server.requests[0]!;
     expect(body.thinking).toBeUndefined();
     expect(body.output_config).toBeUndefined();
     expect(body.context_management).toBeUndefined();
@@ -127,7 +127,7 @@ describe('AnthropicConversation', () => {
     ]);
     await conversation.runTurn(request());
 
-    const second = server.requests[1].body.messages;
+    const second = server.requests[1]!.body.messages;
     expect(second).toHaveLength(3);
     // The assistant turn is sent back exactly as it was returned.
     expect(second[1].role).toBe('assistant');
@@ -176,19 +176,19 @@ describe('AnthropicConversation', () => {
     );
 
     // Compare to the actual response blocks sent back, without relying on SDK-added optional fields.
-    expect(server.requests[1].body.messages).toMatchObject([
+    expect(server.requests[1]!.body.messages).toMatchObject([
       ...before,
       {
         role: 'assistant',
         content: [{ type: 'text', text: 'First part' }],
       },
     ]);
-    expect(server.requests[2].body.messages).toEqual([
-      ...server.requests[1].body.messages,
+    expect(server.requests[2]!.body.messages).toEqual([
+      ...server.requests[1]!.body.messages,
       { role: 'assistant', content: [block] },
     ]);
     const saved = conversation.serialize().messages;
-    expect(saved.slice(0, 3)).toEqual(server.requests[2].body.messages);
+    expect(saved.slice(0, 3)).toEqual(server.requests[2]!.body.messages);
     expect(saved).toHaveLength(4);
     expect(result.text).toBe('First part\n\nFinal part');
     expect(result.toolCalls).toEqual([{ id: 'toolu_final', name: 'read_file', input: { path: 'final.ts' } }]);
@@ -210,9 +210,9 @@ describe('AnthropicConversation', () => {
 
       await expect(conversation.runTurn(request())).rejects.toThrow(/Try again/);
       expect(conversation.serialize()).toEqual(before);
-      expect(server.requests[1].body.messages).toHaveLength(2);
+      expect(server.requests[1]!.body.messages).toHaveLength(2);
       const result = await conversation.runTurn(request());
-      expect(server.requests[2].body.messages).toEqual(server.requests[0].body.messages);
+      expect(server.requests[2]!.body.messages).toEqual(server.requests[0]!.body.messages);
       expect(result.text).toBe('Fresh answer');
       expect(conversation.serialize().messages).toHaveLength(2);
       expect(JSON.stringify(conversation.serialize())).not.toContain('Discard this prefix');
@@ -295,7 +295,7 @@ describe('AnthropicCompletionClient', () => {
     await server.stop();
 
     expect(result).toEqual({ title: 'Fix login bug' });
-    const body = server.requests[0].body;
+    const body = server.requests[0]!.body;
     expect(body.output_config.format.type).toBe('json_schema');
     expect(body.tool_choice).toBeUndefined();
   });

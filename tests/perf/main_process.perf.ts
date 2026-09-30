@@ -83,7 +83,7 @@ async function median(runs: number, work: () => Promise<void> | void): Promise<n
     await work();
     times.push(performance.now() - start);
   }
-  return times.sort((a, b) => a - b)[Math.floor(runs / 2)];
+  return times.sort((a, b) => a - b)[Math.floor(runs / 2)]!;
 }
 
 describe('main process: streamed events in a long chat', () => {

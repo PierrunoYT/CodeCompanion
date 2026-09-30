@@ -52,7 +52,7 @@ export class Panels {
     // Arrow keys move between tabs, as in a native tab strip; only the selected tab is in the Tab order.
     this.tabBar.addEventListener('keydown', (event) => {
       const names = tabs.map(([name]) => name);
-      const current = names.indexOf(this.active ?? names[0]);
+      const current = names.indexOf(this.active ?? names[0]!);
       const next =
         event.key === 'ArrowRight'
           ? (current + 1) % names.length
@@ -65,8 +65,9 @@ export class Panels {
                 : -1;
       if (next < 0) return;
       event.preventDefault();
-      this.show(names[next]);
-      this.tabBar.querySelector<HTMLElement>(`#panel-tab-${names[next]}`)?.focus();
+      const target = names[next]!;
+      this.show(target);
+      this.tabBar.querySelector<HTMLElement>(`#panel-tab-${target}`)?.focus();
     });
     this.element.append(this.tabBar, this.body);
   }
@@ -335,7 +336,7 @@ class GitPanel implements Panel {
           h(
             'span',
             { class: `git-status git-${file.status}`, title: file.status, 'aria-label': file.status },
-            file.status[0].toUpperCase(),
+            file.status.charAt(0).toUpperCase(),
           ),
           h(
             'button',

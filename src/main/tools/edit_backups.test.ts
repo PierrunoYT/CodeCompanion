@@ -140,7 +140,7 @@ describe('EditBackups', () => {
     edit('t1', 'src/a.ts', 'one\n', 'two\n');
     const folder = join(root, 'edit-backups', chatId);
     const [file] = readdirSync(folder);
-    writeFileSync(join(folder, file), '{ not json');
+    writeFileSync(join(folder, file!), '{ not json');
 
     await expect(backups.undo(chatId, 't1', workspace)).rejects.toThrow(/no longer available/);
     expect(readFileSync(project('src', 'a.ts'), 'utf8')).toBe('two\n');

@@ -74,8 +74,8 @@ describe('ChatStore', () => {
     // A title match has no snippet; a message match carries an excerpt.
     expect(store.search('fix')).toEqual([expect.not.objectContaining({ snippet: expect.anything() })]);
     const [byMessage] = store.search('refresh token');
-    expect(byMessage.id).toBe(idA);
-    expect(byMessage.snippet).toContain('refresh token is rejected');
+    expect(byMessage!.id).toBe(idA);
+    expect(byMessage!.snippet).toContain('refresh token is rejected');
     // Words may be split between the title and the messages; tool output is not searched.
     expect(store.search('login rejected').map((item) => item.id)).toEqual([idA]);
     expect(store.search('zebra')).toEqual([]);
@@ -198,10 +198,10 @@ describe('ChatStore', () => {
     });
     // Opus 5.5: $4 per million input tokens, $20 per million output tokens.
     store.save(opus({ inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }));
-    expect(store.list()[0].cost).toBeCloseTo(4);
+    expect(store.list()[0]!.cost).toBeCloseTo(4);
     store.save(opus({ inputTokens: 1_000_000, outputTokens: 100_000, cacheReadTokens: 0, cacheWriteTokens: 0 }));
-    expect(store.list()[0].cost).toBeCloseTo(6);
-    expect(new ChatStore(join(dir, 'chats')).list()[0].cost).toBeCloseTo(6);
+    expect(store.list()[0]!.cost).toBeCloseTo(6);
+    expect(new ChatStore(join(dir, 'chats')).list()[0]!.cost).toBeCloseTo(6);
   });
 
   it('lists no cost for unknown models and custom endpoints', () => {
@@ -233,7 +233,7 @@ describe('ChatStore', () => {
       conversation: { provider: 'openai', api: 'responses', model: 'gpt-6-sol', messages: [] },
     });
     // 1M input at $2 plus 500k cache reads at $0.20.
-    expect(store.list()[0].cost).toBeCloseTo(2.1);
+    expect(store.list()[0]!.cost).toBeCloseTo(2.1);
   });
 
   it('adds costs to an index written by an older version', () => {
@@ -249,7 +249,7 @@ describe('ChatStore', () => {
       JSON.stringify([{ id: idA, title: 'Old', projectPath: null, updatedAt: '2026-01-01T00:00:00Z' }]),
     );
 
-    expect(new ChatStore(chats).list()[0].cost).toBeCloseTo(4);
+    expect(new ChatStore(chats).list()[0]!.cost).toBeCloseTo(4);
   });
 
   it('starts empty and writes no index for an empty folder', () => {
@@ -274,7 +274,7 @@ describe('ProjectStore', () => {
 
     const reloaded = new ProjectStore(file);
     expect(reloaded.list().map((project) => project.name)).toEqual(['two', 'one']);
-    expect(reloaded.list()[0].instructions).toBe('Use pnpm.');
+    expect(reloaded.list()[0]!.instructions).toBe('Use pnpm.');
     expect(reloaded.current()).toBeNull();
   });
 
@@ -463,9 +463,9 @@ describe('ProjectStore', () => {
     const store = new ProjectStore(join(dir, 'projects.json'));
     const opened = store.open(one);
     opened.instructions = 'changed by caller';
-    store.opened()[0].instructions = 'changed by caller';
+    store.opened()[0]!.instructions = 'changed by caller';
     expect(store.current()?.instructions).toBe('');
-    expect(store.list()[0].instructions).toBe('');
+    expect(store.list()[0]!.instructions).toBe('');
   });
 
   it('forgets the oldest closed projects beyond the recent limit', () => {

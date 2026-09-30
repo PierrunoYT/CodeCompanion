@@ -190,7 +190,7 @@ export function limitPreview(preview: ToolPreviewView | undefined): ToolPreviewV
     let kept = Math.min(lines.length, TRANSCRIPT_LIMITS.diffLines);
     let chars = 0;
     for (let index = 0; index < kept; index++) {
-      chars += lines[index].length + 1;
+      chars += (lines[index]?.length ?? 0) + 1;
       if (chars > TRANSCRIPT_LIMITS.diffChars) {
         kept = index;
         break;

@@ -102,7 +102,7 @@ describe('undo an approved edit (mock Claude API)', () => {
     );
     const second = await runTask('Change it to kiwi');
     const [first, latest] = cardsOf(second, 'edit_file');
-    expect(first.id).not.toBe(latest.id);
+    expect(first!.id).not.toBe(latest!.id);
     expect(first).toMatchObject({ undo: 'undone' });
     expect(latest).toMatchObject({ undo: 'available' });
     expect(readFileSync(notes(), 'utf8')).toBe('The secret word is kiwi.\n');

@@ -60,7 +60,7 @@ describe('chunkFile', () => {
       [51, 110],
       [101, 130],
     ]);
-    expect(chunks[0].text.startsWith('src/big.ts\nline 1')).toBe(true);
+    expect(chunks[0]!.text.startsWith('src/big.ts\nline 1')).toBe(true);
   });
 
   it('returns nothing for empty files', () => {
@@ -75,7 +75,7 @@ describe('CodeIndex', () => {
     const index = new CodeIndex(new Workspace(root), embedder, indexDir, () => 1000);
     const hits = await index.search('validate session token', 5, signal);
     expect(hits[0]).toMatchObject({ path: 'src/auth.ts', startLine: 1 });
-    expect(hits[0].text).toContain('validateSession');
+    expect(hits[0]!.text).toContain('validateSession');
     expect(index.fileCount).toBe(2);
   });
 
@@ -142,7 +142,7 @@ describe('CodeIndex', () => {
     const reloaded = new CodeIndex(new Workspace(root), second, indexDir, () => 1000);
     const hits = await reloaded.search('add item to cart', 1, signal);
     expect(second.embeddedTexts).toBe(1); // just the query
-    expect(hits[0].path).toBe('src/cart.ts');
+    expect(hits[0]!.path).toBe('src/cart.ts');
   });
 
   it('looks at no more files than the limit (skipped binaries count toward it)', async () => {

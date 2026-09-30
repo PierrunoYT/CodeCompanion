@@ -14,13 +14,20 @@ export interface ScriptedFailure {
   failure: { status: number; type: string; retryAfterSeconds?: number };
 }
 
+// An answer that streams `text` and then never finishes, until the app aborts the request (Stop).
+export interface ScriptedHang {
+  hang: { text: string };
+}
+
 // Mock Anthropic API for end-to-end tests. Streaming requests (agent turns) get the scripted turns in order;
 // non-streaming requests (the small-model title) get a fixed structured answer.
 export class MockClaude {
   readonly agentRequests: any[] = [];
   // Requests to summarize old turns (compact chat).
   readonly summaryRequests: any[] = [];
-  private turns: Array<ScriptedTurn | ScriptedFailure> = [];
+  private turns: Array<ScriptedTurn | ScriptedFailure | ScriptedHang> = [];
+  // Set once a hanging answer's text has been sent, and cleared when the app gives up on it.
+  hanging = false;
   private server: Server;
 
   constructor() {
@@ -68,6 +75,15 @@ export class MockClaude {
           return;
         }
         res.writeHead(200, { 'content-type': 'text/event-stream' });
+        if ('hang' in turn) {
+          // Everything up to the text, without the block, message end and stop events.
+          for (const { event, data } of anthropicStream([{ type: 'text', text: turn.hang.text }], 'end_turn').slice(0, -3)) {
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+          }
+          this.hanging = true;
+          res.on('close', () => (this.hanging = false));
+          return;
+        }
         for (const { event, data } of anthropicStream(turn.blocks, turn.stopReason)) {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         }
@@ -76,7 +92,7 @@ export class MockClaude {
     });
   }
 
-  script(...turns: Array<ScriptedTurn | ScriptedFailure>): void {
+  script(...turns: Array<ScriptedTurn | ScriptedFailure | ScriptedHang>): void {
     this.turns.push(...turns);
   }
 
@@ -86,6 +102,10 @@ export class MockClaude {
   }
 
   stop(): Promise<void> {
-    return new Promise((resolve) => this.server.close(() => resolve()));
+    return new Promise((resolve) => {
+      this.server.close(() => resolve());
+      // A hanging answer would otherwise keep the server from closing.
+      this.server.closeAllConnections();
+    });
   }
 }

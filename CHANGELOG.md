@@ -15,6 +15,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 - Log tool calls that arrive with required fields missing (tool, model, missing and received field names, never values) to `logs/tool-input-errors.jsonl` in the user data folder, so the dropped `new_string` problem in `edit_file` can be measured. The file stays on the machine and rotates at 512 KB.
 
 ### Changed
+- Add end-to-end tests for stopping a multi-step run during a running command (finished steps kept, the command's process ended, every call paired with a result) and resuming it after a restart of the app, for stopping and resuming while an answer streams, and for switching projects in the UI: per-project instructions, drafts with images, opening another project's chat from the history, and switching refused while a task runs. The mock Claude API can now hold an answer open until Stop, and `launchApp` can restart on the same profile.
 - End-to-end tests run the app in an invisible window that takes no focus, instead of flashing a window per test file (`E2E_SHOW_WINDOW=1` shows it). Test runs also switch off Chromium's throttling of covered windows, the likely cause of occasional timeouts in the multi-project tests.
 - OpenAI-compatible chats no longer shorten their stored history when it grows past ~100k tokens: only the request is trimmed, so the saved chat keeps every message. Chats saved by earlier versions keep what was already removed.
 - Add unit tests for the chat store, the project store and the file helpers (image picker, save dialog, open in editor).

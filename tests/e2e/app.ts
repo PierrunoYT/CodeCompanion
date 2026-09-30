@@ -13,9 +13,10 @@ export interface RunningApp {
   close(): Promise<void>;
 }
 
-// Launches the built app (run `npm run build` first) with a throwaway profile.
-export async function launchApp(env: Record<string, string> = {}): Promise<RunningApp> {
-  const userData = mkdtempSync(join(tmpdir(), 'codecompanion-e2e-'));
+// Launches the built app (run `npm run build` first) with a throwaway profile. Pass `userData` to start again on the
+// profile of an earlier launch, as after a restart; that folder is then left for the caller to remove.
+export async function launchApp(env: Record<string, string> = {}, options: { userData?: string } = {}): Promise<RunningApp> {
+  const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'codecompanion-e2e-'));
   const root = resolve(__dirname, '../..');
   const app = await electron.launch({
     args: [root],
@@ -47,7 +48,7 @@ export async function launchApp(env: Record<string, string> = {}): Promise<Runni
     mainErrors,
     async close() {
       await app.close();
-      rmSync(userData, { recursive: true, force: true });
+      if (!options.userData) rmSync(userData, { recursive: true, force: true });
     },
   };
 }

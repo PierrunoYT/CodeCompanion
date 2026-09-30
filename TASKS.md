@@ -57,8 +57,8 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 
 ### Quality
 
-- [ ] Add an end-to-end test for stop and resume of a long agent run
-- [ ] Add an end-to-end test for multi-project switching (separate chats and drafts)
+- [x] Add an end-to-end test for stop and resume of a long agent run
+- [x] Add an end-to-end test for multi-project switching (separate chats and drafts)
 - [ ] Add a size limit and truncation notice for very large tool results shown in the UI
 - [ ] Review the renderer for long-chat performance (virtualize or paginate the message list) and record a measurement
 

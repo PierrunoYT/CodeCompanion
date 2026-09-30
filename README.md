@@ -93,7 +93,7 @@ Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#security-model).
 - [Development guide](docs/DEVELOPMENT.md) — setup, scripts, tests, where to change things
 - [Performance](docs/PERFORMANCE.md) — long-chat measurements and what was changed
 - [Contributing](CONTRIBUTING.md)
-- [Tasks](TASKS.md) — roadmap with checkboxes
+- [Issues](https://github.com/PierrunoYT/patch/issues) — open work, bugs and ideas
 - [AGENTS.md](AGENTS.md) — guidance for AI coding agents working on this repo
 
 ## License

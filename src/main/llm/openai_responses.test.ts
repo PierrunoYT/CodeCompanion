@@ -384,6 +384,38 @@ describe('OpenAIResponsesConversation', () => {
     expect(conversation.hasPendingToolCalls()).toBe(true);
   });
 
+  it('keeps a reused call id pending when the next batch follows the answered one directly', () => {
+    // Compatible servers may start the next turn with a function call and no message or reasoning item before it.
+    const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'high', [
+      { role: 'user', content: [{ type: 'input_text', text: 'read it twice' }] },
+      {
+        type: 'function_call',
+        call_id: 'call_9',
+        name: 'read_file',
+        arguments: '{}',
+        id: 'fc_1',
+        status: 'completed',
+      } as never,
+      { type: 'function_call_output', call_id: 'call_9', output: 'done' } as never,
+      {
+        type: 'function_call',
+        call_id: 'call_9',
+        name: 'read_file',
+        arguments: '{}',
+        id: 'fc_2',
+        status: 'completed',
+      } as never,
+    ]);
+    expect(conversation.hasPendingToolCalls()).toBe(true);
+
+    conversation.addUserMessage({ text: 'Continue.' });
+    const items = conversation.serialize().messages as Array<Record<string, unknown>>;
+    const outputs = items.filter((item) => item.type === 'function_call_output');
+    expect(outputs).toHaveLength(2);
+    expect(outputs[1]).toMatchObject({ call_id: 'call_9', output: expect.stringContaining('may or may not have run') });
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+  });
+
   it('closes function calls left pending by an interrupted task when the next message is added', () => {
     const conversation = new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), model, 'high', [
       { role: 'user', content: [{ type: 'input_text', text: 'read a.ts' }] },

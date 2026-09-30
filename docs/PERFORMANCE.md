@@ -86,5 +86,49 @@ Opening times are unchanged. For comparison, the same 1,000-turn chat was at 42 
 
 - **Re-rendering the streaming message's Markdown on each frame.** The whole answer so far is re-parsed, highlighted and sanitized on every frame: about 2.2 s of script over the 20,000-character answer, or about 3 ms per frame. This cost depends on the answer, not the chat, and is the same in an empty chat. If very long answers stutter, render only the last Markdown block while streaming.
 - **Opening still renders every message's Markdown** (about 0.2 ms per item). A 5,000-item chat opens in about 1.1 s. Rendering off-screen messages lazily, or full virtualization, would help chats far longer than this. It would cost scroll-position bookkeeping and would break Find in page and the screen-reader view of the full chat, so it is not worth it yet.
-- **The main process** also applies every streamed event to its copy of the transcript (`applyChatEvent`, which copies the item list). This was not measured here.
+- **The main process** also applies every streamed event to its own copy of the transcript. This was measured afterwards; see the next section.
 - **`Performance.getMetrics` did not attribute the opening's script time** (it reported about 2 ms), so opening is measured by wall-clock time in the page instead.
+
+## Streamed events in the main process (2026-09-30)
+
+**Question:** in a long chat, does the main process slow down while an answer streams? `ChatSession` applies every streamed event to its own copy of the transcript (`applyChatEvent`, which builds a new item list for each event) before sending the event to the UI.
+
+**Answer:** no, not at any chat length the renderer handles well. The cost grows with the chat, but stays small next to the rest of the main process's work.
+
+### How it is measured
+
+`npm run perf` also runs `tests/perf/main_process.perf.ts` and writes `out/perf-main-process.json`.
+
+- It runs in Node, without the app.
+- A real `ChatSession` opens saved transcripts of 0 to 20,000 items (the same generator as the renderer measurement, `tests/perf/long_transcript.ts`).
+- A scripted model streams a 16,000-character answer in 10-character pieces, about 1,600 events, a busy stream.
+- Timed: the whole answer through the session; `applyChatEvent` alone for the same events; and serializing each event the way sending it to the UI does. Each is the median of 5 runs after a warm-up.
+
+`tests/perf/long_chat.perf.ts` also reports `mainCpuMs`, the main process's CPU time while an answer streams in the real app, from Electron's `app.getAppMetrics()`.
+
+### Results
+
+Same machine as above. The numbers were stable across three runs.
+
+| Chat | Per streamed piece | One whole answer (1,594 pieces) | Of that, `applyChatEvent` |
+|---|---|---|---|
+| empty | 1 µs | 1 ms | 0.2 ms |
+| 1,250 items | 8 µs | 12 ms | 11 ms |
+| 5,000 items | 30 µs | 48 ms | 35 ms |
+| 20,000 items | 230 µs | 370 ms | 355 ms |
+
+- **Serializing the events for the UI:** 0.2 ms per answer at every size.
+- **Main-process CPU in the real app:** measured while the 1,000-turn benchmark streams its answer, in 400 pieces over about 2 s.
+
+  | Chat | Main-process CPU |
+  |---|---|
+  | empty | 251–254 ms |
+  | 5,000 items | 192–222 ms |
+
+  The difference is within the noise. The transcript copies cost about 12 ms of that stream, which is lost among the rest of the main process's work: parsing the stream, IPC and saving.
+
+### Conclusion
+
+- **Linear up to 5,000 items, faster than linear after.** The cost grows linearly with the chat up to 5,000 items. From 5,000 to 20,000 items it grows 7.5 times for 4 times the items, probably because of garbage collection.
+- **Where it could start to matter:** at 20,000 items and a fast stream of about 100 pieces a second, the copies would take roughly 2% of a core.
+- **Nothing to change now.** If chats that long become common, the fix is to update the streaming item in place in the main process's copy, which is not shared with anything. The renderer already needs new objects for its own copy.

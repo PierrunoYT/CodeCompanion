@@ -9,43 +9,10 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { TranscriptItem } from '../../src/shared/chat';
 import { launchApp, type RunningApp } from '../e2e/app';
 import { MockClaude } from '../e2e/mock_claude';
+import { ANSWER, transcript } from './long_transcript';
 
 const TURNS = Number(process.env.PERF_TURNS ?? 250);
 const LONG_ID = '11111111-1111-1111-1111-111111111111';
-
-function code(turn: number): string {
-  return Array.from({ length: 25 }, (_, line) => `  const value${line} = compute(${turn}, ${line}); // step ${line}`).join('\n');
-}
-
-function diff(turn: number): string {
-  const lines = Array.from({ length: 15 }, (_, line) => [`-  old line ${line} of file ${turn}`, `+  new line ${line} of file ${turn}`]).flat();
-  return [`--- a/src/file${turn}.ts`, `+++ b/src/file${turn}.ts`, '@@ -1,15 +1,15 @@', ...lines].join('\n');
-}
-
-// A realistic mix: a request, an answer with markdown and a code block, a read, an edit with a diff, a short reply.
-function transcript(turns: number): TranscriptItem[] {
-  return Array.from({ length: turns }, (_, turn): TranscriptItem[] => [
-    { kind: 'user', id: `u${turn}`, text: `Please update file ${turn} and explain what changes.`, imageCount: 0 },
-    {
-      kind: 'assistant',
-      id: `a${turn}`,
-      text: `Here is the plan for **file ${turn}**:\n\n1. Read it\n2. Change the loop\n3. Run the tests\n\n\`\`\`ts\nfunction update${turn}() {\n${code(turn)}\n}\n\`\`\`\n\nThis keeps the behaviour the same.`,
-      thinking: '',
-      streaming: false,
-    },
-    { kind: 'tool', id: `r${turn}`, name: 'read_file', status: 'done', summary: `Read src/file${turn}.ts (120 lines)`, path: `src/file${turn}.ts` },
-    {
-      kind: 'tool',
-      id: `e${turn}`,
-      name: 'edit_file',
-      status: 'done',
-      summary: `Edited src/file${turn}.ts`,
-      path: `src/file${turn}.ts`,
-      preview: { title: `Edit src/file${turn}.ts`, diff: diff(turn) },
-    },
-    { kind: 'assistant', id: `b${turn}`, text: `Done with file ${turn}.`, thinking: '', streaming: false },
-  ]).flat();
-}
 
 function savedChat(id: string, project: string, items: TranscriptItem[]) {
   return {
@@ -63,14 +30,6 @@ function savedChat(id: string, project: string, items: TranscriptItem[]) {
   };
 }
 
-// A 20,000-character answer with prose and code blocks, streamed like a model would.
-const ANSWER = Array.from(
-  { length: 20 },
-  (_, part) => `### Part ${part}\n\nSome explanation of part ${part} with \`inline code\` and a list:\n\n- one\n- two\n\n\`\`\`ts\n${code(part).slice(0, 700)}\n\`\`\`\n\n`,
-)
-  .join('')
-  .slice(0, 20_000);
-
 interface Result {
   label: string;
   items: number;
@@ -82,6 +41,8 @@ interface Result {
   worst: number;
   longTasks: number;
   longTaskMs: number;
+  // CPU time the main process used while the answer streamed (Electron's own process metrics).
+  mainCpuMs: number | null;
   metrics: Record<string, number>;
 }
 
@@ -140,6 +101,10 @@ describe('long chat performance', () => {
 
   const domNodes = () => running.page.evaluate(() => document.querySelectorAll('.transcript *').length);
 
+  // Seconds of CPU the main (browser) process has used since it started, or null where Electron does not report it.
+  const mainCpuSeconds = () =>
+    running.app.evaluate(({ app }) => app.getAppMetrics().find((metric) => metric.type === 'Browser')?.cpu.cumulativeCPUUsage ?? null);
+
   // Streams ANSWER into the open chat and records every frame and long task while it arrives.
   async function stream(label: string, items: number, openMs: number | null): Promise<void> {
     claude.script({ slow: { text: ANSWER, chunks: 400, intervalMs: 5 } });
@@ -156,6 +121,7 @@ describe('long chat performance', () => {
       requestAnimationFrame(tick);
     });
     const before = await cdpMetrics();
+    const cpuBefore = await mainCpuSeconds();
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Explain everything in detail' }));
     await running.page.waitForFunction(
       (tail) => [...document.querySelectorAll('.message.assistant:not(.streaming)')].some((node) => node.textContent?.includes(tail)),
@@ -163,6 +129,7 @@ describe('long chat performance', () => {
       { timeout: 60_000, polling: 100 },
     );
     const after = await cdpMetrics();
+    const cpuAfter = await mainCpuSeconds();
     const perf = await running.page.evaluate(() => {
       const state = (window as any).__perf;
       state.stop = true;
@@ -181,6 +148,7 @@ describe('long chat performance', () => {
       worst: Math.round(sorted.at(-1) ?? 0),
       longTasks: perf.long.length,
       longTaskMs: Math.round(perf.long.reduce((sum, value) => sum + value, 0)),
+      mainCpuMs: cpuBefore === null || cpuAfter === null ? null : Math.round((cpuAfter - cpuBefore) * 1000),
       metrics: diffMetrics(before, after),
     });
   }
@@ -212,6 +180,7 @@ describe('long chat performance', () => {
       worst: 0,
       longTasks: 0,
       longTaskMs: 0,
+      mainCpuMs: null,
       metrics: openMetrics,
     });
     await stream('long chat', TURNS * 5, openMs);

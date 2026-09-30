@@ -7,6 +7,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ### Added
 - Per-project allow-lists: **Project settings…** in the project menu (formerly *Project instructions…*) now also has "Commands allowed without asking" and "Network hosts allowed without asking" for that project only. They add to the global lists in Settings, with the same rules, and apply at once to open chats. They are stored in `projects.json` in the app's data folder, not in the project, so a repository cannot allow its own commands. New IPC channel `project:update-settings`.
 
+### Changed
+- `npm run perf` also measures the main process while an answer streams: a Node benchmark of `ChatSession` per streamed event (`tests/perf/main_process.perf.ts`) and the main process's CPU time in the app. At 5,000 items each streamed piece costs 30 µs, and the main process uses no more CPU than in an empty chat, so nothing needed changing; see `docs/PERFORMANCE.md`.
+
 ## [0.2.0] - 2026-09-30
 
 ### Security

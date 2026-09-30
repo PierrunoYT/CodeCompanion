@@ -74,7 +74,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 ## Next
 
 - [x] Add a per-project setting for allowed commands and network hosts (today they are global): Project settings…, added to the global lists
-- [ ] Measure the main process's per-event transcript updates during streaming in long chats (not covered by `npm run perf` yet)
+- [x] Measure the main process's per-event transcript updates during streaming in long chats: 30 µs per streamed piece at 5,000 items, no change needed (`docs/PERFORMANCE.md`)
 - [ ] Find what makes streaming in a 5,000-item chat 14–21 ms per frame since the scroll-to-bottom fix instead of 7 ms (`docs/PERFORMANCE.md`, follow-up section)
 - [ ] Fix the end-to-end teardown hang on Windows CI (2 of 5 runs around the 0.2.0 release, always after `projects.test.ts` with all tests passed). The harness's 20 s report shows `node-pty`'s `conpty_console_list_agent.js` crashing with `AttachConsole failed`: closing two project tabs quickly kills a terminal whose console is not ready yet, and the app then does not quit. The forked agents also print inspector output (Playwright starts the app with the inspector on, and forks inherit it), which may be why it only hangs under test; not reproducible locally (30 rapid open/close rounds quit in ~0.1 s). Options: `node-pty`'s `useConptyDll` (no agent process), or not killing a terminal that is still starting
 - [ ] Key edit backups and tool cards by an id of the app's own instead of the provider's tool-call id, which some OpenAI-compatible servers reuse across turns

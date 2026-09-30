@@ -5,6 +5,10 @@ export interface ToolPreviewView {
   title: string;
   diff?: string;
   command?: string;
+  // Set when the diff was too large to keep in full: the first lines are kept, these many are left out.
+  diffOmittedLines?: number;
+  // Set when the command text was cut: the start is kept, these many characters are left out.
+  commandOmittedChars?: number;
 }
 
 export type ToolStatus = 'awaiting-approval' | 'running' | 'done' | 'error' | 'declined';
@@ -20,6 +24,8 @@ export type TranscriptItem =
       preview?: ToolPreviewView;
       summary?: string;
       output?: string;
+      // Characters left out from the start of `output`, which keeps only the end (where results and errors are).
+      outputOmittedChars?: number;
       // Project-relative file the tool read or changed.
       path?: string;
       // For edits: whether a backup exists to undo them, and whether that was done.
@@ -145,7 +151,64 @@ export interface UserMessage {
   images?: Array<{ mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'; base64: string }>;
 }
 
-const MAX_TOOL_OUTPUT_IN_TRANSCRIPT = 20_000;
+// How much of a tool's output, diff and command the transcript keeps. Beyond this the UI would slow down (the
+// transcript re-renders a card on every chunk of output, and a diff is laid out line by line) and saved chats grow.
+// What the model sees is not affected; the tools cut their own results.
+export const TRANSCRIPT_LIMITS = { outputChars: 20_000, diffLines: 2_000, diffChars: 200_000, commandChars: 20_000 };
+
+const count = (value: number) => value.toLocaleString('en-US');
+
+// What the UI says when part of a tool card was left out.
+export function outputNotice(omittedChars: number): string {
+  return `Output too long to show in full: the first ${count(omittedChars)} characters are not shown, only the last ${count(TRANSCRIPT_LIMITS.outputChars)}.`;
+}
+
+export function diffNotice(omittedLines: number, awaitingApproval: boolean): string {
+  const shown = `Diff too long to show in full: ${count(omittedLines)} more lines are not shown.`;
+  return awaitingApproval
+    ? `${shown} Approving applies the whole change, including the part not shown. Decline and ask for smaller edits if you want to review all of it.`
+    : shown;
+}
+
+export function commandNotice(omittedChars: number): string {
+  return `Command too long to show in full: the last ${count(omittedChars)} characters are not shown.`;
+}
+
+// Keeps the end of the output, adding what is cut to the count of characters already left out.
+function limitOutput(output: string, omitted = 0): { output: string; outputOmittedChars?: number } {
+  const cut = Math.max(0, output.length - TRANSCRIPT_LIMITS.outputChars);
+  const total = omitted + cut;
+  return { output: cut ? output.slice(cut) : output, ...(total ? { outputOmittedChars: total } : {}) };
+}
+
+// Keeps the start of a diff (whole lines) and of a command, and says how much was left out.
+export function limitPreview(preview: ToolPreviewView | undefined): ToolPreviewView | undefined {
+  if (!preview) return preview;
+  let result = preview;
+  if (preview.diff) {
+    const lines = preview.diff.split('\n');
+    let kept = Math.min(lines.length, TRANSCRIPT_LIMITS.diffLines);
+    let chars = 0;
+    for (let index = 0; index < kept; index++) {
+      chars += lines[index].length + 1;
+      if (chars > TRANSCRIPT_LIMITS.diffChars) {
+        kept = index;
+        break;
+      }
+    }
+    if (kept < lines.length) {
+      result = { ...result, diff: lines.slice(0, kept).join('\n'), diffOmittedLines: lines.length - kept };
+    }
+  }
+  if (preview.command && preview.command.length > TRANSCRIPT_LIMITS.commandChars) {
+    result = {
+      ...result,
+      command: preview.command.slice(0, TRANSCRIPT_LIMITS.commandChars),
+      commandOmittedChars: preview.command.length - TRANSCRIPT_LIMITS.commandChars,
+    };
+  }
+  return result;
+}
 
 // Applies one event to a transcript, returning a new array. Events that only change session metadata (busy,
 // usage, title) leave the transcript unchanged.
@@ -180,7 +243,7 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
           kind: 'tool',
           id: event.id,
           name: event.name,
-          preview: event.preview,
+          preview: limitPreview(event.preview),
           status: event.awaitingApproval ? 'awaiting-approval' : 'running',
         },
       ];
@@ -188,9 +251,7 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
       return update(event.id, (item) => (item.kind === 'tool' ? { ...item, status: 'running' } : item));
     case 'tool-progress':
       return update(event.id, (item) =>
-        item.kind === 'tool'
-          ? { ...item, output: ((item.output ?? '') + event.text).slice(-MAX_TOOL_OUTPUT_IN_TRANSCRIPT) }
-          : item,
+        item.kind === 'tool' ? { ...item, ...limitOutput((item.output ?? '') + event.text, item.outputOmittedChars) } : item,
       );
     case 'tool-end':
       return update(event.id, (item) =>
@@ -200,7 +261,8 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
               status: event.status,
               summary: event.summary,
               path: event.path,
-              output: (event.output ?? item.output)?.slice(-MAX_TOOL_OUTPUT_IN_TRANSCRIPT),
+              // A final output replaces what streamed, so what was left out is counted from it alone.
+              ...(event.output !== undefined ? { outputOmittedChars: undefined, ...limitOutput(event.output) } : {}),
               ...(event.undoable && event.status === 'done' ? { undo: 'available' as const } : {}),
             }
           : item,

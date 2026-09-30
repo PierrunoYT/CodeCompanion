@@ -73,6 +73,22 @@ describe('chatToMarkdown', () => {
     expect(markdown).not.toContain('lots of output');
   });
 
+  it('says when a diff or command was too long to keep in full', () => {
+    const markdown = chatToMarkdown(
+      chat([
+        {
+          kind: 'tool',
+          id: 't1',
+          name: 'write_file',
+          status: 'done',
+          preview: { title: 'Create big.txt', diff: '+a', diffOmittedLines: 5000, command: 'x', commandOmittedChars: 12 },
+        },
+      ]),
+    );
+    expect(markdown).toContain('_(Diff too long to show in full: 5,000 more lines are not shown.)_');
+    expect(markdown).toContain('_(Command too long to show in full: the last 12 characters are not shown.)_');
+  });
+
   it('uses a longer fence when the content contains backticks', () => {
     const markdown = chatToMarkdown(
       chat([

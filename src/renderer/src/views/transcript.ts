@@ -1,5 +1,5 @@
 import { markAnnounced, newAnnouncements } from '@shared/announce';
-import type { ApprovalDecision, TranscriptItem } from '@shared/chat';
+import { commandNotice, diffNotice, outputNotice, type ApprovalDecision, type TranscriptItem } from '@shared/chat';
 import { h, icon, trustedHtml } from '../dom';
 import { renderDiff, renderMarkdown } from '../markdown';
 
@@ -166,7 +166,16 @@ export class TranscriptView {
     );
 
     const preview = this.renderPreview(item);
-    const output = item.output ? h('pre', { class: 'tool-output' }, item.output) : null;
+    const output = item.output
+      ? h(
+          'div',
+          {},
+          item.outputOmittedChars
+            ? h('div', { class: 'tool-truncated' }, icon('scissors'), ` ${outputNotice(item.outputOmittedChars)}`)
+            : null,
+          h('pre', { class: 'tool-output' }, item.output),
+        )
+      : null;
 
     if (item.status === 'awaiting-approval') {
       const feedback = h('textarea', {
@@ -204,8 +213,28 @@ export class TranscriptView {
   }
 
   private renderPreview(item: Extract<TranscriptItem, { kind: 'tool' }>): HTMLElement | null {
-    if (item.preview?.diff) return trustedHtml('div', 'tool-diff', renderDiff(item.preview.diff, this.actions.theme()));
-    if (item.preview?.command) return h('pre', { class: 'tool-command' }, `$ ${item.preview.command}`);
+    const preview = item.preview;
+    // Approving a change that is only partly shown needs a clear warning; afterwards a plain note is enough.
+    const notice = (text: string) =>
+      item.status === 'awaiting-approval'
+        ? h('div', { class: 'alert alert-warning py-1 px-2 mb-1 small', role: 'note' }, icon('exclamation-triangle'), ` ${text}`)
+        : h('div', { class: 'tool-truncated' }, icon('scissors'), ` ${text}`);
+    if (preview?.diff) {
+      return h(
+        'div',
+        {},
+        trustedHtml('div', 'tool-diff', renderDiff(preview.diff, this.actions.theme())),
+        preview.diffOmittedLines ? notice(diffNotice(preview.diffOmittedLines, item.status === 'awaiting-approval')) : null,
+      );
+    }
+    if (preview?.command) {
+      return h(
+        'div',
+        {},
+        h('pre', { class: 'tool-command' }, `$ ${preview.command}${preview.commandOmittedChars ? ' …' : ''}`),
+        preview.commandOmittedChars ? notice(commandNotice(preview.commandOmittedChars)) : null,
+      );
+    }
     return null;
   }
 

@@ -29,6 +29,8 @@ By default the assistant asks before it changes anything. A card appears in the 
 
 Reading files, listing folders, searching the code and web search never ask.
 
+Very large diffs are shown only in part: the first 2,000 lines. The approval card then says so in a yellow warning, because approving applies the whole change, including the part you cannot see. Decline and ask for smaller edits if you want to review everything. Long command output shows its last 20,000 characters, with a note that the start was left out.
+
 - **Approve** runs it and the assistant continues.
 - **Decline** with the box left empty stops the task. Any other calls the assistant had planned for that step are skipped.
 - **Decline with a note** ("use pnpm instead") sends the note to the assistant, which adjusts and carries on. Use this rather than an empty decline when you want it to try something else.

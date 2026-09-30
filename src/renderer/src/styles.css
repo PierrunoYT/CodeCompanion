@@ -254,6 +254,12 @@ body {
   font-size: 0.85em;
 }
 
+.tool-truncated {
+  margin-top: 0.3rem;
+  font-size: 0.8em;
+  color: var(--bs-secondary-color);
+}
+
 .tool-diff .d2h-file-header {
   display: none;
 }

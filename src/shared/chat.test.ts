@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { applyChatEvent, filterChats, searchSnippet, transcriptSearchText, type ChatEvent, type ChatSummary, type TranscriptItem } from './chat';
+import {
+  applyChatEvent,
+  diffNotice,
+  filterChats,
+  limitPreview,
+  outputNotice,
+  searchSnippet,
+  transcriptSearchText,
+  TRANSCRIPT_LIMITS,
+  type ChatEvent,
+  type ChatSummary,
+  type TranscriptItem,
+} from './chat';
 
 const run = (events: ChatEvent[]) => events.reduce<TranscriptItem[]>(applyChatEvent, []);
 
@@ -90,6 +102,76 @@ describe('applyChatEvent', () => {
 
   it('ignores metadata events', () => {
     expect(run([{ type: 'busy', busy: true }, { type: 'title', title: 'x' }])).toEqual([]);
+  });
+});
+
+describe('size limits for tool cards', () => {
+  const start: ChatEvent = { type: 'tool-start', id: 't1', name: 'run_command', awaitingApproval: false };
+  const tool = (items: TranscriptItem[]) => items[0] as Extract<TranscriptItem, { kind: 'tool' }>;
+  const limit = TRANSCRIPT_LIMITS.outputChars;
+
+  it('keeps short output as it is, with nothing marked as left out', () => {
+    const item = tool(run([start, { type: 'tool-progress', id: 't1', text: 'hello\n' }, { type: 'tool-end', id: 't1', status: 'done', summary: 's' }]));
+    expect(item.output).toBe('hello\n');
+    expect(item.outputOmittedChars).toBeUndefined();
+  });
+
+  it('keeps the end of long streamed output and counts everything left out over all chunks', () => {
+    const chunks = Array.from({ length: 5 }, (_, index) => ({ type: 'tool-progress' as const, id: 't1', text: String(index).repeat(10_000) }));
+    const item = tool(run([start, ...chunks]));
+
+    expect(item.output).toHaveLength(limit);
+    expect(item.output!.endsWith('4'.repeat(10_000))).toBe(true);
+    expect(item.outputOmittedChars).toBe(50_000 - limit);
+  });
+
+  it('counts from the final output alone when the tool reports one', () => {
+    const streamed = [start, { type: 'tool-progress' as const, id: 't1', text: 'x'.repeat(50_000) }];
+    const long = tool(run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's', output: 'y'.repeat(limit + 7) }]));
+    expect(long.output).toBe('y'.repeat(limit));
+    expect(long.outputOmittedChars).toBe(7);
+
+    const short = tool(run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's', output: 'done' }]));
+    expect(short).toMatchObject({ output: 'done' });
+    expect(short.outputOmittedChars).toBeUndefined();
+
+    // Without a final output, what streamed stays, with its count.
+    const kept = tool(run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's' }]));
+    expect(kept.outputOmittedChars).toBe(50_000 - limit);
+  });
+
+  it('keeps the first lines of a long diff, whole lines only, and says how many are left out', () => {
+    const diff = Array.from({ length: 5_000 }, (_, index) => `+line ${index}`).join('\n');
+    const item = tool(run([{ type: 'tool-start', id: 't1', name: 'write_file', awaitingApproval: true, preview: { title: 'Create a', diff } }]));
+
+    expect(item.preview!.diff!.split('\n')).toHaveLength(TRANSCRIPT_LIMITS.diffLines);
+    expect(item.preview!.diff!.split('\n').at(-1)).toBe(`+line ${TRANSCRIPT_LIMITS.diffLines - 1}`);
+    expect(item.preview!.diffOmittedLines).toBe(5_000 - TRANSCRIPT_LIMITS.diffLines);
+  });
+
+  it('also cuts a diff of few but very long lines by size', () => {
+    const diff = Array.from({ length: 10 }, () => `+${'z'.repeat(50_000)}`).join('\n');
+    const preview = limitPreview({ title: 't', diff })!;
+    expect(preview.diff!.length).toBeLessThanOrEqual(TRANSCRIPT_LIMITS.diffChars);
+    expect(preview.diffOmittedLines).toBe(7);
+  });
+
+  it('keeps the start of a very long command', () => {
+    const preview = limitPreview({ title: 't', command: 'echo '.repeat(10_000) })!;
+    expect(preview.command).toHaveLength(TRANSCRIPT_LIMITS.commandChars);
+    expect(preview.commandOmittedChars).toBe(50_000 - TRANSCRIPT_LIMITS.commandChars);
+  });
+
+  it('leaves small previews untouched', () => {
+    const preview = { title: 'Edit a', diff: '-a\n+b' };
+    expect(limitPreview(preview)).toBe(preview);
+    expect(limitPreview(undefined)).toBeUndefined();
+  });
+
+  it('warns before approval that the hidden part is applied too', () => {
+    expect(diffNotice(3000, false)).toBe('Diff too long to show in full: 3,000 more lines are not shown.');
+    expect(diffNotice(3000, true)).toContain('Approving applies the whole change, including the part not shown');
+    expect(outputNotice(12_345)).toBe('Output too long to show in full: the first 12,345 characters are not shown, only the last 20,000.');
   });
 });
 

@@ -1,4 +1,4 @@
-import type { ChatSnapshot } from './chat';
+import { commandNotice, diffNotice, type ChatSnapshot } from './chat';
 
 // A code fence long enough that backticks inside the content cannot close it early.
 function fence(content: string, language = ''): string {
@@ -27,7 +27,9 @@ export function chatToMarkdown(chat: ChatSnapshot): string {
         const status = item.status === 'done' ? '' : ` (${item.status.replace('-', ' ')})`;
         lines.push(`> **${item.name}**: ${item.summary ?? item.preview?.title ?? item.name}${status}`, '');
         if (item.preview?.command) lines.push(fence(item.preview.command, 'sh'), '');
+        if (item.preview?.commandOmittedChars) lines.push(`_(${commandNotice(item.preview.commandOmittedChars)})_`, '');
         if (item.preview?.diff) lines.push(fence(item.preview.diff, 'diff'), '');
+        if (item.preview?.diffOmittedLines) lines.push(`_(${diffNotice(item.preview.diffOmittedLines, false)})_`, '');
         break;
       }
       case 'error':

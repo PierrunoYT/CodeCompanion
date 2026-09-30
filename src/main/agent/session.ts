@@ -30,6 +30,8 @@ export interface SavedChat {
   readFiles: string[];
   agentFile?: string | null;
   resumable?: boolean;
+  // False for custom OpenAI-compatible endpoints, whose prices are unknown. Missing in chats saved by older versions.
+  officialPricing?: boolean;
 }
 
 export interface ChatSessionOptions {
@@ -262,6 +264,7 @@ export class ChatSession {
       readFiles: [...this.readFiles],
       agentFile: this.options.agentFile,
       resumable: this.resumable,
+      officialPricing: this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
     };
   }
 

@@ -102,7 +102,7 @@ Rate limits (429), server errors (5xx) and dropped connections are retried autom
 ## Chats and projects
 
 - **New chat**: `Ctrl+N`. Chats are saved automatically.
-- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all.
+- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
 - **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
 
 ### Compact a long chat

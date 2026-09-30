@@ -104,7 +104,8 @@ describe('ChatStore', () => {
     store.save({ ...chat(idA, '2026-01-02T00:00:00Z'), title: 'Renamed' });
 
     expect(store.list()).toEqual([
-      { id: idA, title: 'Renamed', projectPath: null, updatedAt: '2026-01-02T00:00:00Z' },
+      // Model 'm' has no known price.
+      { id: idA, title: 'Renamed', projectPath: null, updatedAt: '2026-01-02T00:00:00Z', cost: null },
     ]);
     expect(new ChatStore(join(dir, 'chats')).load(idA)?.title).toBe('Renamed');
   });
@@ -171,6 +172,53 @@ describe('ChatStore', () => {
     // The recovered index is written back, so the next start does not have to scan the folder.
     rmSync(join(chats, `${idA}.json`));
     expect(new ChatStore(chats).list().map((item) => item.id)).toEqual([idA]);
+  });
+
+  it('lists the estimated cost of each chat, updated on every save', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    const opus = (usage: SavedChat['usage']) => ({
+      ...chat(idA, '2026-01-01T00:00:00Z'),
+      usage,
+      conversation: { provider: 'anthropic' as const, model: 'claude-opus-5-5', messages: [] },
+    });
+    // Opus 5.5: $4 per million input tokens, $20 per million output tokens.
+    store.save(opus({ inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }));
+    expect(store.list()[0].cost).toBeCloseTo(4);
+    store.save(opus({ inputTokens: 1_000_000, outputTokens: 100_000, cacheReadTokens: 0, cacheWriteTokens: 0 }));
+    expect(store.list()[0].cost).toBeCloseTo(6);
+    expect(new ChatStore(join(dir, 'chats')).list()[0].cost).toBeCloseTo(6);
+  });
+
+  it('lists no cost for unknown models and custom endpoints', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    const usage = { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    const gpt = { provider: 'openai' as const, model: 'gpt-6-sol', messages: [] };
+    store.save({ ...chat(idA, '2026-01-01T00:00:00Z'), usage });
+    store.save({ ...chat(idB, '2026-01-02T00:00:00Z'), usage, officialPricing: false, conversation: { ...gpt, api: 'responses' } });
+    expect(store.list().map((item) => item.cost)).toEqual([null, null]);
+
+    // Saved before officialPricing existed: OpenAI's own API is priced, Chat Completions (a custom endpoint) is not.
+    store.save({ ...chat(idA, '2026-01-03T00:00:00Z'), usage, conversation: { ...gpt, api: 'responses' } });
+    store.save({ ...chat(idB, '2026-01-04T00:00:00Z'), usage, conversation: { ...gpt, api: 'chat' } });
+    expect(store.list().map((item) => item.cost)).toEqual([null, 2]);
+  });
+
+  it('corrects legacy OpenAI usage the way a reopened chat does', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    // Older totals counted the 500k cache reads in the input as well.
+    const usage = { inputTokens: 1_500_000, outputTokens: 0, cacheReadTokens: 500_000 };
+    store.save({ ...chat(idA, '2026-01-01T00:00:00Z'), usage, conversation: { provider: 'openai', api: 'responses', model: 'gpt-6-sol', messages: [] } });
+    // 1M input at $2 plus 500k cache reads at $0.20.
+    expect(store.list()[0].cost).toBeCloseTo(2.1);
+  });
+
+  it('adds costs to an index written by an older version', () => {
+    const chats = join(dir, 'chats');
+    const usage = { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    new ChatStore(chats).save({ ...chat(idA, '2026-01-01T00:00:00Z'), usage, conversation: { provider: 'anthropic', model: 'claude-opus-5-5', messages: [] } });
+    writeFileSync(join(chats, 'index.json'), JSON.stringify([{ id: idA, title: 'Old', projectPath: null, updatedAt: '2026-01-01T00:00:00Z' }]));
+
+    expect(new ChatStore(chats).list()[0].cost).toBeCloseTo(4);
   });
 
   it('starts empty and writes no index for an empty folder', () => {

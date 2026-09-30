@@ -108,6 +108,15 @@ describe('compact chat (mock Claude API)', () => {
     expect(text).toContain('SIXTH-QUESTION');
   });
 
+  it('shows the estimated cost of each chat in the chat history', async () => {
+    await running.page.getByTitle('Chat history').click();
+    // The mock API reports a few tokens per request, so the Opus 5.5 chat costs less than a cent.
+    const cost = running.page.locator('.history-list').getByText('≈ <$0.01').first();
+    await cost.waitFor();
+    expect(await cost.getAttribute('title')).toBe('Estimated from official list prices.');
+    await running.page.keyboard.press('Escape');
+  });
+
   it('says so instead of summarizing a short chat', async () => {
     await running.page.evaluate(() => window.api.invoke('chat:new'));
     await ask('ONLY-QUESTION');

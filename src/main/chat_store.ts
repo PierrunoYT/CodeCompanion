@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { searchSnippet, transcriptSearchText, type ChatSummary } from '@shared/chat';
+import { estimateCost } from '@shared/models';
 import type { SavedChat } from './agent/session';
 import { readJson, writeJson } from './storage/json_file';
 
@@ -14,7 +15,8 @@ export class ChatStore {
   constructor(private readonly dir: string) {
     mkdirSync(dir, { recursive: true });
     this.index = readJson<ChatSummary[]>(this.indexFile, []);
-    if (this.index.length === 0) this.rebuildIndex();
+    // Indexes written before costs were listed have no `cost`; rebuilding once from the chat files adds it.
+    if (this.index.length === 0 || this.index.some((item) => !('cost' in item))) this.rebuildIndex();
   }
 
   list(): ChatSummary[] {
@@ -23,12 +25,7 @@ export class ChatStore {
 
   save(chat: SavedChat): void {
     writeJson(this.chatFile(chat.id), chat);
-    const summary: ChatSummary = {
-      id: chat.id,
-      title: chat.title,
-      projectPath: chat.projectPath,
-      updatedAt: chat.updatedAt,
-    };
+    const summary = summarize(chat);
     this.index = [summary, ...this.index.filter((item) => item.id !== chat.id)];
     writeJson(this.indexFile, this.index);
   }
@@ -96,7 +93,27 @@ export class ChatStore {
       .filter((name) => ID_PATTERN.test(name.replace(/\.json$/, '')))
       .map((name) => readJson<SavedChat | null>(join(this.dir, name), null))
       .filter((chat): chat is SavedChat => chat?.version === 1)
-      .map((chat) => ({ id: chat.id, title: chat.title, projectPath: chat.projectPath, updatedAt: chat.updatedAt }));
+      .map(summarize);
     if (this.index.length > 0) writeJson(this.indexFile, this.index);
   }
+}
+
+// What the chat list shows for a chat, including its estimated cost so far.
+export function summarize(chat: SavedChat): ChatSummary {
+  // Chats saved before officialPricing was stored: Claude and OpenAI's own API (Responses) have official prices, a
+  // custom endpoint (Chat Completions) may not.
+  const official =
+    chat.officialPricing ?? (chat.conversation.provider === 'anthropic' || chat.conversation.api === 'responses');
+  let usage = chat.usage;
+  // Older OpenAI totals counted cache reads in the input too, as ChatSession corrects when it loads them.
+  if (usage && chat.conversation.provider === 'openai' && usage.cacheWriteTokens === undefined) {
+    usage = { ...usage, inputTokens: Math.max(0, usage.inputTokens - usage.cacheReadTokens) };
+  }
+  return {
+    id: chat.id,
+    title: chat.title,
+    projectPath: chat.projectPath,
+    updatedAt: chat.updatedAt,
+    cost: usage ? estimateCost(chat.conversation.model, usage, official) : null,
+  };
 }

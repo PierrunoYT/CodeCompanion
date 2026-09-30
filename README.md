@@ -26,7 +26,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
 - `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
 - Image attachments (attach or paste)
-- Token and estimated cost totals for the built-in Claude and GPT-6 models, including cache reads and writes; custom endpoints have no official-price estimate
+- Token and estimated cost totals for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar and for every chat in the chat history; custom endpoints have no official-price estimate
 
 ## Getting started
 

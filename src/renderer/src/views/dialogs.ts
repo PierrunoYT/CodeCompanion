@@ -1,5 +1,5 @@
 import { filterChats, type ChatSummary } from '@shared/chat';
-import { MODEL_OPTIONS, type Effort } from '@shared/models';
+import { formatCost, MODEL_OPTIONS, type Effort } from '@shared/models';
 import { describeIndexStatus } from '@shared/index_status';
 import type { IndexStatus } from '@shared/ipc';
 import type { ProjectInfo } from '@shared/project';
@@ -297,6 +297,9 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
                   { class: 'small text-body-secondary text-truncate' },
                   `${new Date(chat.updatedAt).toLocaleString()}${chat.projectPath ? ` · ${chat.projectPath}` : ''}`,
                 ),
+                typeof chat.cost === 'number'
+                  ? h('div', { class: 'small text-body-secondary', title: 'Estimated from official list prices.' }, `≈ ${formatCost(chat.cost)}`)
+                  : null,
                 chat.snippet ? h('div', { class: 'small fst-italic text-body-secondary text-truncate' }, chat.snippet) : null,
               ),
               h(

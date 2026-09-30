@@ -132,7 +132,7 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 |---|---|
 | `settings.json` | Settings; API keys as `safeStorage` ciphertext (plain text only if the OS offers no encryption, flagged in Settings) |
 | `projects.json` | Recent projects (20) and their instructions |
-| `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage) |
+| `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage, `officialPricing`). The index holds each chat's `ChatSummary`, including `cost` (`estimateCost` at save time, `null` without a known price), which the chat history shows. An index without costs, written by an older version, is rebuilt from the chat files on start |
 | `edit-backups/<chat uuid>/<hash>.json` | Copies of the files that approved edits changed (base64 of the previous bytes), so an edit can be undone from its card. Newest 50 per chat; deleted with the chat |
 | `indexes/<hash>.json` | Code search indexes |
 | `logs/app.log.jsonl` | Crashes and other problems (`AppLog` in `src/main/app_log.ts`): time, level, source, message, stack. Keys and tokens are redacted; error messages can mention file paths, but chat history is never logged. UI errors arrive through `log:renderer-error` (`RendererErrorReporter`, capped at 100 per run). Local only; rotates to `.old` at 512 KB |

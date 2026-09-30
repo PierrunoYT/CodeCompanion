@@ -104,6 +104,9 @@ export interface ChatSummary {
   title: string;
   projectPath: string | null;
   updatedAt: string;
+  // Estimated cost in dollars so far, at official list prices. null when the model or endpoint has no known price;
+  // missing only in indexes written by older versions (rebuilt on start).
+  cost?: number | null;
   // Only in search results: an excerpt of a message that matched, when the title and project did not.
   snippet?: string;
 }

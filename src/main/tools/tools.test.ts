@@ -72,6 +72,53 @@ describe('file tools', () => {
     expect(range.content).toContain('Showing lines 2-2 of 4');
   });
 
+  it('reads a large file page by page, in whole lines, with nothing missing in between', async () => {
+    // 1,500 lines of about 50 characters: too much for one read, well under the 2,000-line default.
+    const lines = Array.from({ length: 1500 }, (_, index) => `line ${index + 1}: the quick brown fox jumps over`);
+    writeFileSync(join(root, 'big.txt'), lines.join('\n'));
+
+    const seen: string[] = [];
+    let offset = 1;
+    for (let page = 0; page < 10; page++) {
+      const result = await call(readFileTool, { path: 'big.txt', offset });
+      const [text, note] = result.content.split('\n\n(');
+      expect(text.length).toBeLessThanOrEqual(30_000);
+      seen.push(...text.split('\n').map((line) => line.split('\t')[1]));
+      if (!note) break;
+      const next = Number(/Use offset=(\d+)/.exec(note)![1]);
+      expect(note).toMatch(new RegExp(`^Showing lines ${offset}-${next - 1} of 1500 \\(cut to fit 30,000 characters\\)\\.`));
+      expect(result.summary).toBe(`Read big.txt (lines ${offset}-${next - 1} of 1500)`);
+      offset = next;
+    }
+
+    // Every line exactly once, in order: no hole in the middle.
+    expect(seen).toEqual(lines);
+    expect(offset).toBeGreaterThan(1);
+  });
+
+  it('says why a read stopped when it hit the line limit rather than the size limit', async () => {
+    writeFileSync(join(root, 'short-lines.txt'), Array.from({ length: 50 }, (_, index) => `${index}`).join('\n'));
+    const result = await call(readFileTool, { path: 'short-lines.txt', limit: 10 });
+    expect(result.content).toContain('(Showing lines 1-10 of 50. Use offset=11 to read more.)');
+    expect(result.content).not.toContain('cut to fit');
+  });
+
+  it('shows the start of a line that is too long on its own, and moves on to the next line', async () => {
+    writeFileSync(join(root, 'min.js'), `${'x'.repeat(50_000)}\nsecond line`);
+    const first = await call(readFileTool, { path: 'min.js' });
+    expect(first.content.length).toBeLessThan(30_300);
+    expect(first.content).toContain('Line 1 is 50,000 characters long; only its start is shown.');
+    expect(first.content).toContain('Use offset=2 to read more.');
+    const second = await call(readFileTool, { path: 'min.js', offset: 2 });
+    expect(second.content).toBe('2\tsecond line');
+  });
+
+  it('reads a small file whole, with no note', async () => {
+    const result = await call(readFileTool, { path: 'src/app.ts' });
+    expect(result.content).not.toContain('(Showing');
+    expect(result.summary).toBe('Read src/app.ts (4 lines)');
+  });
+
   it('refuses to edit or overwrite a file that was not read', async () => {
     await expect(call(editFileTool, { path: 'src/app.ts', old_string: 'a = 1', new_string: 'a = 9' })).rejects.toThrow(
       /src\/app.ts has not been read/,

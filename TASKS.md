@@ -27,7 +27,7 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Move the unreleased changelog entries into `[0.1.1] - 2026-09-30`, bump the version, tag `v0.1.1` (the release workflow builds and publishes the Windows installer)
 - [x] Check that the `v0.1.1` release workflow passes and the installer is attached on GitHub Releases
 - [x] Before 0.2.0: run the built app against the real Anthropic and OpenAI APIs (edit and undo, stop and resume, an image, compact chat). Found and fixed OpenAI chats failing after the first turn (`parsed_arguments`), which v0.1.1 very likely has too
-- [ ] `read_file` on a file over 30,000 characters drops the middle with only a "characters omitted" marker; say which lines were left out and how to read them with `offset` and `limit` (seen with both GPT-6 Sol and Claude Opus 5.5 working around it with shell commands)
+- [x] `read_file` on a file over 30,000 characters drops the middle with only a "characters omitted" marker; say which lines were left out and how to read them with `offset` and `limit` (seen with both GPT-6 Sol and Claude Opus 5.5 working around it with shell commands)
 
 ## Later: other platforms (after the Windows release)
 

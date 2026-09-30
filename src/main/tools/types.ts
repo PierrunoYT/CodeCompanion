@@ -74,7 +74,7 @@ export function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: AgentTool
 
 export class ToolError extends Error {}
 
-const MAX_OUTPUT_CHARS = 30_000;
+export const MAX_OUTPUT_CHARS = 30_000;
 
 // Keeps the start and end of long output, where errors and results usually are.
 export function truncateOutput(text: string, limit = MAX_OUTPUT_CHARS): string {

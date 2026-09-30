@@ -5,6 +5,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Fixed
+- `read_file` no longer drops the middle of a file over 30,000 characters behind a short "characters omitted" marker. It returns whole lines up to the limit and ends with the lines shown and the offset for the next page, so a large file is read page by page with nothing missing. The transcript card shows the range that was read.
 - OpenAI chats (GPT-6 through the Responses API) failed on every request after the first model turn with "400 Unknown parameter: 'input[1].parsed_arguments'". The OpenAI SDK adds `parsed_arguments` and `parsed` to the response it returns, and the app sent them back as history. They are now removed when a turn is stored and when history is sent, which also repairs OpenAI chats saved earlier. Found by running the app against the real API; the mock OpenAI server in the end-to-end tests now rejects these fields too.
 
 ### Added

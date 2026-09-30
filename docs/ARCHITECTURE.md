@@ -96,7 +96,7 @@ A chat keeps its model. Changing the model in settings applies to new chats.
 
 | Tool | Approval | Notes |
 |---|---|---|
-| `read_file` | no | Line-numbered, optional `offset`/`limit`; marks the file as read |
+| `read_file` | no | Line-numbered, optional `offset`/`limit`; marks the file as read. Returns whole lines from `offset` up to 2,000 lines or 30,000 characters (`fitLines`), then a note with the lines shown and the next `offset`, so a large file is read in pages with no gap (other tools keep the start and end of long output instead) |
 | `list_directory` | no | Skips `.gitignore`/`.ccignore` matches, `.git`, `node_modules` |
 | `grep` | no | JavaScript regex over non-ignored text files, 200 matches max |
 | `search_code` | no | Semantic search (only offered while an OpenAI key is set; picked up mid-chat) |

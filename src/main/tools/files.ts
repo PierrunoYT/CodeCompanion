@@ -4,14 +4,14 @@ import { dirname, join } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { z } from 'zod';
 import { detectEol, fileSize, isBinaryFile, MAX_READ_BYTES, sha256, withLineNumbers } from './text_files';
-import { defineTool, ToolError, truncateOutput, type ToolContext } from './types';
+import { defineTool, MAX_OUTPUT_CHARS, ToolError, type ToolContext } from './types';
 
 const DEFAULT_READ_LINES = 2000;
 
 export const readFileTool = defineTool({
   name: 'read_file',
   description:
-    'Read a text file from the project. Returns the content with line numbers. For large files, use offset and limit to read a range. Read a file before editing or overwriting it.',
+    'Read a text file from the project. Returns the content with line numbers. A large file is returned one page at a time (at most 2,000 lines or 30,000 characters); a note at the end then says which lines were shown and the offset to read the next page. Use offset and limit to read a range. Read a file before editing or overwriting it.',
   schema: z.object({
     path: z.string().describe('File path, relative to the project root.'),
     offset: z.number().int().min(1).optional().describe('First line to read (1-based).'),
@@ -30,13 +30,19 @@ export const readFileTool = defineTool({
     context.readFiles.add(file);
 
     const rel = context.workspace.relative(file);
-    const more = offset - 1 + selected.length < lines.length;
-    const footer = more
-      ? `\n\n(Showing lines ${offset}-${offset + selected.length - 1} of ${lines.length}. Use offset to read more.)`
-      : '';
+    const page = fitLines(withLineNumbers(selected, offset).split('\n'), MAX_OUTPUT_CHARS);
+    const last = offset + page.lines - 1;
+    const notes: string[] = [];
+    if (page.cutLine) {
+      notes.push(`Line ${offset} is ${selected[0].length.toLocaleString('en-US')} characters long; only its start is shown.`);
+    }
+    if (last < lines.length) {
+      const reason = page.lines < selected.length ? ` (cut to fit ${MAX_OUTPUT_CHARS.toLocaleString('en-US')} characters)` : '';
+      notes.push(`Showing lines ${offset}-${last} of ${lines.length}${reason}. Use offset=${last + 1} to read more.`);
+    }
     return {
-      content: truncateOutput(withLineNumbers(selected, offset)) + footer,
-      summary: `Read ${rel} (${selected.length} lines)`,
+      content: page.text + (notes.length > 0 ? `\n\n(${notes.join(' ')})` : ''),
+      summary: last < lines.length || offset > 1 ? `Read ${rel} (lines ${offset}-${last} of ${lines.length})` : `Read ${rel} (${lines.length} lines)`,
       path: rel,
     };
   },
@@ -181,6 +187,22 @@ export const editFileTool = defineTool({
     };
   },
 });
+
+// The first whole lines that fit in `budget` characters, so a large file is read page by page with nothing missing in
+// between (cutting the middle out would leave the model a gap it may not notice). A first line that alone is longer
+// than the budget, as in minified code, is cut so something is still shown.
+export function fitLines(lines: string[], budget: number): { text: string; lines: number; cutLine: boolean } {
+  let size = 0;
+  let count = 0;
+  for (const line of lines) {
+    const next = size + line.length + (count > 0 ? 1 : 0);
+    if (next > budget) break;
+    size = next;
+    count++;
+  }
+  if (count === 0 && lines.length > 0) return { text: lines[0].slice(0, budget), lines: 1, cutLine: true };
+  return { text: lines.slice(0, count).join('\n'), lines: count, cutLine: false };
+}
 
 function requireRead(file: string, path: string, context: ToolContext): void {
   if (!context.readFiles.has(file)) {

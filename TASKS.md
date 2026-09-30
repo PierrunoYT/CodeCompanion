@@ -78,7 +78,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them; one approval screenshot so far)
 - [x] Add more README screenshots (settings, Git and browser panels) without local paths
-- [ ] Decide whether the repo should be public
+- [x] Decide whether the repo should be public (it is public: https://github.com/PierrunoYT/CodeCompanion)
 
 ## Features
 
@@ -113,4 +113,4 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Require approval for `fetch_url` and the `browser` tool on hosts outside an allow-list (browser subresources and Google search remain documented limits)
 - [x] Check for accessibility problems (keyboard navigation, contrast): code audit done and fixed, see the changelog
 - [x] Measure representative rendered text contrast in both themes, including approval controls and their hover/focus states
-- [ ] Test with a real screen reader (NVDA); requires a Windows session with NVDA, unavailable in the Linux orb
+- [ ] Test with a real screen reader (NVDA); requires a Windows session with NVDA, unavailable in the Linux orb. Not tested yet. Check: approval cards and finished answers are announced once, errors and retry notices are read, the Undo, Compact chat and project-tab buttons have sensible names, and tool cards read correctly once expanded (their content is now built on first expand)

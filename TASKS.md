@@ -53,7 +53,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Add an undo for the last approved file edit (keep a backup per edit, restore from the diff card)
 - [x] Show the running cost of a chat in the chat list, not only in the status bar
 - [ ] Add a per-project setting for allowed commands and network hosts (today they are global)
-- [ ] Let the user attach an image to a message for models that accept images, gated behind `claudeCapabilities`
+- [x] Let the user attach an image to a message for models that accept images, gated behind `claudeCapabilities`
 
 ### Quality
 

@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { estimateCost, formatCost } from './models';
+import { acceptsImages, claudeCapabilities, estimateCost, formatCost, imagesNotSupportedMessage, MODEL_OPTIONS } from './models';
+
+describe('image input', () => {
+  it('is on for every built-in model', () => {
+    for (const option of MODEL_OPTIONS) expect(acceptsImages(option.id)).toBe(true);
+  });
+
+  it('is part of claudeCapabilities, and off for Claude ids that are not known to accept images', () => {
+    expect(claudeCapabilities('claude-haiku-4-5').images).toBe(true);
+    expect(claudeCapabilities('claude-opus-5').images).toBe(true);
+    for (const id of ['claude-custom', 'claude-2.1', 'claude-opus-5-5-preview']) {
+      expect(claudeCapabilities(id).images).toBe(false);
+      expect(acceptsImages(id)).toBe(false);
+    }
+  });
+
+  it('stays allowed for OpenAI and OpenAI-compatible model ids, whose support the app cannot know', () => {
+    expect(acceptsImages('llama3.2')).toBe(true);
+    expect(acceptsImages('gpt-6-luna')).toBe(true);
+  });
+
+  it('explains the refusal with the model name', () => {
+    expect(imagesNotSupportedMessage('claude-custom')).toMatch(/^claude-custom does not accept images\./);
+  });
+});
 
 describe('estimateCost', () => {
   it('adds input, output and cached input at the model prices', () => {

@@ -1,6 +1,7 @@
 import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
 import type { UndoResult } from '@shared/ipc';
+import { acceptsImages, imagesNotSupportedMessage } from '@shared/models';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
 import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
@@ -77,6 +78,9 @@ export class ChatManager {
   // the agent finishes. Errors during the run are shown in the transcript instead.
   send(message: UserMessage): Promise<void> {
     if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
+    // A chat keeps its model; a new chat gets the model in settings.
+    const model = this.session?.snapshot().model ?? this.deps.settings.get().model;
+    if (message.images?.length && !acceptsImages(model)) throw new Error(imagesNotSupportedMessage(model));
     if (!this.session) {
       this.session = this.createSession();
       this.deps.onSnapshot(this.session.snapshot());

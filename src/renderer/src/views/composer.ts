@@ -6,6 +6,8 @@ export interface ComposerActions {
   stop(): void;
   resume(): void;
   pickImages(): Promise<ImageAttachment[]>;
+  // Shown when an image is pasted for a model that does not accept images.
+  notice(message: string): void;
 }
 
 const PASTE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
@@ -17,6 +19,9 @@ export class Composer {
   private readonly stopButton: HTMLButtonElement;
   private readonly resumeButton: HTMLButtonElement;
   private readonly attachmentList: HTMLElement;
+  private readonly attachButton: HTMLButtonElement;
+  // Why images cannot be attached for the chat's model, or null when they can.
+  private imagesBlocked: string | null = null;
   private images: ImageAttachment[] = [];
   private busy = false;
   private draftVersion = 0;
@@ -50,6 +55,11 @@ export class Composer {
       ' Resume',
     );
     this.attachmentList = h('div', { class: 'composer-attachments' });
+    this.attachButton = h(
+      'button',
+      { class: 'btn btn-outline-secondary', title: 'Attach images', 'aria-label': 'Attach images', onclick: () => void this.attach() },
+      icon('paperclip'),
+    );
 
     this.element = h(
       'div',
@@ -58,11 +68,7 @@ export class Composer {
       h(
         'div',
         { class: 'composer-row' },
-        h(
-          'button',
-          { class: 'btn btn-outline-secondary', title: 'Attach images', onclick: () => void this.attach() },
-          icon('paperclip'),
-        ),
+        this.attachButton,
         this.input,
         this.sendButton,
         this.stopButton,
@@ -80,6 +86,16 @@ export class Composer {
 
   focus(): void {
     this.input.focus();
+  }
+
+  // `reason` is why the chat's model cannot take images, or null when it can. Images already in the draft stay, marked,
+  // so nothing the user attached disappears; sending them is refused with the same reason.
+  setImagesBlocked(reason: string | null): void {
+    if (reason === this.imagesBlocked) return;
+    this.imagesBlocked = reason;
+    this.attachButton.disabled = reason !== null;
+    this.attachButton.title = reason ?? 'Attach images';
+    this.renderAttachments();
   }
 
   getDraft(): { text: string; images: ImageAttachment[] } {
@@ -119,6 +135,10 @@ export class Composer {
     const files = [...(event.clipboardData?.files ?? [])].filter((file) => PASTE_TYPES.has(file.type));
     if (files.length === 0) return;
     event.preventDefault();
+    if (this.imagesBlocked) {
+      this.actions.notice(this.imagesBlocked);
+      return;
+    }
     const version = this.draftVersion;
     for (const file of files) {
       const reader = new FileReader();
@@ -137,7 +157,10 @@ export class Composer {
       ...this.images.map((image, index) =>
         h(
           'span',
-          { class: 'badge text-bg-secondary me-1' },
+          {
+            class: `badge ${this.imagesBlocked ? 'text-bg-warning' : 'text-bg-secondary'} me-1`,
+            title: this.imagesBlocked ?? '',
+          },
           icon('image'),
           ` ${image.name} `,
           h(

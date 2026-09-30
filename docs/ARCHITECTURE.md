@@ -77,6 +77,7 @@ The SDK clients for conversations are created with `maxRetries: 0` (`createAnthr
   - Opus 5.5 / Sonnet 5.5 (and other current models): adaptive thinking with summarized display, `output_config.effort` (Settings → Effort, default `high`), server-side compaction (`compact-2026-01-12`).
   - Opus 5.5 / Sonnet 5.5: refusal fallback (`fallbacks: "default"`, `server-side-fallback-2026-07-01`).
   - Haiku 4.5 and unknown ids: a plain request.
+  - Image input (`images`): Opus 5.5, Sonnet 5.5, Haiku 4.5 and the other known current ids; not unknown ids, since an image the model cannot take is a 400. `acceptsImages(model)` applies it (and allows every OpenAI or compatible id, as before). `ChatManager.send` refuses a message with images for a chat whose model does not accept them, before a chat is created or anything is sent; the composer disables the paperclip and paste with the same message (`imagesNotSupportedMessage`). Images in tool results (browser screenshots) are not gated.
 - Prompt caching via top-level `cache_control`; the system prompt is built once per chat so the prefix stays cached.
 - Tools are sent with `eager_input_streaming`, so large inputs (file contents) stream as generated. The API then no longer validates them, which is why the agent validates every input itself. A turn whose streamed tool input cannot be parsed is re-issued (up to twice).
 - No `temperature` and no forced `tool_choice` (both rejected by current models).

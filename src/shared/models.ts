@@ -117,7 +117,12 @@ export interface ClaudeCapabilities {
   compaction: boolean;
   // Server-side refusal fallback with fallbacks: "default" (beta server-side-fallback-2026-07-01).
   refusalFallback: boolean;
+  // Image input: attached or pasted images in a user message.
+  images: boolean;
 }
+
+// Claude models known to accept images. A custom Claude id is not assumed to, since an image it cannot take is a 400.
+const IMAGE_MODELS = /^claude-(opus-5-5|sonnet-5-5|haiku-4-5|opus-5|fable-5-1|fable-5)$/;
 
 // Request features differ per Claude model and sending an unsupported one is a 400, so features are enabled
 // only for models known to support them. Unknown (custom) Claude ids get a plain request.
@@ -129,5 +134,17 @@ export function claudeCapabilities(model: string): ClaudeCapabilities {
     adaptiveThinking: current,
     compaction: current,
     refusalFallback: /^claude-(opus-5-5|sonnet-5-5|fable-5-1)$/.test(model),
+    images: IMAGE_MODELS.test(model),
   };
+}
+
+// Whether a message to this model may carry images. Claude models go by claudeCapabilities. OpenAI models and
+// OpenAI-compatible endpoints are allowed as before: the app cannot tell what a custom endpoint's model accepts, and
+// it reports the endpoint's own error if it refuses.
+export function acceptsImages(model: string): boolean {
+  return providerForModel(model) === 'anthropic' ? claudeCapabilities(model).images : true;
+}
+
+export function imagesNotSupportedMessage(model: string): string {
+  return `${MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model} does not accept images. Remove the attached images, or start a new chat with a model that accepts them.`;
 }

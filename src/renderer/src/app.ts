@@ -1,6 +1,14 @@
 import { applyChatEvent, type ChatEvent, type ChatSnapshot } from '@shared/chat';
 import type { ImageAttachment } from '@shared/ipc';
-import { COMPACT_SUGGESTED_TOKENS, estimateCost, formatCost, MODEL_OPTIONS, providerForModel } from '@shared/models';
+import {
+  acceptsImages,
+  COMPACT_SUGGESTED_TOKENS,
+  estimateCost,
+  formatCost,
+  imagesNotSupportedMessage,
+  MODEL_OPTIONS,
+  providerForModel,
+} from '@shared/models';
 import type { ProjectInfo } from '@shared/project';
 import type { SettingsView } from '@shared/settings';
 import { h, icon, setChildren } from './dom';
@@ -33,6 +41,7 @@ export class App {
     stop: () => void api.invoke('chat:stop'),
     resume: () => void api.invoke('chat:resume').catch((error) => this.toast(error)),
     pickImages: () => api.invoke('files:pick-images').catch((error) => (this.toast(error), [])),
+    notice: (message) => this.toast(message),
   });
 
   private readonly projectButton = h('button', { class: 'btn btn-sm btn-outline-secondary project-button', onclick: () => this.toggleProjectMenu() });
@@ -215,6 +224,7 @@ export class App {
 
     const model = this.chat.transcript.length > 0 ? this.chat.model : this.settings.model;
     const label = MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model;
+    this.composer.setImagesBlocked(acceptsImages(model) ? null : imagesNotSupportedMessage(model));
     this.modelLabel.replaceChildren(icon('cpu'), ` ${label}`, this.settings.approvalMode === 'ask' ? '' : ' · auto');
 
     const agentFile = this.chat.agentFile;

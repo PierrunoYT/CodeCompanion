@@ -13,6 +13,7 @@ describe('project chat retention', () => {
   let projects: ProjectStore;
   let manager: ChatManager;
   let chats: ChatStore;
+  let settings: SettingsStore;
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'cc-manager-'));
@@ -20,7 +21,7 @@ describe('project chat retention', () => {
     mkdirSync(join(root, 'beta'));
     projects = new ProjectStore(join(root, 'projects.json'));
     chats = new ChatStore(join(root, 'chats'));
-    const settings = new SettingsStore(join(root, 'settings.json'), {
+    settings = new SettingsStore(join(root, 'settings.json'), {
       isAvailable: () => false, encrypt: (value) => value, decrypt: (value) => value,
     });
     const llm = new LlmService(settings);
@@ -59,6 +60,23 @@ describe('project chat retention', () => {
     await manager.send({ text: 'A short task' });
     await manager.compact();
     expect(manager.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('not enough older history') });
+  });
+
+  it('refuses images for a model that does not accept them, judged by the model the chat will use', async () => {
+    open('alpha');
+    const image = { mediaType: 'image/png' as const, base64: 'AAAA' };
+    settings.update({ model: 'claude-custom' });
+
+    expect(() => manager.send({ text: 'Look', images: [image] })).toThrow(/claude-custom does not accept images/);
+    // Nothing was started: no chat and nothing saved.
+    expect(manager.snapshot().id).toBe('');
+    expect(chats.list()).toEqual([]);
+    // Text alone is fine.
+    await manager.send({ text: 'Just text' });
+
+    // An open chat keeps its own model (here 'test', an OpenAI-compatible id), whatever the setting says now.
+    await manager.send({ text: 'Look', images: [image] });
+    expect(manager.snapshot().transcript.filter((item) => item.kind === 'user').at(-1)).toMatchObject({ imageCount: 1 });
   });
 
   it('has no edit to undo without a chat, or when nothing keeps backups', async () => {

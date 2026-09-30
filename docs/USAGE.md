@@ -6,7 +6,7 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 
 1. **File → Open Project…** (`Ctrl+O`) and pick a folder. The assistant can only read and change files inside it.
 2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are stored encrypted by the operating system and are never shown again; type a new one to replace it, or press **Remove**.
-3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button.
+3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each). All built-in models accept images. For a Claude model id entered under *Other model id…* that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
 
 Each chat keeps the model it started with. Changing the model in Settings applies to new chats.
 

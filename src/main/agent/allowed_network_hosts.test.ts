@@ -17,6 +17,15 @@ describe('isNetworkUrlAllowed', () => {
     expect(isNetworkUrlAllowed('not a url', allowed)).toBe(false);
   });
 
+  it('rejects non-HTTP protocols even for an allowed host', () => {
+    expect(isNetworkUrlAllowed('ftp://example.com/file', allowed)).toBe(false);
+    expect(isNetworkUrlAllowed('ws://example.com/socket', allowed)).toBe(false);
+  });
+
+  it('ignores spaces around entries in the list', () => {
+    expect(isNetworkUrlAllowed('https://example.com', '  example.com  \n')).toBe(true);
+  });
+
   it('allows nothing when the setting is missing or empty', () => {
     expect(isNetworkUrlAllowed('https://example.com', '')).toBe(false);
     expect(isNetworkUrlAllowed('https://example.com', undefined as unknown as string)).toBe(false);

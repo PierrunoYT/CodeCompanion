@@ -22,6 +22,11 @@ Tick a box (`- [x]`) when a task is done.
 - [x] Update the `CHANGELOG.md` date on release (2026-09-29)
 - [x] Tag the release and publish the Windows installer on GitHub Releases (0.1.0 is Windows only)
 
+## Release 0.1.1
+
+- [x] Move the unreleased changelog entries into `[0.1.1] - 2026-09-30`, bump the version, tag `v0.1.1` (the release workflow builds and publishes the Windows installer)
+- [ ] Check that the `v0.1.1` release workflow passes and the installer is attached on GitHub Releases
+
 ## Later: other platforms (after the Windows release)
 
 Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not planned.

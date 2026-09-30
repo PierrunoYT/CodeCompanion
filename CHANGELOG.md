@@ -4,6 +4,8 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-30
+
 ### Added
 - Keep multiple projects open with separate chats, drafts and workspace-bound tool state. Stop a busy task before switching; closing a tab retains saved history.
 - Add a Resume control for stopped tasks, with persisted paused state, completed tool-result pairing, and a continuation instruction to inspect interrupted side effects before retrying them.

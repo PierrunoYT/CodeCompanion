@@ -14,9 +14,11 @@ export default tseslint.config(
     },
   },
   {
+    // The renderer is sandboxed and has no Node. Flat config merges globals rather than replacing them, and
+    // typescript-eslint turns off `no-undef` for TypeScript, so restrict the Node names directly.
     files: ['src/renderer/src/**/*.ts'],
-    languageOptions: {
-      globals: { ...globals.browser },
+    rules: {
+      'no-restricted-globals': ['error', 'process', 'require', 'module', '__dirname', '__filename', 'Buffer', 'global'],
     },
   },
   {

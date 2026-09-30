@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,9 @@ import { ProjectStore } from './projects';
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'cc-stores-'));
+  // Resolved, because ProjectStore keeps real paths: on macOS the temp folder /var/... is a link to /private/var/...,
+  // and looking a project up by the unresolved path would not find it.
+  dir = realpathSync(mkdtempSync(join(tmpdir(), 'cc-stores-')));
 });
 
 afterEach(() => {

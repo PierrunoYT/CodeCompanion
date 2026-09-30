@@ -191,4 +191,54 @@ Same machine as above. The numbers were stable across three runs.
 
 ### Crash-resume checkpoints (2026-09-30)
 
-A crash-resume checkpoint writes the whole chat synchronously after every tool-result batch: pretty-printed JSON, including base64 screenshots, plus the chat index and a `history:changed` broadcast. Quick read-only batches, and batches that return browser screenshots, block the main process once per batch, and the stall grows with the chat. Checkpointing only batches that need approval or change state, or skipping the index rewrite and the broadcast until the run finishes, is tracked in [#17](https://github.com/PierrunoYT/patch/issues/17).
+A crash-resume checkpoint writes the whole chat synchronously after every tool-result batch: pretty-printed JSON, including base64 screenshots, plus the chat index and a `history:changed` broadcast. Quick read-only batches, and batches that return browser screenshots, block the main process once per batch, and the stall grows with the chat. Checkpointing only batches that need approval or change state, or skipping the index rewrite and the broadcast until the run finishes, is tracked in [#17](https://github.com/PierrunoYT/patch/issues/17). Measured in [The agent loop](#the-agent-loop-2026-10-01) below.
+
+## The agent loop (2026-10-01)
+
+**Question:** how much time does Patch itself add to an agent run, apart from the model and the tools' own work?
+
+**Answer:** almost none. The loop costs about 2 µs per turn and per tool call. The one agent-loop cost that matters is the crash-resume checkpoint: 30–77 ms of blocked main process per tool batch in a long chat, mostly the file write.
+
+### How it is measured
+
+`tests/perf/agent_loop.perf.ts` (part of `npm run perf`, output in `out/perf-agent-loop.json`) runs the real `Agent`, tools, `ChatStore`, task tool and `McpHub` in Node, without the app. A scripted model answers instantly, so every measured millisecond is Patch's own work. Each number is the median of 5–20 runs after warm-up runs. The table shows the range over three full runs.
+
+Same machine as above, Electron 44.4.5, Node 24.
+
+### Results
+
+| Scenario                                                | Time           | Per unit          |
+| ------------------------------------------------------- | -------------- | ----------------- |
+| 200 turns without tools                                 | 0.35–0.45 ms   | 2 µs per turn     |
+| One batch of 10 / 50 no-op tool calls                   | 0.02 / 0.08 ms | 2 µs per call     |
+| 20 tool calls, each needing approval (approved at once) | 0.04 ms        | 2 µs per call     |
+| 20 real `read_file` calls (4 KB files)                  | 13.5–16 ms     | 0.7 ms per call   |
+| Subagent (`task`): 5 `read_file` calls and an answer    | 3.4 ms         | = its five reads  |
+| MCP stdio server: start, connect, list tools            | 41–42 ms       | once per server   |
+| 50 MCP calls to an echo server, one after another       | 3.6–4.2 ms     | 72–84 µs per call |
+
+Checkpoint saves (`ChatStore.save`: the whole chat as pretty-printed JSON, written through a temporary file and a rename, plus the chat index). The chat holds the transcript and the provider conversation, which repeats the same content:
+
+| Chat                           | File size | `JSON.stringify` alone | Whole save |
+| ------------------------------ | --------- | ---------------------- | ---------- |
+| 1,250 items                    | 1.6 MB    | 1.8 ms                 | 30 ms      |
+| 5,000 items                    | 6.4 MB    | 7.5–7.9 ms             | 13–77 ms   |
+| 20,000 items                   | 25.9 MB   | 31–32 ms               | 52 ms      |
+| 5,000 items and 10 screenshots | 8.4 MB    | 9.2–9.4 ms             | 16 ms      |
+
+Serialization grows linearly with the chat. The write does not: the same 6.4 MB save took 13–15 ms after another save in the same run, and 77 ms when run on its own. Every save creates a new temporary file, which Windows scans before the rename, so the write time depends on the file system and antivirus more than on the size.
+
+### Conclusions
+
+- **The loop is not a bottleneck.** A model turn takes seconds; Patch's own work per turn and per tool call is measured in microseconds. A tool's cost is its own I/O (0.7 ms for a `read_file`).
+- **Checkpoints are the cost to fix ([#17](https://github.com/PierrunoYT/patch/issues/17)).** Since crash-resume, every tool batch blocks the main process for a full save: 30–77 ms in a 1,250–5,000-item chat, which delays streaming and IPC for several frames. Serialization is only 2–8 ms of that; the synchronous write is the rest. Writing asynchronously (serialize, then write off the main thread's critical path), skipping the index rewrite per checkpoint, or checkpointing only batches that change state would remove most of it.
+- **MCP costs about 40 ms per stdio server at startup** (starting a Node process), then well under a millisecond per call on top of the server's own work.
+- **The subagent adds no measurable overhead** beyond the tool calls and model turns it makes.
+
+### Re-run of the renderer and main-process benchmarks (2026-10-01)
+
+After the MCP, plan mode, subagent, skills and UI-redesign merges, same machine, three runs each:
+
+- **Main process, per streamed event:** unchanged within noise: 12.3 / 50.9 / 358 ms per answer at 1,250 / 5,000 / 20,000 items (2026-09-30: 12 / 48 / 370 ms).
+- **Renderer, 250 turns (1,250 items):** opening takes 295–312 ms (297 ms). While an answer streams, frames are p50 8 ms and p95 23 ms. The 7 ms p95 in the first table above was measured with the answer off screen (see the Windows bisection); following the answer costs more, which is [#19](https://github.com/PierrunoYT/patch/issues/19).
+- **The UI redesign** (`9231ee4`), measured against the commit before it: layout time while streaming went from 0.68 s to 0.82 s in the long chat, and from 0.48 s to 0.64 s in the empty chat (20–35% more). Frame p95 was 17–22 ms before and 23 ms after, so frame times barely changed. The extra layout is the new card borders, shadows and composer box; worth keeping in mind for #19.

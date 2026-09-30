@@ -216,9 +216,24 @@ export class Agent {
     const results: ToolResult[] = [];
     let stop = false;
 
-    for (const call of calls) {
+    // A plan has to be decided before anything else in the batch runs. Calls the model sent alongside it (before or
+    // after) are answered and not executed, so an edit cannot land before the user has seen the plan, and a decline
+    // with feedback cannot let the rest of the batch through.
+    const planCall = calls.find((call) => call.name === 'propose_plan');
+    const heldForPlan = planCall ? calls.filter((call) => call !== planCall) : [];
+    const ordered = planCall ? [planCall, ...heldForPlan] : calls;
+
+    for (const call of ordered) {
       if (signal.aborted) {
         results.push({ id: call.id, content: 'Not run: the user stopped the task.', isError: true });
+        continue;
+      }
+      if (planCall && call !== planCall) {
+        results.push({
+          id: call.id,
+          content: 'Not run: wait for the plan decision, then call this again.',
+          isError: true,
+        });
         continue;
       }
       if (stop) {

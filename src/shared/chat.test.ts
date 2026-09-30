@@ -5,6 +5,7 @@ import {
   filterChats,
   limitPreview,
   outputNotice,
+  planNotice,
   searchSnippet,
   transcriptSearchText,
   TRANSCRIPT_LIMITS,
@@ -198,6 +199,13 @@ describe('size limits for tool cards', () => {
     const preview = limitPreview({ title: 't', diff })!;
     expect(preview.diff!.length).toBeLessThanOrEqual(TRANSCRIPT_LIMITS.diffChars);
     expect(preview.diffOmittedLines).toBe(7);
+  });
+
+  it('keeps the start of a very long plan and says how much was left out', () => {
+    const preview = limitPreview({ title: 'Plan', text: 'step '.repeat(10_000) })!;
+    expect(preview.text).toHaveLength(TRANSCRIPT_LIMITS.planChars);
+    expect(preview.textOmittedChars).toBe(50_000 - TRANSCRIPT_LIMITS.planChars);
+    expect(planNotice(preview.textOmittedChars!)).toContain('including the part not shown');
   });
 
   it('keeps the start of a very long command', () => {

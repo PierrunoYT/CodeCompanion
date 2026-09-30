@@ -56,6 +56,17 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 
 Even in Auto mode, a fetch or browser redirect to another host is blocked; the assistant has to ask for the new address as a separate step.
 
+### Plan mode
+
+**Settings → Plan mode** ("Propose a plan before multi-step changes") asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
+
+- **Approve** lets the work begin. The assistant then carries the plan out, and later edits and commands follow the usual approval rules (they still ask in Ask mode, and run directly in Auto mode).
+- **Decline with a note** sends the note back, and the assistant revises the plan instead of starting.
+- **Decline** with the box left empty stops the task.
+- The card still appears in **Auto** mode. Turning plan mode on never skips the plan.
+- If the assistant tries to edit or run a command in the same step as the plan, those calls wait: they are not run until you have decided, and the assistant calls them again afterwards.
+- A very long plan is shown only in part (the first 20,000 characters), with a note that approving covers the rest too. Decline and ask for a shorter plan if you want to read all of it.
+
 ## Allow-lists
 
 Two lists let specific things skip the approval card while **Ask** mode stays on. Both are empty by default, and there are two places to fill them:
@@ -134,6 +145,7 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 
 - **Model**, and **Other model id…** for a model that is not in the list. A chat keeps the model it started with.
 - **Effort**: how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
+- **Plan mode**: see [Plan mode](#plan-mode) above.
 - **Theme**: dark or light.
 - **Editor command**: what the **Open in editor** link on a tool card runs, e.g. `code`, `cursor` or `subl`.
 - **OpenAI-compatible base URL**: for Ollama, OpenRouter, LM Studio and similar. Leave it empty for OpenAI itself.

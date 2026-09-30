@@ -13,5 +13,8 @@ yarn.lock
 out/
 .env
 
+# TypeScript incremental build caches, rewritten by every typecheck
+*.tsbuildinfo
+
 # Orb portal metadata
 .amp/portals/*

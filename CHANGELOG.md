@@ -10,8 +10,6 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
-- Declare `engines.node` of `>=22.12.0` and turn on `noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters` and `forceConsistentCasingInFileNames` in both tsconfigs.
-
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.
 - Workspace tools for reading, searching and editing files, running foreground and background commands, fetching pages, web search and optional semantic code search.
 - Approval cards with command and diff previews, feedback when declining, Ask first and Auto modes, and global and per-project command and network allow-lists.
@@ -25,6 +23,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Windows installer packaging, unit and end-to-end coverage, performance benchmarks, and development and usage guides.
 - Prettier formatting for the whole repository (`npm run format`, `npm run format:check`), enforced by a `format` job in CI.
 - ESLint with the typescript-eslint recommended rules (`eslint.config.mjs`, `npm run lint`), enforced by a `lint` job in CI. Renderer code may not use Node globals such as `process` or `require`. Test files, the end-to-end harness, performance measurements and mock servers may use `any`; production sources may not.
+- Stricter TypeScript checks (`noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters`, `forceConsistentCasingInFileNames`) in both tsconfigs, and a declared minimum Node version (`engines.node` `>=22.12.0`).
 
 ### Changed
 

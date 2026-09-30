@@ -83,6 +83,15 @@ describe('BrowserService', () => {
     expect(result.error).toBeUndefined();
   });
 
+  it('lets the user navigate before the agent has opened a page', () => {
+    const service = new BrowserService(() => {});
+    const guest = new FakeGuest();
+    attach(service, guest);
+    const event = { preventDefault: vi.fn() };
+    guest.emit('will-navigate', event, 'https://anywhere.test/');
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
   it('reports the error when loadURL rejects', async () => {
     const service = new BrowserService(() => {});
     const guest = new FakeGuest();

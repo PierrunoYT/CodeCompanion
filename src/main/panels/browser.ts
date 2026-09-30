@@ -11,7 +11,8 @@ const MAX_CONSOLE_MESSAGES = 200;
 export class BrowserService implements BrowserController {
   private guest: WebContents | null = null;
   private waiters: Array<() => void> = [];
-  private isNavigationAllowed: (url: string) => boolean = () => false;
+  // No policy until the agent opens a page: the user browses freely until then.
+  private isNavigationAllowed: ((url: string) => boolean) | null = null;
   private blockedNavigation: string | null = null;
 
   constructor(private readonly show: () => void) {}
@@ -19,13 +20,14 @@ export class BrowserService implements BrowserController {
   attach(guest: WebContents): void {
     this.guest = guest;
     const guard = (event: Electron.Event, url: string) => {
-      if (!this.isNavigationAllowed(url)) {
+      if (this.isNavigationAllowed && !this.isNavigationAllowed(url)) {
         event.preventDefault();
         this.blockedNavigation = url;
       }
     };
-    // These cancellable events cover page-initiated top-level navigations and HTTP redirects. The listeners stay
-    // attached after open() returns so later navigations cannot escape the policy established by the tool call.
+    // These cancellable events cover page-initiated top-level navigations and HTTP redirects. Once the agent has
+    // opened a page, the listeners stay attached after open() returns so later navigations cannot escape the policy
+    // established by the tool call. Typing in the address bar uses loadURL, which these events do not cover.
     guest.on('will-navigate', guard);
     guest.on('will-redirect', guard);
     guest.once('destroyed', () => {

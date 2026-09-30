@@ -45,7 +45,8 @@ Don't leave a finished change uncommitted or its docs stale.
 - File access must go through `Workspace.resolve`, which confines paths to the project root.
 - Keep the Claude conversation history append-only. Gate new request features behind `claudeCapabilities` in `src/shared/models.ts`.
 - Model ids and defaults live only in `src/shared/models.ts`.
-- Don't add telemetry, analytics or update checks; the app deliberately has none.
+- Don't add telemetry, analytics or update checks; the app deliberately has none. Local logs are fine (`appLog` in `src/main/app_log.ts`, files in `userData/logs`): log names, codes and numbers, never chat text, file contents or keys, and never send a log anywhere.
+- Conversations record an assistant turn only after the request succeeded, and provider clients for chat turns use `maxRetries: 0`: the agent loop retries transient errors itself (`src/main/agent/retry.ts`) so each retry is shown in the chat. Keep both true.
 
 ## Style
 

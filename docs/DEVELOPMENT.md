@@ -70,6 +70,9 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 | Add a setting | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts` |
 | Add an IPC channel | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts` |
 | Add a chat event | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts` |
+| Change which provider errors are retried, or the backoff | `src/main/agent/retry.ts` (`retryDecision`, `MAX_RETRIES`); the loop is `runTurnWithRetries` in `src/main/agent/agent.ts` |
+| Log a crash or problem | `appLog.error(source, error, context)` from `src/main/app_log.ts`; see "Crash and error log" under Debugging |
+| Add an item to the menu | `src/main/menu.ts` (`MenuCommand` in `src/shared/ipc.ts` if the renderer must react) |
 | UI | `src/renderer/src/app.ts`, `views/`, `styles.css` |
 
 ## Conventions

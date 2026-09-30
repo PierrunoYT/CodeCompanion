@@ -60,7 +60,7 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 ### Application icons
 
-`assets/logo-icon.svg` is the source for the application branding. After editing it, run `npm run icons` and commit the regenerated `build/icon.ico`, `build/icon.icns`, and `build/icon.png`. The generator rasterizes each size directly from the vector using resvg; Windows ICOs include 16–256 px images, and macOS ICNS files include 16–1024 px images.
+`assets/logo-icon.svg` is the source for the application branding; `assets/logo.svg` is the horizontal wordmark lockup. The header logo in `src/renderer/src/styles.css` (`.brand-mark`) inlines the same mark paths as a data URI, so update it too when the mark changes. After editing it, run `npm run icons` and commit the regenerated `build/icon.ico`, `build/icon.icns`, and `build/icon.png`. The generator rasterizes each size directly from the vector using resvg; Windows ICOs include 16–256 px images, and macOS ICNS files include 16–1024 px images.
 
 The Windows executable, installer, and uninstaller use `build/icon.ico`; macOS uses `build/icon.icns`. The app window uses `build/icon.png`, copied into packaged resources by electron-builder, and the renderer favicon uses the source SVG. Toolbar action icons remain Bootstrap icons.
 

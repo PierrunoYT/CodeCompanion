@@ -41,7 +41,10 @@ describe('Anthropic conversation compaction', () => {
         { type: 'tool_use', id: 't1', name: 'read_file', input: { path: 'a.ts' } },
       ],
     },
-    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: big('FILE-CONTENT') }] }] },
+    {
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: big('FILE-CONTENT') }] }],
+    },
     { role: 'assistant', content: [{ type: 'text', text: big('third answer') }] },
     { role: 'user', content: [{ type: 'text', text: big('THIRD-PROMPT') }] },
     { role: 'user', content: [{ type: 'text', text: big('LATEST') }] },
@@ -165,14 +168,19 @@ describe('OpenAI conversation compaction', () => {
   const history = () => [
     { role: 'user', content: big('TASK') },
     { role: 'assistant', content: big('first answer') },
-    { role: 'assistant', content: big('reading'), tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }] },
+    {
+      role: 'assistant',
+      content: big('reading'),
+      tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }],
+    },
     { role: 'tool', tool_call_id: 'call_1', content: big('FILE-CONTENT', 30_000) },
     { role: 'assistant', content: big('third answer') },
     { role: 'user', content: big('LATEST') },
   ];
   const create = (messages: unknown[], compaction: { summary: string; keepFrom: number } | null = null) =>
     new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test', messages as never, compaction);
-  const ok = () => server.queueSse([chunk({ role: 'assistant', content: 'ok' }), chunk({}, 'stop'), { data: '[DONE]' }]);
+  const ok = () =>
+    server.queueSse([chunk({ role: 'assistant', content: 'ok' }), chunk({}, 'stop'), { data: '[DONE]' }]);
 
   it('never cuts before a tool message', () => {
     const plan = create(history()).planCompaction()!;
@@ -245,13 +253,26 @@ describe('OpenAI Responses conversation compaction', () => {
     { type: 'message', id: 'msg_0', role: 'assistant', status: 'completed', content: text(big('first answer')) },
     { role: 'user', content: [{ type: 'input_text', text: big('SECOND-PROMPT') }] },
     { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'E1' },
-    { type: 'function_call', id: 'fc_1', call_id: 'c1', name: 'read_file', arguments: '{"path":"a.ts"}', status: 'completed' },
+    {
+      type: 'function_call',
+      id: 'fc_1',
+      call_id: 'c1',
+      name: 'read_file',
+      arguments: '{"path":"a.ts"}',
+      status: 'completed',
+    },
     { type: 'function_call_output', call_id: 'c1', output: big('FILE-CONTENT', 30_000) },
     { type: 'message', id: 'msg_1', role: 'assistant', status: 'completed', content: text(big('third answer')) },
     { role: 'user', content: [{ type: 'input_text', text: big('LATEST') }] },
   ];
   const create = (items: unknown[], compaction: { summary: string; keepFrom: number } | null = null) =>
-    new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), 'gpt-6-sol', 'high', items as never, compaction);
+    new OpenAIResponsesConversation(
+      createOpenAIClient('sk-test', baseURL),
+      'gpt-6-sol',
+      'high',
+      items as never,
+      compaction,
+    );
 
   it('cuts before the reasoning item of a tool call, keeping the call, its reasoning and its output together', () => {
     const plan = create(history()).planCompaction()!;
@@ -290,8 +311,14 @@ describe('OpenAI Responses conversation compaction', () => {
     conversation.applyCompaction('THE SUMMARY', conversation.planCompaction()!.keepFrom);
     // A stream that is only created and completed is enough to read back the request that was sent.
     server.queueSse([
-      { event: 'response.created', data: { type: 'response.created', sequence_number: 0, response: response('in_progress') } },
-      { event: 'response.completed', data: { type: 'response.completed', sequence_number: 1, response: response('completed') } },
+      {
+        event: 'response.created',
+        data: { type: 'response.created', sequence_number: 0, response: response('in_progress') },
+      },
+      {
+        event: 'response.completed',
+        data: { type: 'response.completed', sequence_number: 1, response: response('completed') },
+      },
     ]);
     await conversation.runTurn(request());
 

@@ -43,7 +43,11 @@ export class Composer {
       },
       onpaste: (event: ClipboardEvent) => this.paste(event),
     });
-    this.sendButton = h('button', { class: 'btn btn-primary composer-send', title: 'Send', onclick: () => void this.submit() }, icon('send'));
+    this.sendButton = h(
+      'button',
+      { class: 'btn btn-primary composer-send', title: 'Send', onclick: () => void this.submit() },
+      icon('send'),
+    );
     this.stopButton = h(
       'button',
       { class: 'btn btn-sm btn-danger', title: 'Stop (Ctrl+.)', hidden: true, onclick: () => this.actions.stop() },
@@ -52,14 +56,24 @@ export class Composer {
     );
     this.resumeButton = h(
       'button',
-      { class: 'btn btn-sm btn-primary', title: 'Resume stopped task', hidden: true, onclick: () => this.actions.resume() },
+      {
+        class: 'btn btn-sm btn-primary',
+        title: 'Resume stopped task',
+        hidden: true,
+        onclick: () => this.actions.resume(),
+      },
       icon('play-fill'),
       ' Resume',
     );
     this.attachmentList = h('div', { class: 'composer-attachments' });
     this.attachButton = h(
       'button',
-      { class: 'btn btn-sm btn-ghost', title: 'Attach images', 'aria-label': 'Attach images', onclick: () => void this.attach() },
+      {
+        class: 'btn btn-sm btn-ghost',
+        title: 'Attach images',
+        'aria-label': 'Attach images',
+        onclick: () => void this.attach(),
+      },
       icon('paperclip'),
     );
 
@@ -151,14 +165,19 @@ export class Composer {
     }
     event.preventDefault();
     const tooLarge = files.filter((file) => file.size > MAX_IMAGE_BYTES);
-    if (tooLarge.length > 0) this.actions.notice(`${tooLarge.map((file) => file.name || 'The pasted image').join(', ')} is larger than 5 MB.`);
+    if (tooLarge.length > 0)
+      this.actions.notice(`${tooLarge.map((file) => file.name || 'The pasted image').join(', ')} is larger than 5 MB.`);
     const version = this.draftVersion;
     for (const file of files.filter((candidate) => candidate.size <= MAX_IMAGE_BYTES)) {
       const reader = new FileReader();
       reader.onload = () => {
         if (version !== this.draftVersion) return;
         const base64 = String(reader.result).split(',')[1] ?? '';
-        this.images.push({ name: file.name || 'pasted image', mediaType: file.type as ImageAttachment['mediaType'], base64 });
+        this.images.push({
+          name: file.name || 'pasted image',
+          mediaType: file.type as ImageAttachment['mediaType'],
+          base64,
+        });
         this.renderAttachments();
       };
       reader.readAsDataURL(file);
@@ -176,18 +195,15 @@ export class Composer {
           },
           icon('image'),
           ` ${image.name} `,
-          h(
-            'button',
-            {
-              // A white cross is invisible on the yellow badge of an image the model cannot take.
-              class: `btn-close${this.imagesBlocked ? '' : ' btn-close-white'} btn-sm ms-1`,
-              'aria-label': `Remove ${image.name}`,
-              onclick: () => {
-                this.images.splice(index, 1);
-                this.renderAttachments();
-              },
+          h('button', {
+            // A white cross is invisible on the yellow badge of an image the model cannot take.
+            class: `btn-close${this.imagesBlocked ? '' : ' btn-close-white'} btn-sm ms-1`,
+            'aria-label': `Remove ${image.name}`,
+            onclick: () => {
+              this.images.splice(index, 1);
+              this.renderAttachments();
             },
-          ),
+          }),
         ),
       ),
     );

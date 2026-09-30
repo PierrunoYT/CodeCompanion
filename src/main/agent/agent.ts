@@ -89,12 +89,14 @@ export class Agent {
       this.usage.cacheWriteTokens = (this.usage.cacheWriteTokens ?? 0) + (result.usage.cacheWriteTokens ?? 0);
       this.usage.contextTokens = result.contextTokens;
       if (result.usage.longContext) {
-        const long = this.usage.longContext ? { ...this.usage.longContext } : {
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-        };
+        const long = this.usage.longContext
+          ? { ...this.usage.longContext }
+          : {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+            };
         long.inputTokens += result.usage.inputTokens;
         long.outputTokens += result.usage.outputTokens;
         long.cacheReadTokens += result.usage.cacheReadTokens;
@@ -107,14 +109,22 @@ export class Agent {
         emit({ type: 'notice', id: randomUUID(), text: result.refusal ?? 'The model declined this request.' });
       }
       if (result.stopReason === 'context_exceeded') {
-        emit({ type: 'notice', id: randomUUID(), text: 'The conversation is too long for the model. Start a new chat.' });
+        emit({
+          type: 'notice',
+          id: randomUUID(),
+          text: 'The conversation is too long for the model. Start a new chat.',
+        });
       }
       if (result.stopReason === 'refusal') {
         // Tool calls that came with a refusal are not run, but each still gets a result: the history would otherwise
         // hold a call without one, and every later request in the chat would be rejected.
         if (result.toolCalls.length > 0) {
           conversation.addToolResults(
-            result.toolCalls.map((call) => ({ id: call.id, content: 'Not run: the response was stopped by a refusal.', isError: true })),
+            result.toolCalls.map((call) => ({
+              id: call.id,
+              content: 'Not run: the response was stopped by a refusal.',
+              isError: true,
+            })),
           );
         }
         return false;
@@ -214,7 +224,8 @@ export class Agent {
       if (truncated) {
         results.push({
           id: call.id,
-          content: 'Not run: your response hit the output limit and this tool input may be cut off. Retry with smaller changes.',
+          content:
+            'Not run: your response hit the output limit and this tool input may be cut off. Retry with smaller changes.',
           isError: true,
         });
         continue;
@@ -227,7 +238,11 @@ export class Agent {
     return { results, stop };
   }
 
-  private async runTool(tools: AgentTool[], call: ToolCall, signal: AbortSignal): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
+  private async runTool(
+    tools: AgentTool[],
+    call: ToolCall,
+    signal: AbortSignal,
+  ): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
     const { emit } = this.options;
     const tool = tools.find((candidate) => candidate.name === call.name);
     // Provider IDs pair API results only; compatible servers can reuse them across turns.

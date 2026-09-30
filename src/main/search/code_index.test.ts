@@ -36,7 +36,10 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'cc-index-'));
   indexDir = mkdtempSync(join(tmpdir(), 'cc-index-store-'));
   mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'src', 'auth.ts'), 'export function validateSession(token) {\n  return checkToken(token);\n}\n');
+  writeFileSync(
+    join(root, 'src', 'auth.ts'),
+    'export function validateSession(token) {\n  return checkToken(token);\n}\n',
+  );
   writeFileSync(join(root, 'src', 'cart.ts'), 'export function addToCart(item) {\n  cart.push(item);\n}\n');
   writeFileSync(join(root, 'logo.png'), Buffer.from([0x89, 0x50, 0x00, 0x00]));
 });
@@ -92,7 +95,10 @@ describe('CodeIndex', () => {
 
   it('exposes progress while updating and clears it afterwards', async () => {
     const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 1000);
-    const seen: Array<{ reported: { embedded: number; total: number }; exposed: { embedded: number; total: number } | null }> = [];
+    const seen: Array<{
+      reported: { embedded: number; total: number };
+      exposed: { embedded: number; total: number } | null;
+    }> = [];
 
     const running = index.update(undefined, (reported) => seen.push({ reported, exposed: index.updateProgress }));
     expect(index.isUpdating).toBe(true);

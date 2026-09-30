@@ -40,52 +40,64 @@ describe('OpenAIConversation', () => {
 
   afterEach(() => server.stop());
 
-  it.each(['length', 'content_filter'])('does not execute calls stopped by %s and keeps their history paired', async (reason) => {
-    server.queueSse([
-      chunk({
-        role: 'assistant',
-        tool_calls: [
-          { index: 0, id: 'complete', type: 'function', function: { name: 'change', arguments: '{"value":"valid"}' } },
-          { index: 1, id: 'incomplete', type: 'function', function: { name: 'change', arguments: '{"value":' } },
+  it.each(['length', 'content_filter'])(
+    'does not execute calls stopped by %s and keeps their history paired',
+    async (reason) => {
+      server.queueSse([
+        chunk({
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'complete',
+              type: 'function',
+              function: { name: 'change', arguments: '{"value":"valid"}' },
+            },
+            { index: 1, id: 'incomplete', type: 'function', function: { name: 'change', arguments: '{"value":' } },
+          ],
+        }),
+        chunk({}, reason),
+        { data: '[DONE]' },
+      ]);
+      server.queueSse([chunk({ role: 'assistant', content: 'Done' }), chunk({}, 'stop'), { data: '[DONE]' }]);
+      const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'custom');
+      let executions = 0;
+      const agent = new Agent({
+        conversation,
+        system: 'sys',
+        tools: () => [
+          {
+            name: 'change',
+            description: 'Change a value',
+            schema: z.object({ value: z.string() }),
+            requiresApproval: false,
+            async run() {
+              executions++;
+              return { content: 'changed' };
+            },
+          },
         ],
-      }),
-      chunk({}, reason),
-      { data: '[DONE]' },
-    ]);
-    server.queueSse([chunk({ role: 'assistant', content: 'Done' }), chunk({}, 'stop'), { data: '[DONE]' }]);
-    const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'custom');
-    let executions = 0;
-    const agent = new Agent({
-      conversation,
-      system: 'sys',
-      tools: () => [{
-        name: 'change',
-        description: 'Change a value',
-        schema: z.object({ value: z.string() }),
-        requiresApproval: false,
-        async run() {
-          executions++;
-          return { content: 'changed' };
+        approvalMode: () => 'auto',
+        requestApproval: async () => ({ approved: true }),
+        toolContext: () => {
+          throw new Error('Skipped tools must not get an execution context');
         },
-      }],
-      approvalMode: () => 'auto',
-      requestApproval: async () => ({ approved: true }),
-      toolContext: () => { throw new Error('Skipped tools must not get an execution context'); },
-      emit() {},
-    });
-    await agent.send({ text: 'Change it' }, new AbortController().signal);
-    // A refusal ends the task; a truncated tool turn automatically asks the model to retry.
-    if (reason === 'content_filter') await agent.send({ text: 'Try another approach' }, new AbortController().signal);
+        emit() {},
+      });
+      await agent.send({ text: 'Change it' }, new AbortController().signal);
+      // A refusal ends the task; a truncated tool turn automatically asks the model to retry.
+      if (reason === 'content_filter') await agent.send({ text: 'Try another approach' }, new AbortController().signal);
 
-    expect(executions).toBe(0);
-    const sent = server.requests[1].body.messages;
-    expect(sent[2].tool_calls.map((call: { id: string }) => call.id)).toEqual(['complete', 'incomplete']);
-    expect(sent.slice(3, 5)).toEqual([
-      expect.objectContaining({ role: 'tool', tool_call_id: 'complete' }),
-      expect.objectContaining({ role: 'tool', tool_call_id: 'incomplete' }),
-    ]);
-    expect(conversation.serialize().messages.slice(2, 4)).toEqual(sent.slice(3, 5));
-  });
+      expect(executions).toBe(0);
+      const sent = server.requests[1].body.messages;
+      expect(sent[2].tool_calls.map((call: { id: string }) => call.id)).toEqual(['complete', 'incomplete']);
+      expect(sent.slice(3, 5)).toEqual([
+        expect.objectContaining({ role: 'tool', tool_call_id: 'complete' }),
+        expect.objectContaining({ role: 'tool', tool_call_id: 'incomplete' }),
+      ]);
+      expect(conversation.serialize().messages.slice(2, 4)).toEqual(sent.slice(3, 5));
+    },
+  );
 
   it('streams text and parses tool calls', async () => {
     server.queueSse([
@@ -176,7 +188,9 @@ describe('OpenAIConversation', () => {
     server.queueSse([
       chunk({
         role: 'assistant',
-        tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":' } }],
+        tool_calls: [
+          { index: 0, id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":' } },
+        ],
       }),
       chunk({}, 'tool_calls'),
       { data: '[DONE]' },
@@ -202,10 +216,21 @@ describe('OpenAIConversation', () => {
     const big = 'x'.repeat(150_000);
     const history: any[] = [
       { role: 'user', content: 'THE TASK' },
-      { role: 'assistant', content: '', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{}' } }] },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+      },
       { role: 'tool', tool_call_id: 'c1', content: big },
-      { role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(600_000)}` } }] },
-      { role: 'assistant', content: '', tool_calls: [{ id: 'c2', type: 'function', function: { name: 'read_file', arguments: '{}' } }] },
+      {
+        role: 'user',
+        content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(600_000)}` } }],
+      },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'c2', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+      },
       { role: 'tool', tool_call_id: 'c2', content: big },
     ];
     const sent = trimHistory(history);
@@ -213,7 +238,10 @@ describe('OpenAIConversation', () => {
     // Every tool message still follows the assistant message whose call it answers.
     sent.forEach((message: any, index: number) => {
       if (message.role !== 'tool') return;
-      const caller = sent.slice(0, index).reverse().find((candidate: any) => candidate.role !== 'tool') as any;
+      const caller = sent
+        .slice(0, index)
+        .reverse()
+        .find((candidate: any) => candidate.role !== 'tool') as any;
       expect(caller?.tool_calls?.map((call: any) => call.id)).toContain(message.tool_call_id);
     });
     expect(sent[0]).toEqual({ role: 'user', content: 'THE TASK' });
@@ -223,7 +251,13 @@ describe('OpenAIConversation', () => {
 
   it('counts an image as small when deciding what to drop', () => {
     const history: any[] = [
-      { role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(900_000)}` } }, { type: 'text', text: 'THE TASK' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(900_000)}` } },
+          { type: 'text', text: 'THE TASK' },
+        ],
+      },
       { role: 'assistant', content: 'first answer' },
       { role: 'user', content: 'follow-up' },
     ];

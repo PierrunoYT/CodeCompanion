@@ -24,7 +24,9 @@ describe('crash and error log', () => {
   });
 
   it('notes each start with the versions', async () => {
-    await vi.waitFor(() => expect(entries().find((entry) => entry.source === 'app')).toMatchObject({ level: 'info', message: 'Started.' }));
+    await vi.waitFor(() =>
+      expect(entries().find((entry) => entry.source === 'app')).toMatchObject({ level: 'info', message: 'Started.' }),
+    );
     expect(entries().find((entry) => entry.source === 'app')?.context).toMatchObject({ platform: process.platform });
   });
 

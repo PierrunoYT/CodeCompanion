@@ -42,7 +42,10 @@ export function createOpenAIClient(apiKey: string, baseURL?: string, maxRetries 
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
-  return content.map((part) => (part?.type === 'text' ? part.text : part?.type === 'image_url' ? '[image]' : '')).filter(Boolean).join('\n');
+  return content
+    .map((part) => (part?.type === 'text' ? part.text : part?.type === 'image_url' ? '[image]' : ''))
+    .filter(Boolean)
+    .join('\n');
 }
 
 // A cut is safe anywhere except before a tool message, whose call would be left behind.
@@ -56,7 +59,9 @@ const compactionAdapter: CompactionAdapter<MessageParam> = {
         return [
           ...(textOf(message.content) ? [`Assistant: ${clip(textOf(message.content), MAX_TEXT_CHARS)}`] : []),
           ...(message.tool_calls ?? []).flatMap((call) =>
-            call.type === 'function' ? [`Assistant called ${call.function.name}: ${clip(call.function.arguments, MAX_TOOL_INPUT_CHARS)}`] : [],
+            call.type === 'function'
+              ? [`Assistant called ${call.function.name}: ${clip(call.function.arguments, MAX_TOOL_INPUT_CHARS)}`]
+              : [],
           ),
         ];
       case 'tool':
@@ -91,7 +96,10 @@ export class OpenAIConversation implements Conversation {
     const note = summaryNote(this.compaction.summary);
     const [first, ...rest] = this.messages.slice(this.compaction.keepFrom);
     if (first?.role !== 'user') return [{ role: 'user', content: note }, ...(first ? [first] : []), ...rest];
-    const content = typeof first.content === 'string' ? `${note}\n\n${first.content}` : [{ type: 'text' as const, text: note }, ...first.content];
+    const content =
+      typeof first.content === 'string'
+        ? `${note}\n\n${first.content}`
+        : [{ type: 'text' as const, text: note }, ...first.content];
     return [{ ...first, content }, ...rest];
   }
 
@@ -115,7 +123,11 @@ export class OpenAIConversation implements Conversation {
   addToolResults(results: ToolResult[]): void {
     for (const result of results) {
       const prefix = result.isError ? 'Error: ' : '';
-      this.messages.push({ role: 'tool', tool_call_id: result.id, content: prefix + (result.content || '(no output)') });
+      this.messages.push({
+        role: 'tool',
+        tool_call_id: result.id,
+        content: prefix + (result.content || '(no output)'),
+      });
     }
     // Tool messages cannot carry images; screenshots follow as a user message.
     const images = results.flatMap((result) => result.images ?? []);
@@ -155,8 +167,7 @@ export class OpenAIConversation implements Conversation {
 
     const inputTokens = completion.usage?.prompt_tokens ?? 0;
     const details = completion.usage?.prompt_tokens_details as
-      | { cached_tokens?: number; cache_write_tokens?: number }
-      | undefined;
+      { cached_tokens?: number; cache_write_tokens?: number } | undefined;
     const cacheReadTokens = details?.cached_tokens ?? 0;
     const cacheWriteTokens = details?.cache_write_tokens ?? 0;
 
@@ -202,7 +213,11 @@ export function trimHistory(messages: MessageParam[]): MessageParam[] {
     while (start < lastGroup && rest[start].role === 'tool') start++;
   }
   if (start === 0) return messages;
-  return [first, { role: 'user', content: '(Earlier messages were removed to fit the context window.)' }, ...rest.slice(start)];
+  return [
+    first,
+    { role: 'user', content: '(Earlier messages were removed to fit the context window.)' },
+    ...rest.slice(start),
+  ];
 }
 
 function parseArguments(raw: string): unknown {
@@ -237,7 +252,11 @@ export class OpenAICompletionClient implements CompletionClient {
     private readonly model: string,
   ) {}
 
-  async complete<T extends z.ZodObject<z.ZodRawShape>>(prompt: string, schema: T, signal?: AbortSignal): Promise<z.infer<T>> {
+  async complete<T extends z.ZodObject<z.ZodRawShape>>(
+    prompt: string,
+    schema: T,
+    signal?: AbortSignal,
+  ): Promise<z.infer<T>> {
     const completion = await this.client.chat.completions.parse(
       {
         model: this.model,

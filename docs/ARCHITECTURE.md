@@ -1,6 +1,6 @@
 # Architecture
 
-CodeCompanion is an Electron app written in TypeScript and built with electron-vite. All logic that touches the file system, the network, API keys or child processes runs in the **main process**. The **renderer** is a sandboxed page without Node.js access that talks to the main process only through a typed IPC contract.
+Patch (formerly CodeCompanion) is an Electron app written in TypeScript and built with electron-vite. All logic that touches the file system, the network, API keys or child processes runs in the **main process**. The **renderer** is a sandboxed page without Node.js access that talks to the main process only through a typed IPC contract.
 
 ```
 ┌──────────────────────── main process (Node) ─────────────────────────┐

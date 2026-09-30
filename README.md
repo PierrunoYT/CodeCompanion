@@ -1,12 +1,14 @@
-# CodeCompanion
+# Patch
 
-<img src="assets/logo-icon.svg" width="96" height="96" alt="CodeCompanion application icon" />
+<img src="assets/logo-icon.svg" width="96" height="96" alt="Patch application icon" />
 
-A desktop AI coding assistant. Open a project folder, describe a task, and CodeCompanion reads the code, edits files, runs commands and checks its work, asking for your approval before it changes anything.
+A desktop AI coding assistant. Open a project folder, describe a task, and Patch reads the code, edits files, runs commands and checks its work, asking for your approval before it changes anything.
 
 This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x). See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
-Repository: https://github.com/PierrunoYT/CodeCompanion
+Repository: https://github.com/PierrunoYT/patch
+
+Patch is the new project name. The app currently retains the CodeCompanion window title, executable and installer names, and `CODECOMPANION_*` environment variables; use those names when following the build and development instructions.
 
 ![The assistant shows a diff and waits for Approve or Decline before editing a file](docs/images/approval.png)
 

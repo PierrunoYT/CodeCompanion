@@ -4,6 +4,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Done
 
+- [x] Update project documentation and repository links for the Patch name; preserve current runtime filenames and historical release names
 - [x] Replace application, executable, installer and uninstaller branding with `assets/logo-icon.svg`, with reproducible native icon generation
 - [x] Rewrite the app in TypeScript with electron-vite
 - [x] Terminal, browser and Git panels
@@ -107,7 +108,7 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them)
 - [x] Add more README screenshots (settings, Git and browser panels) without local paths
-- [x] Decide whether the repo should be public (it is public: https://github.com/PierrunoYT/CodeCompanion)
+- [x] Decide whether the repo should be public (it is public: https://github.com/PierrunoYT/patch)
 
 ## Features
 

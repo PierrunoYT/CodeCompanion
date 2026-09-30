@@ -1,4 +1,4 @@
-# Using CodeCompanion
+# Using Patch
 
 A short guide to the parts that need explaining: approvals, allow-lists, stopping and resuming, and exporting a chat. For installing and building, see the [README](../README.md).
 

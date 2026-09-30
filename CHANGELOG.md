@@ -5,6 +5,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Changed
+- Rename the project documentation to Patch and point repository and contribution links to `PierrunoYT/patch`. Runtime titles, package identifiers, executable names and environment variables still use CodeCompanion.
 - Use `assets/logo-icon.svg` for the app window, renderer favicon, Windows executable, installer and uninstaller, and macOS application icon. Native icon assets can be regenerated with `npm run icons`.
 
 ### Fixed

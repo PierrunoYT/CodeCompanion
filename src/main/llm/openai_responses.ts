@@ -184,8 +184,12 @@ export class OpenAIResponsesConversation implements Conversation {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
       if (!item) continue;
-      if (item.type === 'function_call_output' && item.call_id) answered.add(item.call_id);
-      else if (item.type === 'function_call') calls.unshift(item.call_id);
+      if (item.type === 'function_call_output' && item.call_id) {
+        // An output before this batch's calls belongs to the previous batch, which can follow it directly when
+        // nothing (a message or reasoning item) separates the two turns.
+        if (calls.length > 0) break;
+        answered.add(item.call_id);
+      } else if (item.type === 'function_call') calls.unshift(item.call_id);
       else break;
     }
     return calls.filter((id) => !answered.has(id));

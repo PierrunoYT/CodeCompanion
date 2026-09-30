@@ -62,8 +62,10 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
     claude.script(
       tool('step-write', 'run_command', { command: node("require('fs').writeFileSync('step1.txt','done')") }),
       tool('step-read', 'read_file', { path: 'step1.txt' }),
-      // Would write late.txt after 3 seconds, unless it is killed first.
-      tool('step-long', 'run_command', { command: node("setTimeout(()=>require('fs').writeFileSync('late.txt','too late'),3000)") }),
+      // Marks that it started, then would write late.txt after 3 seconds, unless it is killed first.
+      tool('step-long', 'run_command', {
+        command: node("require('fs').writeFileSync('started.txt','x');setTimeout(()=>require('fs').writeFileSync('late.txt','too late'),3000)"),
+      }),
       text('Finished after resuming.'),
     );
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Do the three steps' }));
@@ -72,6 +74,8 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
       const cards = chat.transcript.filter((item) => item.kind === 'tool');
       return cards.length === 3 && cards[2].status === 'running';
     });
+    // Stop once the command is really running: stopping a shell that is still starting is a different, racy case.
+    await expect.poll(() => existsSync(join(project, 'started.txt')), { timeout: 20_000 }).toBe(true);
     await running.page.getByRole('button', { name: /Stop/ }).click();
     const stopped = await waitFor((chat) => !chat.busy && chat.resumable);
 

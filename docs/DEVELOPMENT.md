@@ -61,6 +61,8 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 `.github/workflows/release.yml` runs when a tag such as `v0.1.0` is pushed. It checks that the tag matches the `package.json` version, runs the same checks as CI, builds the Windows installer with `electron-builder` and creates a GitHub release with `CodeCompanion-Installer.exe` attached. The release notes are the matching `## [x.y.z]` section of `CHANGELOG.md` plus a link to the full file at that tag; the run fails if the section is missing. To release: add the `## [x.y.z] - date` section to `CHANGELOG.md`, update the version, commit, then `git tag v0.1.0` and `git push origin v0.1.0`.
 
+Before tagging, use the built app once against the real Anthropic and OpenAI APIs (with a throwaway profile via `CODECOMPANION_USER_DATA`): a task that edits a file, Undo, Stop and Resume, an image, and Compact chat on a chat with a few large file reads. The mock APIs in the end-to-end tests accept requests the real APIs reject; before 0.2.0, that let a bug through that made OpenAI chats fail after the first turn.
+
 ## Where to change things
 
 | Goal | File |

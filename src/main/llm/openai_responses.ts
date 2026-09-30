@@ -177,7 +177,8 @@ export class OpenAIResponsesConversation implements Conversation {
     stream.on('response.reasoning_summary_text.delta', (event) => request.callbacks.onThinking?.(event.delta));
 
     const response = await stream.finalResponse();
-    // Output items (reasoning, messages, function calls) are valid input items for the next request.
+    // Output items (reasoning, messages, function calls) are valid input for the next request once the SDK's own
+    // fields are removed.
     this.items.push(...(response.output as unknown as InputItem[]).map(toInputItem));
 
     const toolCalls: ToolCall[] = response.output.flatMap((item) =>

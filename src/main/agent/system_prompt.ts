@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { listSkills } from '../tools/skills';
+import type { SkillList } from '../tools/skills';
 import type { Workspace } from '../tools/workspace';
 import type { AgentFile } from './agent_file';
 
@@ -11,6 +11,16 @@ export interface SystemPromptInput {
   date: string;
   customInstructions: string;
   agentFile: AgentFile | null;
+  // The project's skills when the chat starts. Listed once, like the rest of the prompt.
+  skills: SkillList;
+}
+
+const SKILLS_HEADING = '# Project skills';
+
+// Whether a chat's (possibly saved) system prompt lists skills. load_skill is offered exactly when it does, so the
+// tool and the list the model was given never disagree, even when skills are added or removed during the chat.
+export function promptListsSkills(system: string): boolean {
+  return system.includes(`\n\n${SKILLS_HEADING}\n`);
 }
 
 // Built once when a chat starts and kept byte-identical afterwards so the prompt prefix stays cached.
@@ -43,12 +53,14 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   if (input.customInstructions.trim()) {
     sections.push(`# Project instructions from the user\n${input.customInstructions.trim()}`);
   }
-  const skills = listSkills(input.workspace);
+  const { skills, omitted } = input.skills;
   if (skills.length > 0) {
+    const more =
+      omitted > 0 ? `\n(${omitted} more skill files are not listed; only the first ${skills.length} are.)` : '';
     sections.push(
-      `# Project skills\nShort instruction files for recurring tasks, loaded on demand with the load_skill tool. Load the matching skill before doing work it covers:\n${skills
+      `${SKILLS_HEADING}\nShort instruction files for recurring tasks, loaded on demand with the load_skill tool. Load the matching skill before doing work it covers:\n${skills
         .map((skill) => `- ${skill.name}: ${skill.description}`)
-        .join('\n')}`,
+        .join('\n')}${more}`,
     );
   }
   return sections.join('\n\n');

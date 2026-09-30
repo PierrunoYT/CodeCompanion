@@ -6,7 +6,7 @@ import type { ChatSnapshot } from '../../src/shared/chat';
 import { launchApp, type RunningApp } from './app';
 import { MockClaude } from './mock_claude';
 
-// A project with .codecompanion/skills/*.md lists them in the system prompt and the model loads one through the
+// A project with .patch/skills/*.md lists them in the system prompt and the model loads one through the
 // load_skill tool; the skill content must reach the model as the tool result.
 describe('project skills end to end', () => {
   let running: RunningApp;
@@ -14,12 +14,9 @@ describe('project skills end to end', () => {
   let project: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-skills-e2e-'));
-    mkdirSync(join(project, '.codecompanion', 'skills'), { recursive: true });
-    writeFileSync(
-      join(project, '.codecompanion', 'skills', 'release.md'),
-      'Bump the version, tag v<n>, run npm run dist.\n',
-    );
+    project = mkdtempSync(join(tmpdir(), 'patch-skills-e2e-'));
+    mkdirSync(join(project, '.patch', 'skills'), { recursive: true });
+    writeFileSync(join(project, '.patch', 'skills', 'release.md'), 'Bump the version, tag v<n>, run npm run dist.\n');
     claude = new MockClaude();
     running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);

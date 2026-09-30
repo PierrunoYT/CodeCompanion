@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Workspace } from '../tools/workspace';
-import { buildSystemPrompt, type SystemPromptInput } from './system_prompt';
+import { buildSystemPrompt, promptListsSkills, type SystemPromptInput } from './system_prompt';
 
 let root: string;
 
@@ -24,6 +24,7 @@ function input(overrides: Partial<SystemPromptInput> = {}): SystemPromptInput {
     date: '2026-09-29',
     customInstructions: '',
     agentFile: null,
+    skills: { skills: [], omitted: 0 },
     ...overrides,
   };
 }
@@ -62,5 +63,21 @@ describe('buildSystemPrompt', () => {
 
   it('is deterministic for the same input so the prefix stays cached', () => {
     expect(buildSystemPrompt(input())).toBe(buildSystemPrompt(input()));
+  });
+
+  it('lists project skills, says how many were left out, and is detected by promptListsSkills', () => {
+    const prompt = buildSystemPrompt(
+      input({ skills: { skills: [{ name: 'deploy', description: 'Release checklist.' }], omitted: 3 } }),
+    );
+    expect(prompt).toContain('# Project skills\n');
+    expect(prompt).toContain('- deploy: Release checklist.');
+    expect(prompt).toContain('3 more skill files are not listed');
+    expect(promptListsSkills(prompt)).toBe(true);
+  });
+
+  it('has no skills section, and offers no load_skill, when the project has no skills', () => {
+    const prompt = buildSystemPrompt(input());
+    expect(prompt).not.toContain('# Project skills');
+    expect(promptListsSkills(prompt)).toBe(false);
   });
 });

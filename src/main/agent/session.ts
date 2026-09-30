@@ -12,7 +12,7 @@ import {
 import type { ApprovalMode } from '@shared/settings';
 import type { CompletionClient, Conversation, SerializedConversation } from '../llm/types';
 import type { AgentTool, ToolContext } from '../tools/types';
-import { Agent } from './agent';
+import { Agent, type DroppedFieldError } from './agent';
 
 export interface SavedChat {
   version: 1;
@@ -48,6 +48,7 @@ export interface ChatSessionOptions {
   isPreApproved?: (toolName: string, input: unknown) => boolean;
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
   smallModel: () => CompletionClient | null;
+  onDroppedFields?: (error: DroppedFieldError) => void;
   onEvent: (event: ChatEvent) => void;
   // immediate is true when a task just finished, so the chat can be saved right away.
   onChange: (immediate: boolean) => void;
@@ -84,6 +85,7 @@ export class ChatSession {
       requestApproval: (id, signal) => this.waitForApproval(id, signal),
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
       emit: (event) => this.emit(event),
+      onDroppedFields: options.onDroppedFields,
     });
     if (options.usage) {
       const usage = { ...options.usage };

@@ -42,7 +42,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 
 - [x] Add unit tests for `chat_store`, `projects` and `files` (only `chat_manager`, `settings` and `stores` are covered in `src/main`)
 - [x] Add unit tests for the agent loop (`src/main/agent`): stop, resume, tool-result pairing and error paths
-- [ ] Log dropped-field tool errors (tool name and missing fields, never file contents) to make the open `edit_file` bug measurable
+- [x] Log dropped-field tool errors (tool name and missing fields, never file contents) to make the open `edit_file` bug measurable
 - [ ] Retry transient provider errors (429, 5xx, network) with backoff, and show the retry in the chat
 
 ### Features
@@ -99,7 +99,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Stop logging `terminal:start` errors when no project is open (the terminal starts only once a project is open)
 - [x] Editing an unread file failed only after the user approved the diff. The read check now also runs in the preview, so it is rejected before approval
 - [x] "Invalid input" tool errors were vague when the model left out a field. They now name the missing and received fields
-- [ ] The model sometimes drops a required field such as `new_string` in parallel `edit_file` calls; the app can only report it. Watch whether the clearer error and tool description reduce this
+- [ ] The model sometimes drops a required field such as `new_string` in parallel `edit_file` calls; the app can only report it. Watch whether the clearer error and tool description reduce this (each occurrence is logged to `logs/tool-input-errors.jsonl`, see `docs/DEVELOPMENT.md`)
 
 ## Quality
 

@@ -4,7 +4,7 @@ import type { ApprovalDecision, ChatEvent } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ImageData, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
 import { defineTool, ToolError, type AgentTool, type ToolContext, type ToolOutput } from '../tools/types';
-import { Agent } from './agent';
+import { Agent, type DroppedFieldError } from './agent';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
 
@@ -86,6 +86,7 @@ function setup(
     tools = [] as AgentTool[],
     mode = 'auto' as ApprovalMode,
     requestApproval = vi.fn(async (): Promise<ApprovalDecision> => ({ approved: true })),
+    onDroppedFields = undefined as ((error: DroppedFieldError) => void) | undefined,
   } = {},
 ) {
   const conversation = new ScriptedConversation(steps);
@@ -98,6 +99,7 @@ function setup(
     requestApproval,
     toolContext: (signal, onProgress) => ({ signal, onProgress, readFiles: new Set() }) as unknown as ToolContext,
     emit: (event) => events.push(event),
+    onDroppedFields,
   });
   return { agent, conversation, events, requestApproval };
 }
@@ -226,6 +228,72 @@ describe('Agent: tool-result pairing', () => {
     expect(conversation.results[0]).toEqual([{ id: 'e1', content: 'target file is missing', isError: true }]);
     expect(eventsOf(events, 'tool-start')[0]).toMatchObject({ id: 'e1', awaitingApproval: false });
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: 'e1', status: 'error', output: 'target file is missing' });
+  });
+});
+
+describe('Agent: dropped-field reporting', () => {
+  const edit = defineTool({
+    name: 'edit_file',
+    description: 'edit',
+    schema: z.object({ path: z.string(), old_string: z.string(), new_string: z.string() }),
+    requiresApproval: false,
+    async run() {
+      return { content: 'edited' };
+    },
+  });
+
+  it('reports the tool, the model and the field names, never the values', async () => {
+    const reported: DroppedFieldError[] = [];
+    const { agent } = setup(
+      [
+        {
+          toolCalls: [
+            call('t1', 'edit_file', { path: 'src/secret.ts', old_string: 'const password = "hunter2"' }),
+            call('t2', 'edit_file', { path: 7, old_string: 'x' }),
+          ],
+        },
+        { text: 'done' },
+      ],
+      { tools: [edit], onDroppedFields: (error) => reported.push(error) },
+    );
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    expect(reported).toEqual([
+      { tool: 'edit_file', model: 'test-model', missing: ['new_string'], invalid: [], received: ['path', 'old_string'] },
+      { tool: 'edit_file', model: 'test-model', missing: ['new_string'], invalid: ['path'], received: ['path', 'old_string'] },
+    ]);
+    expect(JSON.stringify(reported)).not.toMatch(/hunter2|secret\.ts/);
+  });
+
+  it('does not report valid calls, unknown tools or type errors without a missing field', async () => {
+    const reported: DroppedFieldError[] = [];
+    const { agent } = setup(
+      [
+        {
+          toolCalls: [
+            call('t1', 'edit_file', { path: 'a', old_string: 'b', new_string: 'c' }),
+            call('t2', 'nope', {}),
+            call('t3', 'edit_file', { path: 1, old_string: 'b', new_string: 'c' }),
+          ],
+        },
+        { text: 'done' },
+      ],
+      { tools: [edit], onDroppedFields: (error) => reported.push(error) },
+    );
+    await agent.send({ text: 'go' }, new AbortController().signal);
+    expect(reported).toEqual([]);
+  });
+
+  it('reports a call with no fields at all, and still returns the error to the model', async () => {
+    const reported: DroppedFieldError[] = [];
+    const { agent, conversation } = setup([{ toolCalls: [call('t1', 'edit_file', {})] }, { text: 'done' }], {
+      tools: [edit],
+      onDroppedFields: (error) => reported.push(error),
+    });
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    expect(reported[0]).toMatchObject({ missing: ['path', 'old_string', 'new_string'], received: [] });
+    expect(conversation.results[0][0]).toMatchObject({ isError: true });
   });
 });
 

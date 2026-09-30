@@ -84,3 +84,4 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 - **View → Toggle Developer Tools** for the renderer; the main process logs to the terminal that launched the app.
 - `CODECOMPANION_USER_DATA=<folder>` starts with a clean profile.
+- **Dropped tool fields**: when the model calls a tool without a required field (the known `new_string` problem in `edit_file`), one JSON line goes to `logs/tool-input-errors.jsonl` in the user data folder, with the tool, model and field names but never values. Count them per tool and model with, for example, `jq -r '[.tool, .model, (.missing | join(","))] | @tsv' tool-input-errors.jsonl | sort | uniq -c`. The file stays on the machine and rotates to `.old` at 512 KB.

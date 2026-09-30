@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
+import { ToolErrorLog } from './agent/tool_error_log';
 import { ChatManager } from './chat_manager';
 import { ChatStore } from './chat_store';
 import { chatToMarkdown, exportFileName } from '@shared/export';
@@ -41,6 +42,7 @@ function start(): void {
   const settings = createSettings();
   const projects = new ProjectStore(join(userData, 'projects.json'));
   const chats = new ChatStore(join(userData, 'chats'));
+  const toolErrorLog = new ToolErrorLog(join(userData, 'logs', 'tool-input-errors.jsonl'));
   const llm = new LlmService(settings);
   const browser = new BrowserService(() => send(mainWindow, 'panel:show', 'browser'));
   const terminal = new TerminalService(
@@ -99,6 +101,7 @@ function start(): void {
     emit: (event, chatId) => send(mainWindow, 'chat:event', { chatId, event }),
     onSnapshot: (snapshot) => send(mainWindow, 'chat:snapshot', snapshot),
     onHistoryChanged: () => send(mainWindow, 'history:changed', chats.list()),
+    onDroppedFields: (error) => toolErrorLog.record(error),
   });
 
   const openProject = (path: string) => {

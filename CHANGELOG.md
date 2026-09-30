@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Added
+- Log tool calls that arrive with required fields missing (tool, model, missing and received field names, never values) to `logs/tool-input-errors.jsonl` in the user data folder, so the dropped `new_string` problem in `edit_file` can be measured. The file stays on the machine and rotates at 512 KB.
+
 ### Changed
 - Add unit tests for the chat store, the project store and the file helpers (image picker, save dialog, open in editor).
 - Add unit tests for the agent loop: stop, resume, tool-result pairing, approvals, refusals, the step limit and model errors.

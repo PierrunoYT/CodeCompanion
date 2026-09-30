@@ -129,6 +129,7 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 | `projects.json` | Recent projects (20) and their instructions |
 | `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage) |
 | `indexes/<hash>.json` | Code search indexes |
+| `logs/tool-input-errors.jsonl` | Tool calls rejected for missing fields: time, tool, model, field names only (never values). Local only; rotates to `.old` at 512 KB |
 
 Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses a different folder (tests use this).
 

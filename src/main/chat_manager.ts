@@ -3,6 +3,7 @@ import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@sh
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
 import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
+import type { DroppedFieldError } from './agent/agent';
 import { buildSystemPrompt } from './agent/system_prompt';
 import { ChatSession, type SavedChat } from './agent/session';
 import type { ChatStore } from './chat_store';
@@ -25,6 +26,7 @@ export interface ChatManagerDeps {
   emit: (event: ChatEvent, chatId: string) => void;
   onSnapshot: (snapshot: ChatSnapshot) => void;
   onHistoryChanged: () => void;
+  onDroppedFields?: (error: DroppedFieldError) => void;
 }
 
 const SAVE_DELAY_MS = 500;
@@ -239,6 +241,7 @@ export class ChatManager {
         return { ...base, workspace, shell, browser, codeSearch: codeSearch?.search ?? null, webSearch };
       },
       smallModel: () => this.deps.llm.smallModel(),
+      onDroppedFields: this.deps.onDroppedFields,
       onEvent: (event) => this.deps.emit(event, session.id),
       onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),
     });

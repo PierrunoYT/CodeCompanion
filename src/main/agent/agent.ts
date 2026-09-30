@@ -10,6 +10,16 @@ const MAX_TURNS = 200;
 const RESUME_INSTRUCTION =
   'Continue the task that I stopped. Use the completed conversation and tool results above; do not repeat the original request. Some interrupted tool actions may have completed even when their result says they were stopped, so inspect the current state before repeating any action with side effects.';
 
+// A tool call whose input left out required fields. Field names only, never their values (they can hold file contents).
+export interface DroppedFieldError {
+  tool: string;
+  model: string;
+  missing: string[];
+  // Other fields that failed validation, e.g. a number where a string was expected.
+  invalid: string[];
+  received: string[];
+}
+
 export interface AgentOptions {
   conversation: Conversation;
   system: string;
@@ -21,6 +31,8 @@ export interface AgentOptions {
   requestApproval: (id: string, signal: AbortSignal) => Promise<ApprovalDecision>;
   toolContext: (signal: AbortSignal, onProgress: (text: string) => void) => ToolContext;
   emit: (event: ChatEvent) => void;
+  // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
+  onDroppedFields?: (error: DroppedFieldError) => void;
 }
 
 // Runs the model/tool loop for one user message: call the model, run the tools it asks for (with approval where
@@ -165,16 +177,28 @@ export class Agent {
     // Streamed tool inputs are not validated by the API, so check them here before doing anything.
     const parsed = tool.schema.safeParse(call.input);
     if (!parsed.success) {
+      const missing: string[] = [];
+      const invalid: string[] = [];
       const issues = parsed.error.issues
         .map((issue) => {
           const name = issue.path.join('.') || 'input';
-          return /received undefined/.test(issue.message) ? `${name}: required but missing` : `${name}: ${issue.message}`;
+          const isMissing = /received undefined/.test(issue.message);
+          (isMissing ? missing : invalid).push(name);
+          return isMissing ? `${name}: required but missing` : `${name}: ${issue.message}`;
         })
         .join('; ');
-      const received =
-        call.input && typeof call.input === 'object' && !Array.isArray(call.input)
-          ? ` Received fields: ${Object.keys(call.input).join(', ') || '(none)'}.`
-          : '';
+      const receivedFields =
+        call.input && typeof call.input === 'object' && !Array.isArray(call.input) ? Object.keys(call.input) : null;
+      if (missing.length > 0) {
+        this.options.onDroppedFields?.({
+          tool: call.name,
+          model: this.options.conversation.model,
+          missing,
+          invalid,
+          received: receivedFields ?? [],
+        });
+      }
+      const received = receivedFields ? ` Received fields: ${receivedFields.join(', ') || '(none)'}.` : '';
       return {
         result: {
           id: call.id,

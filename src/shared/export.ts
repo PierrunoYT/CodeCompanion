@@ -48,6 +48,7 @@ export function chatToMarkdown(chat: ChatSnapshot): string {
 // A file name for the export: the chat title without characters Windows and macOS reject.
 export function exportFileName(title: string): string {
   const name = title
+    // eslint-disable-next-line no-control-regex -- control characters are stripped on purpose: they are invalid in file names
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

@@ -113,6 +113,28 @@ scroll anchoring does not preserve resize-follow here. No renderer change was ke
 Windows/high-refresh environment that reproduces the 14–21 ms regression; the Linux orb evidence bounds geometry
 bookkeeping to part of layout cost, not the observed frame regression.
 
+#### Windows bisection (2026-09-30)
+
+Reproduced on the Windows machine (1,000 turns, three runs per variant, layout time during the stream):
+
+| Variant | Frame p50 / p95 | Layout |
+|---|---|---|
+| Before the scroll fix (`ed40da2`) | 7 / 7 ms | 74–77 ms |
+| Current (`af50695`) | 14–21 / 21 ms | 1,161–1,203 ms |
+| Current, without the focus check in `render()` | 14–21 / 21 ms | 1,157–1,193 ms |
+| Current, without the `ResizeObserver` | 14–21 / 21 ms | 1,175–1,187 ms |
+| Current, with block layout instead of flex for `.transcript` | 14–21 / 21 ms | 1,084–1,087 ms |
+| Current, without any scroll-to-bottom writes | 7 / 7 ms | 77 ms |
+
+Finding: the regression is not a cost of the new code. Before the scroll fix, the jump to the bottom landed short, so the
+view was not at the bottom, `stick` was false and the streamed answer sat off screen, where `content-visibility` skips
+it. The 7 ms was the benchmark measuring a chat that was not following. With the view really at the bottom (what users
+see), the streamed item is on screen and is laid out on every frame. The extra 0.6 s of layout over the empty chat
+(0.5 s) is the price of 5,000 `content-visibility: auto` siblings around it; none of the small pieces accounts for it.
+
+Ruled out: the focus check, the `ResizeObserver` and flex layout (a small gain, not kept). Not tried: grouping older
+items into a few `content-visibility` chunks, so fewer elements take part in each layout.
+
 ### Not changed, and why
 
 - **Re-rendering the streaming message's Markdown on each frame.** The whole answer so far is re-parsed, highlighted and sanitized on every frame: about 2.2 s of script over the 20,000-character answer, or about 3 ms per frame. This cost depends on the answer, not the chat, and is the same in an empty chat. If very long answers stutter, render only the last Markdown block while streaming.

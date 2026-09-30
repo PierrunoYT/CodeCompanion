@@ -13,6 +13,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 - Ask for approval before fetching or browsing unlisted network hosts; add an exact-host allow-list in Settings, block cross-host redirects, and deny browser popups that could bypass navigation checks. Auto mode still skips tool approvals; browser subresources and Google search are not filtered.
 
 ### Fixed
+- The browser panel no longer blocks the user's own link clicks before the agent has opened a page; the same-host navigation policy starts with the first agent-opened page.
+- Cost estimates keep long-context tokens at list price for models that have no long-context price instead of dropping them.
+- A Stop that arrives just as a run finishes on its own no longer offers Resume.
 - New-chat system prompts defer optional tool availability to the current tool list, so adding semantic search mid-chat does not require changing the cached prompt.
 - Improve Decline-button text contrast in light and dark approval cards, including hover and keyboard focus states.
 - Recent projects keep the most recently opened folder first even when opens share a timestamp, including after reopening the app.

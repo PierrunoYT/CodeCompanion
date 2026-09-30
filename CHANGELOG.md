@@ -5,6 +5,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Fixed
+- Windows: the terminal panel uses node-pty's bundled ConPTY, which has no console-list helper process, so closing a project tab right after opening it can no longer crash that helper (`AttachConsole failed`) and stop the app from quitting.
 - Keep Anthropic pause/compaction continuation responses out of saved history until the turn succeeds, so failed or cancelled continuations leave no partial model history behind on retry.
 
 ### Security

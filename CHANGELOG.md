@@ -6,6 +6,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ### Changed
 - Add unit tests for the chat store, the project store and the file helpers (image picker, save dialog, open in editor).
+- Add unit tests for the agent loop: stop, resume, tool-result pairing, approvals, refusals, the step limit and model errors.
 
 ## [0.1.1] - 2026-09-30
 

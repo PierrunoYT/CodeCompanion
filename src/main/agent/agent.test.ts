@@ -73,6 +73,12 @@ const changeTool = defineTool({
   },
 });
 
+// A model turn that hangs until the user stops the task, then fails the way an aborted request does.
+const abortingTurn: Step = (request) =>
+  new Promise((_resolve, reject) => {
+    request.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+  });
+
 function setup(
   steps: Step[],
   {
@@ -343,6 +349,95 @@ describe('agent loop', () => {
     expect(reopened.session.snapshot().resumable).toBe(true);
     await reopened.session.resume();
     expect(reopened.session.snapshot().transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
+  });
+
+  it('shows a notice, not an error, when a stop aborts the model call', async () => {
+    const { session } = setup([abortingTurn]);
+    const sending = session.send({ text: 'go' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    session.stop();
+    await sending;
+
+    const transcript = session.snapshot().transcript;
+    expect(transcript.at(-1)).toMatchObject({ kind: 'notice', text: 'Stopped.' });
+    expect(transcript.some((item) => item.kind === 'error')).toBe(false);
+    expect(session.busy).toBe(false);
+  });
+
+  it('resumes after stopping a running tool: skipped calls stay skipped and every call has one result', async () => {
+    const started: string[] = [];
+    const slowTool = defineTool({
+      name: 'slow',
+      description: 'runs until stopped',
+      schema: z.object({}),
+      requiresApproval: false,
+      run: (_input, context) =>
+        new Promise((resolve) => {
+          started.push('slow');
+          context.signal.addEventListener('abort', () => resolve({ content: 'interrupted', isError: true }));
+        }),
+    });
+    const { session, conversation } = setup(
+      [
+        {
+          toolCalls: [
+            { id: 't1', name: 'slow', input: {} },
+            { id: 't2', name: 'look', input: { what: 'b' } },
+          ],
+        },
+        { text: 'Carried on' },
+      ],
+      { tools: () => [slowTool, lookTool] },
+    );
+    const sending = session.send({ text: 'go' });
+    while (started.length === 0) await new Promise((resolve) => setTimeout(resolve, 5));
+    session.stop();
+    await sending;
+
+    expect(session.snapshot().resumable).toBe(true);
+    expect(conversation.toolResults[0]).toMatchObject([
+      { id: 't1', content: 'interrupted', isError: true },
+      { id: 't2', content: 'Not run: the user stopped the task.', isError: true },
+    ]);
+
+    await session.resume();
+    expect(started).toEqual(['slow']);
+    expect(ran).toEqual([]);
+    expect(conversation.turns).toBe(2);
+    expect(session.snapshot().resumable).toBe(false);
+    expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'assistant', text: 'Carried on' });
+  });
+
+  it('drops the resumable state when a new message is sent after a stop', async () => {
+    const { session, conversation } = setup([abortingTurn, { text: 'fresh start' }]);
+    const sending = session.send({ text: 'first' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    session.stop();
+    await sending;
+    expect(session.snapshot().resumable).toBe(true);
+
+    await session.send({ text: 'second' });
+    expect(session.snapshot().resumable).toBe(false);
+    expect(conversation.users.map((user) => user.text)).toEqual(['first', 'second']);
+    await expect(session.resume()).rejects.toThrow(/no stopped run/);
+  });
+
+  it('does not offer resume after a model error', async () => {
+    const { session } = setup([
+      async () => {
+        throw new Error('500 server error');
+      },
+    ]);
+    await session.send({ text: 'go' });
+    expect(session.snapshot().resumable).toBe(false);
+    await expect(session.resume()).rejects.toThrow(/no stopped run/);
+  });
+
+  it('ignores stop when nothing is running', () => {
+    const { session, events } = setup([]);
+    session.stop();
+    expect(events).toEqual([]);
+    expect(session.snapshot()).toMatchObject({ busy: false, resumable: false });
   });
 
   it('shows model errors in the transcript', async () => {

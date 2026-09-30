@@ -12,7 +12,7 @@ Each chat keeps the model it started with. Changing the model in Settings applie
 
 ### Tell it about your project
 
-- **Project instructions**: the project menu (the folder button at the top) → *Project instructions…*. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
+- **Project instructions**: the project menu (the folder button at the top) → *Project settings…*. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
 - **`AGENTS.md`** (or `CLAUDE.md`) in the project root is added to every chat automatically. The status bar shows "AGENTS.md loaded".
 
 Both are prompt text, not enforced rules: the assistant can still get them wrong, which is why approvals exist.
@@ -58,7 +58,12 @@ Even in Auto mode, a fetch or browser redirect to another host is blocked; the a
 
 ## Allow-lists
 
-Two lists in Settings let specific things skip the approval card while **Ask** mode stays on. Both are empty by default.
+Two lists let specific things skip the approval card while **Ask** mode stays on. Both are empty by default, and there are two places to fill them:
+
+- **Settings**: for every project.
+- **Project settings…** in the project menu (the folder button at the top): for the open project only, in addition to the lists in Settings. A command or host is allowed when either list has it. Use this for what only makes sense in one project, such as `cargo check` or that project's dev server host. These lists are kept with the app's data, not in the project folder, so a repository you clone cannot allow its own commands. They apply at once, also to a chat that is already open.
+
+The rules below are the same for both.
 
 ### Commands allowed without asking
 
@@ -135,7 +140,7 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 - **Google search engine id**: with a Google API key, turns on web search.
 - **Maximum files to index for code search**, and the current project's index status with a **Reindex** button.
 
-The project menu (the folder button at the top) also has **Remove from recent** on each recent project.
+The project menu (the folder button at the top) has **Project settings…** for the open project (its instructions and its own allow-lists, see above) and **Remove from recent** on each recent project.
 
 ## Side panel
 

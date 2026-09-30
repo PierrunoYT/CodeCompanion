@@ -194,6 +194,7 @@ function start(): void {
     send(mainWindow, 'project:changed', projects.current());
   });
   handle('project:set-instructions', (path, instructions) => projects.setInstructions(path, instructions));
+  handle('project:update-settings', (path, projectSettings) => projects.updateSettings(path, projectSettings));
   handle('project:remove', (path) => {
     manager.requireIdle();
     manager.closeProject(path);

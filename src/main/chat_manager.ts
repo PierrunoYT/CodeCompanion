@@ -2,6 +2,7 @@ import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
 import type { UndoResult } from '@shared/ipc';
 import { acceptsImages, imagesNotSupportedMessage } from '@shared/models';
+import { mergeAllowLists } from '@shared/project';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
 import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
@@ -253,8 +254,11 @@ export class ChatManager {
       resumable: saved?.resumable,
       approvalMode: () => this.deps.settings.get().approvalMode,
       isPreApproved: (toolName, input) => {
+        // The global lists plus this project's own, read on every call so a change applies at once.
+        const settings = this.deps.settings.get();
+        const own = this.deps.projects.get(project.path);
         if (toolName === 'run_command' && typeof (input as { command?: unknown })?.command === 'string') {
-          return isCommandAllowed((input as { command: string }).command, this.deps.settings.get().allowedCommands);
+          return isCommandAllowed((input as { command: string }).command, mergeAllowLists(settings.allowedCommands, own?.allowedCommands));
         }
         if ((toolName === 'fetch_url' || toolName === 'browser') && typeof (input as { url?: unknown })?.url === 'string') {
           const url = (input as { url: string }).url;
@@ -266,7 +270,7 @@ export class ChatManager {
               return false;
             }
           }
-          return isNetworkUrlAllowed(url, this.deps.settings.get().allowedNetworkHosts);
+          return isNetworkUrlAllowed(url, mergeAllowLists(settings.allowedNetworkHosts, own?.allowedNetworkHosts));
         }
         return false;
       },

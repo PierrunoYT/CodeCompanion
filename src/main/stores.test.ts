@@ -358,6 +358,56 @@ describe('ProjectStore', () => {
     expect(() => store.setInstructions(first.path, 'gone')).toThrow(/Unknown project/);
   });
 
+  it("stores a project's own allow-lists with its instructions, and keeps them after a reload", () => {
+    const one = join(dir, 'one');
+    mkdirSync(one);
+    const file = join(dir, 'projects.json');
+    const store = new ProjectStore(file);
+    const opened = store.open(one);
+
+    const updated = store.updateSettings(opened.path, {
+      instructions: 'Use pnpm.',
+      allowedCommands: '  pnpm test\npnpm lint  ',
+      allowedNetworkHosts: 'localhost\n',
+    });
+    expect(updated).toMatchObject({ instructions: 'Use pnpm.', allowedCommands: 'pnpm test\npnpm lint', allowedNetworkHosts: 'localhost' });
+    expect(store.get(opened.path)).toMatchObject({ allowedCommands: 'pnpm test\npnpm lint' });
+    expect(new ProjectStore(file).get(opened.path)).toMatchObject({ instructions: 'Use pnpm.', allowedNetworkHosts: 'localhost' });
+    // setInstructions leaves the lists alone.
+    store.setInstructions(opened.path, 'Use bun.');
+    expect(store.get(opened.path)).toMatchObject({ instructions: 'Use bun.', allowedCommands: 'pnpm test\npnpm lint' });
+  });
+
+  it('accepts only text for project settings, capped in size, and nothing else from the caller', () => {
+    const one = join(dir, 'one');
+    mkdirSync(one);
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    const opened = store.open(one);
+
+    for (const bad of [null, {}, { instructions: 'x', allowedCommands: 5, allowedNetworkHosts: '' }, { instructions: 'x', allowedCommands: '' }]) {
+      expect(() => store.updateSettings(opened.path, bad as never)).toThrow(/Invalid project setting/);
+    }
+    const updated = store.updateSettings(opened.path, {
+      instructions: 'i'.repeat(60_000),
+      allowedCommands: '',
+      allowedNetworkHosts: '',
+      path: '/elsewhere',
+      name: 'renamed',
+    } as never);
+    expect(updated.instructions).toHaveLength(50_000);
+    expect(updated.path).toBe(opened.path);
+    expect(updated.name).toBe('one');
+  });
+
+  it('reads projects saved before the allow-lists existed, and knows nothing of other paths', () => {
+    const file = join(dir, 'projects.json');
+    const one = join(dir, 'one');
+    writeFileSync(file, JSON.stringify([{ path: one, name: 'one', instructions: 'old', lastOpened: '2026-01-01T00:00:00.000Z' }]));
+    const store = new ProjectStore(file);
+    expect(store.get(one)?.allowedCommands).toBeUndefined();
+    expect(store.get(join(dir, 'unknown'))).toBeNull();
+  });
+
   it('rejects instructions for a project it does not know', () => {
     const store = new ProjectStore(join(dir, 'projects.json'));
     expect(() => store.setInstructions(join(dir, 'unknown'), 'text')).toThrow(/Unknown project/);

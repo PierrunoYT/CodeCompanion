@@ -73,6 +73,7 @@ Before tagging, use the built app once against the real Anthropic and OpenAI API
 | Change the system prompt | `src/main/agent/system_prompt.ts` |
 | Add a tool | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts` |
 | Add a setting | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts` |
+| Add a per-project setting | `ProjectInfo`/`ProjectSettings` in `src/shared/project.ts`, `ProjectStore.updateSettings` in `src/main/projects.ts` (validation), `openProjectSettingsDialog` in `src/renderer/src/views/dialogs.ts` |
 | Add an IPC channel | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts` |
 | Add a chat event | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts` |
 | Change which provider errors are retried, or the backoff | `src/main/agent/retry.ts` (`retryDecision`, `MAX_RETRIES`); the loop is `runTurnWithRetries` in `src/main/agent/agent.ts` |

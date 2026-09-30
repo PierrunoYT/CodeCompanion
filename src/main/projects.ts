@@ -1,9 +1,10 @@
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import type { ProjectInfo } from '@shared/project';
+import type { ProjectInfo, ProjectSettings } from '@shared/project';
 import { readJson, writeJson } from './storage/json_file';
 
 const MAX_RECENT = 20;
+const MAX_SETTING_CHARS = 50_000;
 
 // Recent projects and their custom instructions, stored in userData/projects.json.
 export class ProjectStore {
@@ -54,9 +55,33 @@ export class ProjectStore {
   }
 
   setInstructions(path: string, instructions: string): ProjectInfo {
+    return this.update(path, { instructions });
+  }
+
+  // The instructions and the project's own allow-lists, from the Project settings dialog. The values come from the
+  // renderer, so only these three fields are taken, each must be text, and each is capped in size.
+  updateSettings(path: string, settings: ProjectSettings): ProjectInfo {
+    const text = (value: unknown, name: string) => {
+      if (typeof value !== 'string') throw new Error(`Invalid project setting: ${name}`);
+      return value.slice(0, MAX_SETTING_CHARS);
+    };
+    return this.update(path, {
+      instructions: text(settings?.instructions, 'instructions'),
+      allowedCommands: text(settings?.allowedCommands, 'allowedCommands').trim(),
+      allowedNetworkHosts: text(settings?.allowedNetworkHosts, 'allowedNetworkHosts').trim(),
+    });
+  }
+
+  // The project as it is now, or null. Read on every tool call, so a change applies to open chats at once.
+  get(path: string): ProjectInfo | null {
+    const project = this.openProjects.get(path) ?? this.projects.find((candidate) => candidate.path === path);
+    return project ? { ...project } : null;
+  }
+
+  private update(path: string, patch: Partial<ProjectSettings>): ProjectInfo {
     const project = this.openProjects.get(path) ?? this.projects.find((candidate) => candidate.path === path);
     if (!project) throw new Error(`Unknown project: ${path}`);
-    project.instructions = instructions;
+    Object.assign(project, patch);
     this.persist();
     return { ...project };
   }

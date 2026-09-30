@@ -13,7 +13,7 @@ import type { ProjectInfo } from '@shared/project';
 import type { SettingsView } from '@shared/settings';
 import { h, icon, setChildren } from './dom';
 import { Composer } from './views/composer';
-import { openHistoryDialog, openInstructionsDialog, openSettingsDialog } from './views/dialogs';
+import { openHistoryDialog, openProjectSettingsDialog, openSettingsDialog } from './views/dialogs';
 import { Panels } from './views/panels';
 import { TranscriptView } from './views/transcript';
 
@@ -288,7 +288,7 @@ export class App {
       ),
       h(
         'button',
-        { class: 'btn btn-sm btn-outline-secondary', onclick: () => this.editInstructions() },
+        { class: 'btn btn-sm btn-outline-secondary', onclick: () => this.editProjectSettings() },
         icon('journal-text'),
         this.project.instructions ? ' Edit project instructions' : ' Add project instructions',
       ),
@@ -327,7 +327,7 @@ export class App {
         h('button', { class: 'dropdown-item', disabled, onclick: () => (this.projectMenu.classList.remove('show'), action()) }, label);
       setChildren(this.projectMenu, 
         item(h('span', {}, icon('folder-plus'), ' Open folder…'), () => void this.chooseProject()),
-        item(h('span', {}, icon('journal-text'), ' Project instructions…'), () => this.editInstructions(), !this.project),
+        item(h('span', {}, icon('journal-text'), ' Project settings…'), () => this.editProjectSettings(), !this.project),
         projects.length > 0 ? h('div', { class: 'dropdown-divider' }) : null,
         ...projects.map((project) =>
           item(
@@ -460,11 +460,13 @@ export class App {
     });
   }
 
-  private editInstructions(): void {
+  private editProjectSettings(): void {
     const project = this.project;
     if (!project) return;
-    openInstructionsDialog(project, async (text) => {
-      this.project = await api.invoke('project:set-instructions', project.path, text);
+    openProjectSettingsDialog(project, async (settings) => {
+      const updated = await api.invoke('project:update-settings', project.path, settings);
+      // The user may have switched projects while the dialog was open.
+      if (this.project?.path === updated.path) this.project = updated;
       void this.renderWelcome();
     });
   }

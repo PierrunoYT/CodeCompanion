@@ -2,7 +2,7 @@ import { filterChats, type ChatSummary } from '@shared/chat';
 import { formatCost, MODEL_OPTIONS, type Effort } from '@shared/models';
 import { describeIndexStatus } from '@shared/index_status';
 import type { IndexStatus } from '@shared/ipc';
-import type { ProjectInfo } from '@shared/project';
+import type { ProjectInfo, ProjectSettings } from '@shared/project';
 import type { SecretName, Settings, SettingsView } from '@shared/settings';
 import { h, icon } from '../dom';
 
@@ -228,22 +228,54 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
   });
 }
 
-export function openInstructionsDialog(project: ProjectInfo, save: (text: string) => Promise<unknown>): void {
-  const text = h('textarea', { class: 'form-control font-monospace', rows: 12, value: project.instructions });
+// Instructions and the project's own allow-lists. The lists add to the global ones in Settings.
+export function openProjectSettingsDialog(project: ProjectInfo, save: (settings: ProjectSettings) => Promise<unknown>): void {
+  const instructions = h('textarea', { class: 'form-control font-monospace', rows: 8, value: project.instructions });
+  const allowedCommands = h('textarea', {
+    class: 'form-control font-monospace',
+    rows: 3,
+    value: project.allowedCommands ?? '',
+    placeholder: 'npm test\ncargo check',
+  });
+  const allowedNetworkHosts = h('textarea', {
+    class: 'form-control font-monospace',
+    rows: 3,
+    value: project.allowedNetworkHosts ?? '',
+    placeholder: 'localhost\napi.example.com',
+  });
+  const error = h('div', { class: 'text-danger me-auto small' });
   const button = h('button', { type: 'button', class: 'btn btn-primary' }, 'Save');
   const element = dialog(
-    `Instructions for ${project.name}`,
+    `Project settings for ${project.name}`,
     h(
       'div',
       {},
-      h('p', { class: 'text-body-secondary small' }, 'Added to every new chat in this project, e.g. commands to run tests, coding conventions or things to avoid.'),
-      text,
+      field(
+        'Instructions',
+        instructions,
+        'Added to every new chat in this project, e.g. commands to run tests, coding conventions or things to avoid.',
+      ),
+      h('p', { class: 'small text-body-secondary mt-3 mb-2' }, 'For this project only, in addition to the lists in Settings. Same rules: one per line, used in "Ask" mode. These are kept with your app data, not in the project, so a repository cannot allow its own commands.'),
+      field(
+        'Commands allowed without asking',
+        allowedCommands,
+        '"npm test" also allows "npm test -- foo". Commands with ; & | > < ` $ ( ) { } or a line break are always asked about.',
+      ),
+      field('Network hosts allowed without asking', allowedNetworkHosts, 'Exact URL hostnames. Subdomains must be listed separately.'),
     ),
-    button,
+    h('div', { class: 'd-flex w-100 align-items-center gap-2' }, error, button),
   );
   button.addEventListener('click', async () => {
-    await save(text.value);
-    element.close();
+    try {
+      await save({
+        instructions: instructions.value,
+        allowedCommands: allowedCommands.value.trim(),
+        allowedNetworkHosts: allowedNetworkHosts.value.trim(),
+      });
+      element.close();
+    } catch (err) {
+      error.textContent = err instanceof Error ? err.message : String(err);
+    }
   });
 }
 

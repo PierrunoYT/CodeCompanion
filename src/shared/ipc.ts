@@ -6,7 +6,7 @@
 // Both sides are typed from these maps, so a renamed channel or changed payload is a compile error.
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, ChatSummary, UserMessage } from './chat';
 import type { GitStatus, PanelName } from './panels';
-import type { ProjectInfo } from './project';
+import type { ProjectInfo, ProjectSettings } from './project';
 import type { SecretName, Settings, SettingsView } from './settings';
 
 export interface AppInfo {
@@ -61,6 +61,8 @@ export interface InvokeApi {
   'project:opened': () => ProjectInfo[];
   'project:close': (path: string) => void;
   'project:set-instructions': (path: string, instructions: string) => ProjectInfo;
+  // The instructions and the project's own allow-lists (added to the global ones in Settings).
+  'project:update-settings': (path: string, settings: ProjectSettings) => ProjectInfo;
   'project:remove': (path: string) => ProjectInfo[];
 
   'chat:snapshot': () => ChatSnapshot;
@@ -131,6 +133,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'project:opened': true,
   'project:close': true,
   'project:set-instructions': true,
+  'project:update-settings': true,
   'project:remove': true,
   'chat:snapshot': true,
   'chat:send': true,

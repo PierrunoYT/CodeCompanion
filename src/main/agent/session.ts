@@ -125,8 +125,7 @@ export class ChatSession {
       title: this.title,
       projectPath: this.options.projectPath,
       model: this.options.conversation.model,
-      officialPricing:
-        this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
+      officialPricing: this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
       transcript: this.transcript,
       busy: this.busy,
       resumable: this.resumable,
@@ -221,7 +220,11 @@ export class ChatSession {
     this.stopRequested = false;
     this.emit({ type: 'busy', busy: true });
     try {
-      const { summary } = await summarizer.complete(compactionPrompt(plan.text), z.object({ summary: z.string() }), controller.signal);
+      const { summary } = await summarizer.complete(
+        compactionPrompt(plan.text),
+        z.object({ summary: z.string() }),
+        controller.signal,
+      );
       // A stop that came in while the answer was being written wins: nothing is applied.
       if (controller.signal.aborted) throw new DOMException('aborted', 'AbortError');
       conversation.applyCompaction(summary, plan.keepFrom);
@@ -235,7 +238,11 @@ export class ChatSession {
       if (controller.signal.aborted) {
         this.emit({ type: 'notice', id: randomUUID(), text: 'Compacting stopped. The chat is unchanged.' });
       } else {
-        this.emit({ type: 'error', id: randomUUID(), text: `Compacting failed: ${error instanceof Error ? error.message : String(error)}` });
+        this.emit({
+          type: 'error',
+          id: randomUUID(),
+          text: `Compacting failed: ${error instanceof Error ? error.message : String(error)}`,
+        });
       }
     } finally {
       this.controller = null;
@@ -311,7 +318,8 @@ export class ChatSession {
   }
 
   private async generateTitle(firstMessage: string): Promise<void> {
-    const fallback = firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
+    const fallback =
+      firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
     let title = fallback || 'New chat';
     const model = this.options.smallModel(this.options.conversation);
     if (model) {

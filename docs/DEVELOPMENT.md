@@ -29,18 +29,18 @@ Both lifecycle scripts must be executable. They become available to future proje
 
 ## Scripts
 
-| Script | Purpose |
-|---|---|
-| `npm run dev` | Development mode |
-| `npm start` | Build and run the production build |
-| `npm run icons` | Regenerate native app and installer icons from `assets/logo-icon.svg` |
-| `npm run build` | Build main, preload and renderer into `out/` |
-| `npm run typecheck` | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
-| `npm test` | Unit tests, then build + end-to-end tests |
-| `npm run test:unit` / `npm run test:e2e` | One of the two |
-| `npm run perf` | Build, then measure long chats (`tests/perf/`): rendering and main-process CPU in the app (`out/perf-long-chat.json`; `PERF_TURNS=1000` for a longer chat), and the main process's work per streamed event (`out/perf-main-process.json`). Not part of `npm test`; see `docs/PERFORMANCE.md` |
-| `npm run pack` | Unpacked app in `dist/` |
-| `npm run dist` | Installer (NSIS on Windows, DMG on macOS) |
+| Script                                   | Purpose                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                            | Development mode                                                                                                                                                                                                                                                                             |
+| `npm start`                              | Build and run the production build                                                                                                                                                                                                                                                           |
+| `npm run icons`                          | Regenerate native app and installer icons from `assets/logo-icon.svg`                                                                                                                                                                                                                        |
+| `npm run build`                          | Build main, preload and renderer into `out/`                                                                                                                                                                                                                                                 |
+| `npm run typecheck`                      | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`)                                                                                                                                                                                                       |
+| `npm test`                               | Unit tests, then build + end-to-end tests                                                                                                                                                                                                                                                    |
+| `npm run test:unit` / `npm run test:e2e` | One of the two                                                                                                                                                                                                                                                                               |
+| `npm run perf`                           | Build, then measure long chats (`tests/perf/`): rendering and main-process CPU in the app (`out/perf-long-chat.json`; `PERF_TURNS=1000` for a longer chat), and the main process's work per streamed event (`out/perf-main-process.json`). Not part of `npm test`; see `docs/PERFORMANCE.md` |
+| `npm run pack`                           | Unpacked app in `dist/`                                                                                                                                                                                                                                                                      |
+| `npm run dist`                           | Installer (NSIS on Windows, DMG on macOS)                                                                                                                                                                                                                                                    |
 
 Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screenshots of the main screens.
 
@@ -64,7 +64,6 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 The Windows executable, installer, and uninstaller use `build/icon.ico`; macOS uses `build/icon.icns`. The app window uses `build/icon.png`, copied into packaged resources by electron-builder, and the renderer favicon uses the source SVG. Toolbar action icons remain Bootstrap icons.
 
-
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, on `windows-latest`, `ubuntu-latest` and `macos-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e` (under `xvfb-run` on Linux). Run the same commands locally before pushing. Windows is the only supported platform. The Linux and macOS jobs are `continue-on-error` and their failures are not being fixed for now (see `TASKS.md`).
@@ -77,24 +76,24 @@ Before tagging, use the built app once against the real Anthropic and OpenAI API
 
 ## Where to change things
 
-| Goal | File |
-|---|---|
-| Add or rename a model, change defaults | `src/shared/models.ts` |
-| Change model prices used for the cost estimate | `MODEL_PRICING` in `src/shared/models.ts` |
-| Enable a Claude API feature for a model | `claudeCapabilities` in `src/shared/models.ts`, request building in `src/main/llm/anthropic.ts` |
-| Change the system prompt | `src/main/agent/system_prompt.ts` |
-| Add a tool | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts` |
-| Add a setting | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts` |
-| Add a per-project setting | `ProjectInfo`/`ProjectSettings` in `src/shared/project.ts`, `ProjectStore.updateSettings` in `src/main/projects.ts` (validation), `openProjectSettingsDialog` in `src/renderer/src/views/dialogs.ts` |
-| Add an IPC channel | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts` |
-| Add a chat event | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts` |
-| Change which provider errors are retried, or the backoff | `src/main/agent/retry.ts` (`retryDecision`, `MAX_RETRIES`); the loop is `runTurnWithRetries` in `src/main/agent/agent.ts` |
-| Change how compaction picks the cut or what the summarizer reads | `src/main/llm/compaction.ts` (sizes, `planCompaction`, the prompt); the provider-specific safe cuts and text are `compactionAdapter` in `anthropic.ts`, `openai.ts` and `openai_responses.ts` |
-| Change when the app suggests compacting | `COMPACT_SUGGESTED_TOKENS` in `src/shared/models.ts` |
-| Make another tool undoable | Return `undo` (`EditUndo`) from its `run`, as `write_file`/`edit_file` do in `src/main/tools/files.ts`; backups and the safety check are in `src/main/tools/edit_backups.ts` |
-| Log a crash or problem | `appLog.error(source, error, context)` from `src/main/app_log.ts`; see "Crash and error log" under Debugging |
-| Add an item to the menu | `src/main/menu.ts` (`MenuCommand` in `src/shared/ipc.ts` if the renderer must react) |
-| UI | `src/renderer/src/app.ts`, `views/`, `styles.css` |
+| Goal                                                             | File                                                                                                                                                                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add or rename a model, change defaults                           | `src/shared/models.ts`                                                                                                                                                                               |
+| Change model prices used for the cost estimate                   | `MODEL_PRICING` in `src/shared/models.ts`                                                                                                                                                            |
+| Enable a Claude API feature for a model                          | `claudeCapabilities` in `src/shared/models.ts`, request building in `src/main/llm/anthropic.ts`                                                                                                      |
+| Change the system prompt                                         | `src/main/agent/system_prompt.ts`                                                                                                                                                                    |
+| Add a tool                                                       | New `defineTool(...)` in `src/main/tools/`, register in `registry.ts`                                                                                                                                |
+| Add a setting                                                    | `Settings` + `DEFAULT_SETTINGS` in `src/shared/settings.ts`, validation in `src/main/settings.ts`, field in `src/renderer/src/views/dialogs.ts`                                                      |
+| Add a per-project setting                                        | `ProjectInfo`/`ProjectSettings` in `src/shared/project.ts`, `ProjectStore.updateSettings` in `src/main/projects.ts` (validation), `openProjectSettingsDialog` in `src/renderer/src/views/dialogs.ts` |
+| Add an IPC channel                                               | `InvokeApi`/`EventMap` **and** `INVOKE`/`EVENTS` in `src/shared/ipc.ts`, handler in `src/main/index.ts`                                                                                              |
+| Add a chat event                                                 | `ChatEvent` + `applyChatEvent` in `src/shared/chat.ts`                                                                                                                                               |
+| Change which provider errors are retried, or the backoff         | `src/main/agent/retry.ts` (`retryDecision`, `MAX_RETRIES`); the loop is `runTurnWithRetries` in `src/main/agent/agent.ts`                                                                            |
+| Change how compaction picks the cut or what the summarizer reads | `src/main/llm/compaction.ts` (sizes, `planCompaction`, the prompt); the provider-specific safe cuts and text are `compactionAdapter` in `anthropic.ts`, `openai.ts` and `openai_responses.ts`        |
+| Change when the app suggests compacting                          | `COMPACT_SUGGESTED_TOKENS` in `src/shared/models.ts`                                                                                                                                                 |
+| Make another tool undoable                                       | Return `undo` (`EditUndo`) from its `run`, as `write_file`/`edit_file` do in `src/main/tools/files.ts`; backups and the safety check are in `src/main/tools/edit_backups.ts`                         |
+| Log a crash or problem                                           | `appLog.error(source, error, context)` from `src/main/app_log.ts`; see "Crash and error log" under Debugging                                                                                         |
+| Add an item to the menu                                          | `src/main/menu.ts` (`MenuCommand` in `src/shared/ipc.ts` if the renderer must react)                                                                                                                 |
+| UI                                                               | `src/renderer/src/app.ts`, `views/`, `styles.css`                                                                                                                                                    |
 
 ## Conventions
 

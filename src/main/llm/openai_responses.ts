@@ -64,7 +64,9 @@ const compactionAdapter: CompactionAdapter<InputItem> = {
     const { type, role, content, name, arguments: args, output } = item as LooseItem;
     if (type === 'function_call') return [`Assistant called ${name}: ${clip(args ?? '', MAX_TOOL_INPUT_CHARS)}`];
     if (type === 'function_call_output') {
-      return [`Tool result: ${clip(typeof output === 'string' ? output : JSON.stringify(output), MAX_TOOL_RESULT_CHARS)}`];
+      return [
+        `Tool result: ${clip(typeof output === 'string' ? output : JSON.stringify(output), MAX_TOOL_RESULT_CHARS)}`,
+      ];
     }
     if (type === undefined || type === 'message') {
       const text = partsText(content);
@@ -129,7 +131,10 @@ export class OpenAIResponsesConversation implements Conversation {
   // What is sent: the whole history, or the summary followed by the items from the cut on.
   private requestItems(): InputItem[] {
     if (!this.compaction) return this.items.map(toInputItem);
-    const note: InputItem = { role: 'user', content: [{ type: 'input_text', text: summaryNote(this.compaction.summary) }] };
+    const note: InputItem = {
+      role: 'user',
+      content: [{ type: 'input_text', text: summaryNote(this.compaction.summary) }],
+    };
     return [note, ...this.items.slice(this.compaction.keepFrom).map(toInputItem)];
   }
 
@@ -150,7 +155,11 @@ export class OpenAIResponsesConversation implements Conversation {
   addToolResults(results: ToolResult[]): void {
     for (const result of results) {
       const prefix = result.isError ? 'Error: ' : '';
-      this.items.push({ type: 'function_call_output', call_id: result.id, output: prefix + (result.content || '(no output)') });
+      this.items.push({
+        type: 'function_call_output',
+        call_id: result.id,
+        output: prefix + (result.content || '(no output)'),
+      });
     }
     const images = results.flatMap((result) => result.images ?? []);
     if (images.length > 0) {
@@ -188,7 +197,9 @@ export class OpenAIResponsesConversation implements Conversation {
     this.items.push(...(response.output as unknown as InputItem[]).map(toInputItem));
 
     const toolCalls: ToolCall[] = response.output.flatMap((item) =>
-      item.type === 'function_call' ? [{ id: item.call_id, name: item.name, input: parseArguments(item.arguments) }] : [],
+      item.type === 'function_call'
+        ? [{ id: item.call_id, name: item.name, input: parseArguments(item.arguments) }]
+        : [],
     );
 
     const refusal = response.output

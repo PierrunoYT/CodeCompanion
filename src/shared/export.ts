@@ -18,13 +18,15 @@ export function chatToMarkdown(chat: ChatSnapshot): string {
     switch (item.kind) {
       case 'user':
         lines.push('## You', '', item.text.trim(), '');
-        if (item.imageCount > 0) lines.push(`_(${item.imageCount} image${item.imageCount === 1 ? '' : 's'} attached)_`, '');
+        if (item.imageCount > 0)
+          lines.push(`_(${item.imageCount} image${item.imageCount === 1 ? '' : 's'} attached)_`, '');
         break;
       case 'assistant':
         if (item.text.trim()) lines.push('## Assistant', '', item.text.trim(), '');
         break;
       case 'tool': {
-        const status = item.undo === 'undone' ? ' (undone)' : item.status === 'done' ? '' : ` (${item.status.replace('-', ' ')})`;
+        const status =
+          item.undo === 'undone' ? ' (undone)' : item.status === 'done' ? '' : ` (${item.status.replace('-', ' ')})`;
         lines.push(`> **${item.name}**: ${item.summary ?? item.preview?.title ?? item.name}${status}`, '');
         if (item.preview?.command) lines.push(fence(item.preview.command, 'sh'), '');
         if (item.preview?.commandOmittedChars) lines.push(`_(${commandNotice(item.preview.commandOmittedChars)})_`, '');

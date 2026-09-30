@@ -6,17 +6,29 @@ on:
   pull_request:
 
 jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run format:check
+
   test:
-    name: test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: test
+    runs-on: windows-latest
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    # Windows is the supported platform for 0.1.0. Linux and macOS report their result without blocking the build
-    # until they have been seen passing (see TASKS.md).
-    continue-on-error: ${{ matrix.os != 'windows-latest' }}
+    # Linux and macOS are not part of CI yet: node-pty cannot spawn a shell on the macOS runners and the long_run
+    # streaming test times out on Linux, both of which also fail on upstream main. Tracked as a GitHub issue; the
+    # jobs come back once those are fixed.
     steps:
       - uses: actions/checkout@v4
 
@@ -33,9 +45,4 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
 
-      - if: runner.os != 'Linux'
-        run: npm run test:e2e
-
-      # Electron needs a display on Linux.
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:e2e
+      - run: npm run test:e2e

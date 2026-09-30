@@ -12,6 +12,8 @@
     "build": "electron-vite build",
     "start": "electron-vite build && electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "vitest run --project unit --passWithNoTests",
     "test:e2e": "npm run build && vitest run --project e2e",
@@ -28,7 +30,10 @@
       "package.json"
     ],
     "extraResources": [
-      { "from": "build/icon.png", "to": "icon.png" }
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
     ],
     "asarUnpack": [
       "node_modules/node-pty/**"
@@ -92,6 +97,7 @@
     "marked": "^18.0.14",
     "marked-highlight": "^2.2.4",
     "playwright-core": "^1.63.0",
+    "prettier": "^3.9.9",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
     "vitest": "^5.0.2"

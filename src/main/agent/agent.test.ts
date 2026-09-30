@@ -2,7 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
-import type { CompactionPlan, CompletionClient, Conversation, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
+import type {
+  CompactionPlan,
+  CompletionClient,
+  Conversation,
+  ToolResult,
+  TurnRequest,
+  TurnResult,
+  UserInput,
+} from '../llm/types';
 import { defineTool, type AgentTool, type ToolContext } from '../tools/types';
 import { ChatSession, type ChatSessionOptions } from './session';
 
@@ -15,7 +23,10 @@ class ScriptedConversation implements Conversation {
   readonly toolResults: ToolResult[][] = [];
   turns = 0;
 
-  constructor(private readonly steps: Step[], provider: 'anthropic' | 'openai' = 'anthropic') {
+  constructor(
+    private readonly steps: Step[],
+    provider: 'anthropic' | 'openai' = 'anthropic',
+  ) {
     this.provider = provider;
   }
 
@@ -126,7 +137,15 @@ function setup(
     pendingNotes,
     approvalMode: () => mode,
     isPreApproved,
-    toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
+    toolContext: (base) =>
+      ({
+        ...base,
+        workspace: null as never,
+        shell: null as never,
+        browser: null,
+        codeSearch: null,
+        webSearch: null,
+      }) as ToolContext,
     smallModel,
     onEditApplied,
     onEvent: (event) => events.push(event),
@@ -135,7 +154,9 @@ function setup(
   const nextApproval = () =>
     new Promise<string>((resolve) => {
       const check = () => {
-        const pending = session.snapshot().transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
+        const pending = session
+          .snapshot()
+          .transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
         if (pending) resolve(pending.id);
         else setTimeout(check, 5);
       };
@@ -180,7 +201,10 @@ describe('agent loop', () => {
   });
 
   it('waits for approval and shows a preview', async () => {
-    const { session, nextApproval } = setup([{ toolCalls: [{ id: 't1', name: 'change', input: { to: 'x' } }] }, { text: 'ok' }]);
+    const { session, nextApproval } = setup([
+      { toolCalls: [{ id: 't1', name: 'change', input: { to: 'x' } }] },
+      { text: 'ok' },
+    ]);
     const sending = session.send({ text: 'change it' });
     const id = await nextApproval();
     const pending = session.snapshot().transcript.find((item) => item.id === id);
@@ -474,7 +498,11 @@ describe('agent loop', () => {
           return { content: 'probed' };
         }
         context.readFiles.add('/abs/a.ts');
-        return { content: 'Edited', path: 'src/a.ts', undo: { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'h' } };
+        return {
+          content: 'Edited',
+          path: 'src/a.ts',
+          undo: { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'h' },
+        };
       },
     });
     const edited = () => {
@@ -521,7 +549,10 @@ describe('agent loop', () => {
         '[Note from the app: The user undid your edit to src/a.ts: the file is back to how it was before that edit. Read it again before editing it.]\n\nnow what?',
       );
       expect(conversation.users[2].text).toBe('and then?');
-      const shown = session.snapshot().transcript.filter((item) => item.kind === 'user').map((item) => item.text);
+      const shown = session
+        .snapshot()
+        .transcript.filter((item) => item.kind === 'user')
+        .map((item) => item.text);
       expect(shown).toEqual(['edit it', 'now what?', 'and then?']);
     });
 
@@ -583,7 +614,12 @@ describe('agent loop', () => {
     it('also tells the model when the stopped task is resumed', async () => {
       const kept: string[] = [];
       const { session, conversation } = setup(
-        [{ toolCalls: [{ id: 't1', name: 'file', input: {} }] }, { text: 'Edited.' }, abortingTurn, { text: 'Continued.' }],
+        [
+          { toolCalls: [{ id: 't1', name: 'file', input: {} }] },
+          { text: 'Edited.' },
+          abortingTurn,
+          { text: 'Continued.' },
+        ],
         { tools: () => [fileTool], mode: 'auto', onEditApplied: (toolId) => kept.push(toolId) },
       );
       await session.send({ text: 'edit it' });
@@ -595,16 +631,22 @@ describe('agent loop', () => {
       session.editUndone(kept[0], restored, '/abs/a.ts');
       await session.resume();
 
-      expect(conversation.users[2].text).toMatch(/^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/);
+      expect(conversation.users[2].text).toMatch(
+        /^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/,
+      );
     });
   });
 
   describe('compacting the chat', () => {
     const plan: CompactionPlan = { text: 'OLD TURNS AS TEXT', messages: 7, keepFrom: 3 };
     // Answers the compaction request; the chat title request that starts every chat is left to fail and fall back.
-    const summarizer = (handler: (prompt: string, signal?: AbortSignal) => Promise<{ summary: string }>): CompletionClient => ({
+    const summarizer = (
+      handler: (prompt: string, signal?: AbortSignal) => Promise<{ summary: string }>,
+    ): CompletionClient => ({
       complete: ((prompt: string, _schema: unknown, signal?: AbortSignal) =>
-        prompt.startsWith('Summarize the earlier part') ? handler(prompt, signal) : Promise.reject(new Error('no title'))) as CompletionClient['complete'],
+        prompt.startsWith('Summarize the earlier part')
+          ? handler(prompt, signal)
+          : Promise.reject(new Error('no title'))) as CompletionClient['complete'],
     });
 
     it('summarizes the older turns, applies the summary and says so in the chat', async () => {
@@ -626,7 +668,10 @@ describe('agent loop', () => {
       expect(prompts).toHaveLength(1);
       expect(prompts[0]).toContain('OLD TURNS AS TEXT');
       expect(conversation.applied).toEqual([{ summary: 'THE SUMMARY', keepFrom: 3 }]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('Compacted 7 earlier messages') });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'notice',
+        text: expect.stringContaining('Compacted 7 earlier messages'),
+      });
       // The size of the prompt is not known until the next request.
       expect(session.snapshot().usage.contextTokens).toBeUndefined();
       expect(events.filter((event) => event.type === 'busy').slice(-2)).toEqual([
@@ -644,7 +689,10 @@ describe('agent loop', () => {
 
       expect(complete).not.toHaveBeenCalled();
       expect(conversation.applied).toEqual([]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('not enough older history') });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'notice',
+        text: expect.stringContaining('not enough older history'),
+      });
     });
 
     it('asks for an API key when there is no model to summarize with', async () => {
@@ -665,7 +713,10 @@ describe('agent loop', () => {
       await session.compact();
 
       expect(conversation.applied).toEqual([]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'error', text: 'Compacting failed: 529 overloaded' });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'error',
+        text: 'Compacting failed: 529 overloaded',
+      });
       expect(session.busy).toBe(false);
     });
 
@@ -684,7 +735,10 @@ describe('agent loop', () => {
       await compacting;
 
       expect(conversation.applied).toEqual([]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('unchanged') });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'notice',
+        text: expect.stringContaining('unchanged'),
+      });
       expect(session.snapshot().resumable).toBe(false);
       expect(session.busy).toBe(false);
     });
@@ -811,12 +865,18 @@ describe('agent loop', () => {
 
   it('restores legacy saved usage without cache writes', () => {
     const { session } = setup([], { usage: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3 } });
-    expect(session.snapshot().usage).toEqual({ inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 0 });
+    expect(session.snapshot().usage).toEqual({
+      inputTokens: 7,
+      outputTokens: 5,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 0,
+    });
   });
 
   it('normalizes legacy OpenAI input exactly once and suppresses custom endpoint pricing', () => {
     const { session } = setup([], {
-      provider: 'openai', officialPricing: false,
+      provider: 'openai',
+      officialPricing: false,
       usage: { inputTokens: 17, outputTokens: 5, cacheReadTokens: 3 },
     });
     expect(session.snapshot().usage.inputTokens).toBe(14);
@@ -826,8 +886,17 @@ describe('agent loop', () => {
   });
 
   it('accumulates multiple long requests without mutating earlier snapshots', async () => {
-    const usage = { inputTokens: 280_000, outputTokens: 17, cacheReadTokens: 3, cacheWriteTokens: 5, longContext: true };
-    const { session } = setup([{ text: 'first', usage }, { text: 'second', usage }]);
+    const usage = {
+      inputTokens: 280_000,
+      outputTokens: 17,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 5,
+      longContext: true,
+    };
+    const { session } = setup([
+      { text: 'first', usage },
+      { text: 'second', usage },
+    ]);
     await session.send({ text: 'one' });
     const first = session.snapshot();
     await session.send({ text: 'two' });

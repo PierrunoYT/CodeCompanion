@@ -58,7 +58,8 @@ const compactionAdapter: CompactionAdapter<MessageParam> = {
   safeCut: (message) =>
     message.role === 'assistant' || typeof message.content === 'string' || !message.content.some(isToolResult),
   describe(message) {
-    const blocks: ContentBlockParam[] = typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : message.content;
+    const blocks: ContentBlockParam[] =
+      typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : message.content;
     return blocks.flatMap((block): string[] => {
       switch (block.type) {
         case 'text':
@@ -66,7 +67,10 @@ const compactionAdapter: CompactionAdapter<MessageParam> = {
         case 'tool_use':
           return [`Assistant called ${block.name}: ${clip(JSON.stringify(block.input), MAX_TOOL_INPUT_CHARS)}`];
         case 'tool_result': {
-          const content = typeof block.content === 'string' ? block.content : (block.content ?? []).map((part) => (part.type === 'text' ? part.text : '[image]')).join('\n');
+          const content =
+            typeof block.content === 'string'
+              ? block.content
+              : (block.content ?? []).map((part) => (part.type === 'text' ? part.text : '[image]')).join('\n');
           return [`Tool result${block.is_error ? ' (error)' : ''}: ${clip(content, MAX_TOOL_RESULT_CHARS)}`];
         }
         case 'image':
@@ -114,18 +118,17 @@ export class AnthropicConversation implements Conversation {
     const note: ContentBlockParam = { type: 'text', text: summaryNote(this.compaction.summary) };
     const [first, ...rest] = this.messages.slice(this.compaction.keepFrom);
     if (first?.role !== 'user') return [{ role: 'user', content: [note] }, ...(first ? [first] : []), ...rest];
-    const content: ContentBlockParam[] = typeof first.content === 'string' ? [{ type: 'text', text: first.content }] : first.content;
+    const content: ContentBlockParam[] =
+      typeof first.content === 'string' ? [{ type: 'text', text: first.content }] : first.content;
     return [{ role: 'user', content: [note, ...content] }, ...rest];
   }
 
   addUserMessage(input: UserInput): void {
     const content: ContentBlockParam[] = [
-      ...(input.images ?? []).map(
-        (image): ContentBlockParam => ({
-          type: 'image',
-          source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
-        }),
-      ),
+      ...(input.images ?? []).map((image): ContentBlockParam => ({
+        type: 'image',
+        source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
+      })),
       { type: 'text', text: input.text },
     ];
     this.messages.push({ role: 'user', content });
@@ -186,7 +189,10 @@ export class AnthropicConversation implements Conversation {
         if (block.type === 'text') text.push(block.text);
       }
 
-      if ((message.stop_reason === 'compaction' || message.stop_reason === 'pause_turn') && continuations < MAX_CONTINUATIONS) {
+      if (
+        (message.stop_reason === 'compaction' || message.stop_reason === 'pause_turn') &&
+        continuations < MAX_CONTINUATIONS
+      ) {
         continuations++;
         continue;
       }
@@ -201,7 +207,8 @@ export class AnthropicConversation implements Conversation {
         toolCalls,
         stopReason: mapStopReason(message.stop_reason),
         usage,
-        contextTokens: message.usage.input_tokens +
+        contextTokens:
+          message.usage.input_tokens +
           (message.usage.cache_read_input_tokens ?? 0) +
           (message.usage.cache_creation_input_tokens ?? 0),
         refusal:
@@ -287,7 +294,11 @@ export class AnthropicCompletionClient implements CompletionClient {
     private readonly model: string,
   ) {}
 
-  async complete<T extends z.ZodObject<z.ZodRawShape>>(prompt: string, schema: T, signal?: AbortSignal): Promise<z.infer<T>> {
+  async complete<T extends z.ZodObject<z.ZodRawShape>>(
+    prompt: string,
+    schema: T,
+    signal?: AbortSignal,
+  ): Promise<z.infer<T>> {
     const response = await this.client.messages.parse(
       {
         model: this.model,

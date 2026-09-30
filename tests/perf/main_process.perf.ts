@@ -24,8 +24,15 @@ class StreamingConversation implements Conversation {
   addUserMessage(): void {}
   addToolResults(): void {}
   async runTurn(request: TurnRequest): Promise<TurnResult> {
-    for (let index = 0; index < ANSWER.length; index += CHUNK) request.callbacks.onText(ANSWER.slice(index, index + CHUNK));
-    return { text: ANSWER, toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, contextTokens: 1 };
+    for (let index = 0; index < ANSWER.length; index += CHUNK)
+      request.callbacks.onText(ANSWER.slice(index, index + CHUNK));
+    return {
+      text: ANSWER,
+      toolCalls: [],
+      stopReason: 'end_turn',
+      usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+      contextTokens: 1,
+    };
   }
   serialize() {
     return { provider: this.provider, model: this.model, messages: [] };
@@ -81,7 +88,9 @@ async function median(runs: number, work: () => Promise<void> | void): Promise<n
 
 describe('main process: streamed events in a long chat', () => {
   afterAll(() => {
-    console.log(`\nMain process, one ${ANSWER.length.toLocaleString('en-US')}-character answer in ${CHUNK}-character deltas\n`);
+    console.log(
+      `\nMain process, one ${ANSWER.length.toLocaleString('en-US')}-character answer in ${CHUNK}-character deltas\n`,
+    );
     console.table(rows);
     mkdirSync(join(__dirname, '../../out'), { recursive: true });
     writeFileSync(join(__dirname, '../../out/perf-main-process.json'), JSON.stringify({ chunk: CHUNK, rows }, null, 2));

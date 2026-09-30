@@ -57,7 +57,13 @@ describe('ChatStore', () => {
       title: 'Fix login',
       transcript: [
         { kind: 'user' as const, id: 'u1', text: 'The refresh token is rejected by the API', imageCount: 0 },
-        { kind: 'tool' as const, id: 't1', name: 'read_file', status: 'done' as const, output: 'only in tool output: zebra' },
+        {
+          kind: 'tool' as const,
+          id: 't1',
+          name: 'read_file',
+          status: 'done' as const,
+          output: 'only in tool output: zebra',
+        },
       ],
     };
     const second = { ...chat(idB, '2026-02-01T00:00:00Z'), title: 'Dark mode', projectPath: 'D:\\code\\blog' };
@@ -81,7 +87,11 @@ describe('ChatStore', () => {
     const base = chat(idA, '2026-01-01T00:00:00Z');
     store.save({ ...base, transcript: [{ kind: 'user', id: 'u', text: 'alpha', imageCount: 0 }] });
     expect(store.search('alpha')).toHaveLength(1);
-    store.save({ ...base, updatedAt: '2026-01-02T00:00:00Z', transcript: [{ kind: 'user', id: 'u', text: 'beta', imageCount: 0 }] });
+    store.save({
+      ...base,
+      updatedAt: '2026-01-02T00:00:00Z',
+      transcript: [{ kind: 'user', id: 'u', text: 'beta', imageCount: 0 }],
+    });
     expect(store.search('alpha')).toHaveLength(0);
     expect(store.search('beta')).toHaveLength(1);
     store.delete(idA);
@@ -115,7 +125,10 @@ describe('ChatStore', () => {
   it('returns null for chats that are missing or saved by another version', () => {
     const store = new ChatStore(join(dir, 'chats'));
     expect(store.load(idB)).toBeNull();
-    writeFileSync(join(dir, 'chats', `${idB}.json`), JSON.stringify({ ...chat(idB, '2026-01-01T00:00:00Z'), version: 2 }));
+    writeFileSync(
+      join(dir, 'chats', `${idB}.json`),
+      JSON.stringify({ ...chat(idB, '2026-01-01T00:00:00Z'), version: 2 }),
+    );
     expect(store.load(idB)).toBeNull();
     writeFileSync(join(dir, 'chats', `${idB}.json`), '{ not json');
     expect(store.load(idB)).toBeNull();
@@ -196,7 +209,12 @@ describe('ChatStore', () => {
     const usage = { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
     const gpt = { provider: 'openai' as const, model: 'gpt-6-sol', messages: [] };
     store.save({ ...chat(idA, '2026-01-01T00:00:00Z'), usage });
-    store.save({ ...chat(idB, '2026-01-02T00:00:00Z'), usage, officialPricing: false, conversation: { ...gpt, api: 'responses' } });
+    store.save({
+      ...chat(idB, '2026-01-02T00:00:00Z'),
+      usage,
+      officialPricing: false,
+      conversation: { ...gpt, api: 'responses' },
+    });
     expect(store.list().map((item) => item.cost)).toEqual([null, null]);
 
     // Saved before officialPricing existed: OpenAI's own API is priced, Chat Completions (a custom endpoint) is not.
@@ -209,7 +227,11 @@ describe('ChatStore', () => {
     const store = new ChatStore(join(dir, 'chats'));
     // Older totals counted the 500k cache reads in the input as well.
     const usage = { inputTokens: 1_500_000, outputTokens: 0, cacheReadTokens: 500_000 };
-    store.save({ ...chat(idA, '2026-01-01T00:00:00Z'), usage, conversation: { provider: 'openai', api: 'responses', model: 'gpt-6-sol', messages: [] } });
+    store.save({
+      ...chat(idA, '2026-01-01T00:00:00Z'),
+      usage,
+      conversation: { provider: 'openai', api: 'responses', model: 'gpt-6-sol', messages: [] },
+    });
     // 1M input at $2 plus 500k cache reads at $0.20.
     expect(store.list()[0].cost).toBeCloseTo(2.1);
   });
@@ -217,8 +239,15 @@ describe('ChatStore', () => {
   it('adds costs to an index written by an older version', () => {
     const chats = join(dir, 'chats');
     const usage = { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
-    new ChatStore(chats).save({ ...chat(idA, '2026-01-01T00:00:00Z'), usage, conversation: { provider: 'anthropic', model: 'claude-opus-5-5', messages: [] } });
-    writeFileSync(join(chats, 'index.json'), JSON.stringify([{ id: idA, title: 'Old', projectPath: null, updatedAt: '2026-01-01T00:00:00Z' }]));
+    new ChatStore(chats).save({
+      ...chat(idA, '2026-01-01T00:00:00Z'),
+      usage,
+      conversation: { provider: 'anthropic', model: 'claude-opus-5-5', messages: [] },
+    });
+    writeFileSync(
+      join(chats, 'index.json'),
+      JSON.stringify([{ id: idA, title: 'Old', projectPath: null, updatedAt: '2026-01-01T00:00:00Z' }]),
+    );
 
     expect(new ChatStore(chats).list()[0].cost).toBeCloseTo(4);
   });
@@ -370,9 +399,16 @@ describe('ProjectStore', () => {
       allowedCommands: '  pnpm test\npnpm lint  ',
       allowedNetworkHosts: 'localhost\n',
     });
-    expect(updated).toMatchObject({ instructions: 'Use pnpm.', allowedCommands: 'pnpm test\npnpm lint', allowedNetworkHosts: 'localhost' });
+    expect(updated).toMatchObject({
+      instructions: 'Use pnpm.',
+      allowedCommands: 'pnpm test\npnpm lint',
+      allowedNetworkHosts: 'localhost',
+    });
     expect(store.get(opened.path)).toMatchObject({ allowedCommands: 'pnpm test\npnpm lint' });
-    expect(new ProjectStore(file).get(opened.path)).toMatchObject({ instructions: 'Use pnpm.', allowedNetworkHosts: 'localhost' });
+    expect(new ProjectStore(file).get(opened.path)).toMatchObject({
+      instructions: 'Use pnpm.',
+      allowedNetworkHosts: 'localhost',
+    });
     // setInstructions leaves the lists alone.
     store.setInstructions(opened.path, 'Use bun.');
     expect(store.get(opened.path)).toMatchObject({ instructions: 'Use bun.', allowedCommands: 'pnpm test\npnpm lint' });
@@ -384,7 +420,12 @@ describe('ProjectStore', () => {
     const store = new ProjectStore(join(dir, 'projects.json'));
     const opened = store.open(one);
 
-    for (const bad of [null, {}, { instructions: 'x', allowedCommands: 5, allowedNetworkHosts: '' }, { instructions: 'x', allowedCommands: '' }]) {
+    for (const bad of [
+      null,
+      {},
+      { instructions: 'x', allowedCommands: 5, allowedNetworkHosts: '' },
+      { instructions: 'x', allowedCommands: '' },
+    ]) {
       expect(() => store.updateSettings(opened.path, bad as never)).toThrow(/Invalid project setting/);
     }
     const updated = store.updateSettings(opened.path, {
@@ -402,7 +443,10 @@ describe('ProjectStore', () => {
   it('reads projects saved before the allow-lists existed, and knows nothing of other paths', () => {
     const file = join(dir, 'projects.json');
     const one = join(dir, 'one');
-    writeFileSync(file, JSON.stringify([{ path: one, name: 'one', instructions: 'old', lastOpened: '2026-01-01T00:00:00.000Z' }]));
+    writeFileSync(
+      file,
+      JSON.stringify([{ path: one, name: 'one', instructions: 'old', lastOpened: '2026-01-01T00:00:00.000Z' }]),
+    );
     const store = new ProjectStore(file);
     expect(store.get(one)?.allowedCommands).toBeUndefined();
     expect(store.get(join(dir, 'unknown'))).toBeNull();

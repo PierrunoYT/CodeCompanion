@@ -5,7 +5,14 @@ import type { ApprovalMode } from '@shared/settings';
 import { AnthropicConversation, createAnthropicClient } from '../llm/anthropic';
 import { anthropicStream, MockApiServer } from '../llm/test_server';
 import type { Conversation, ImageData, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
-import { defineTool, ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolOutput } from '../tools/types';
+import {
+  defineTool,
+  ToolError,
+  type AgentTool,
+  type EditUndo,
+  type ToolContext,
+  type ToolOutput,
+} from '../tools/types';
 import { Agent, type DroppedFieldError } from './agent';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
@@ -197,7 +204,9 @@ describe('Agent: tool-result pairing', () => {
 
   it('keeps the transcript event id for a call without an id', async () => {
     const look = tool('look', () => ({ content: 'ok' }));
-    const { agent, conversation, events } = setup([{ toolCalls: [call('', 'look')] }, { text: 'done' }], { tools: [look] });
+    const { agent, conversation, events } = setup([{ toolCalls: [call('', 'look')] }, { text: 'done' }], {
+      tools: [look],
+    });
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     const [start] = eventsOf(events, 'tool-start');
@@ -235,10 +244,13 @@ describe('Agent: tool-result pairing', () => {
         throw new Error('target file is missing');
       },
     });
-    const { agent, conversation, events, requestApproval } = setup([{ toolCalls: [call('e1', 'edit')] }, { text: 'ok' }], {
-      mode: 'ask',
-      tools: [edit],
-    });
+    const { agent, conversation, events, requestApproval } = setup(
+      [{ toolCalls: [call('e1', 'edit')] }, { text: 'ok' }],
+      {
+        mode: 'ask',
+        tools: [edit],
+      },
+    );
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(run).not.toHaveBeenCalled();
@@ -247,7 +259,11 @@ describe('Agent: tool-result pairing', () => {
     const eventId = eventsOf(events, 'tool-start')[0].id;
     expect(eventId).not.toBe('e1');
     expect(eventsOf(events, 'tool-start')[0]).toMatchObject({ awaitingApproval: false });
-    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: eventId, status: 'error', output: 'target file is missing' });
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({
+      id: eventId,
+      status: 'error',
+      output: 'target file is missing',
+    });
   });
 });
 
@@ -279,8 +295,20 @@ describe('Agent: dropped-field reporting', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(reported).toEqual([
-      { tool: 'edit_file', model: 'test-model', missing: ['new_string'], invalid: [], received: ['path', 'old_string'] },
-      { tool: 'edit_file', model: 'test-model', missing: ['new_string'], invalid: ['path'], received: ['path', 'old_string'] },
+      {
+        tool: 'edit_file',
+        model: 'test-model',
+        missing: ['new_string'],
+        invalid: [],
+        received: ['path', 'old_string'],
+      },
+      {
+        tool: 'edit_file',
+        model: 'test-model',
+        missing: ['new_string'],
+        invalid: ['path'],
+        received: ['path', 'old_string'],
+      },
     ]);
     expect(JSON.stringify(reported)).not.toMatch(/hunter2|secret\.ts/);
   });
@@ -320,9 +348,13 @@ describe('Agent: dropped-field reporting', () => {
 describe('Agent: undoable edits', () => {
   const undo: EditUndo = { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'abc' };
   const editing = (output: Partial<ToolOutput> = {}) =>
-    tool('edit_file', () => ({ content: 'Edited src/a.ts.', summary: 'Edited src/a.ts', path: 'src/a.ts', undo, ...output }), {
-      requiresApproval: true,
-    });
+    tool(
+      'edit_file',
+      () => ({ content: 'Edited src/a.ts.', summary: 'Edited src/a.ts', path: 'src/a.ts', undo, ...output }),
+      {
+        requiresApproval: true,
+      },
+    );
   const run = async (edit: AgentTool, onEditApplied?: (toolId: string, edit: EditUndo) => void) => {
     const setUp = setup([{ toolCalls: [call('t1', 'edit_file')] }, { text: 'done' }], { tools: [edit], onEditApplied });
     await setUp.agent.send({ text: 'go' }, new AbortController().signal);
@@ -335,13 +367,23 @@ describe('Agent: undoable edits', () => {
 
     const eventId = eventsOf(events, 'tool-start')[0].id;
     expect(kept).toEqual([[eventId, undo]]);
-    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: eventId, status: 'done', path: 'src/a.ts', undoable: true });
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({
+      id: eventId,
+      status: 'done',
+      path: 'src/a.ts',
+      undoable: true,
+    });
   });
 
   it('does not show the backup to the model', async () => {
     const { conversation } = await run(editing(), () => {});
     expect(JSON.stringify(conversation.results)).not.toContain('afterHash');
-    expect(conversation.results[0][0]).toEqual({ id: 't1', content: 'Edited src/a.ts.', isError: undefined, images: undefined });
+    expect(conversation.results[0][0]).toEqual({
+      id: 't1',
+      content: 'Edited src/a.ts.',
+      isError: undefined,
+      images: undefined,
+    });
   });
 
   it('reports the edit as done but not undoable when the backup could not be kept', async () => {
@@ -450,7 +492,9 @@ describe('Agent: approvals', () => {
     expect(cardIds).toHaveLength(2);
     expect(new Set(cardIds)).toHaveLength(2);
     expect(requestApproval).toHaveBeenCalledTimes(2);
-    cardIds.forEach((id, index) => expect(requestApproval).toHaveBeenNthCalledWith(index + 1, id, expect.any(AbortSignal)));
+    cardIds.forEach((id, index) =>
+      expect(requestApproval).toHaveBeenNthCalledWith(index + 1, id, expect.any(AbortSignal)),
+    );
     expect(backups).toEqual(cardIds);
     expect(eventsOf(events, 'tool-end').map((event) => event.id)).toEqual(cardIds);
     expect(conversation.results.map(([result]) => result.id)).toEqual(['reused', 'reused']);
@@ -506,9 +550,12 @@ describe('Agent: stop', () => {
       ran.push('look');
       return { content: 'ok' };
     });
-    const { agent, conversation } = setup([{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'never' }], {
-      tools: [slow, look],
-    });
+    const { agent, conversation } = setup(
+      [{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'never' }],
+      {
+        tools: [slow, look],
+      },
+    );
 
     const sending = agent.send({ text: 'go' }, controller.signal);
     await running;
@@ -572,9 +619,12 @@ describe('Agent: resume', () => {
       ran.push('look');
       return { content: 'ok' };
     });
-    const { agent, conversation } = setup([{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'Carried on' }], {
-      tools: [slow, look],
-    });
+    const { agent, conversation } = setup(
+      [{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'Carried on' }],
+      {
+        tools: [slow, look],
+      },
+    );
 
     const sending = agent.send({ text: 'go' }, first.signal);
     await running;
@@ -624,7 +674,11 @@ describe('Agent: error and limit paths', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const { agent, conversation } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 }, contextTokens: 14 },
+        {
+          toolCalls: [call('t1', 'look')],
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 },
+          contextTokens: 14,
+        },
         async () => {
           throw new Error('rate limited');
         },
@@ -667,17 +721,27 @@ describe('Agent: error and limit paths', () => {
   it('does not run tool calls from a response cut off by a full context window', async () => {
     const run = vi.fn(() => ({ content: 'ran' }));
     const write = tool('write', run);
-    const { agent, conversation } = setup([{ stopReason: 'context_exceeded', toolCalls: [call('t1', 'write')] }, { text: 'ok' }], {
-      tools: [write],
-    });
+    const { agent, conversation } = setup(
+      [{ stopReason: 'context_exceeded', toolCalls: [call('t1', 'write')] }, { text: 'ok' }],
+      {
+        tools: [write],
+      },
+    );
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(run).not.toHaveBeenCalled();
-    expect(conversation.results[0][0]).toMatchObject({ id: 't1', isError: true, content: expect.stringContaining('may be cut off') });
+    expect(conversation.results[0][0]).toMatchObject({
+      id: 't1',
+      isError: true,
+      content: expect.stringContaining('may be cut off'),
+    });
   });
 
   it('tells the user when the conversation is too long or the answer was cut off', async () => {
-    const { agent, events } = setup([{ stopReason: 'context_exceeded' }, { stopReason: 'max_tokens', text: 'half an ans' }]);
+    const { agent, events } = setup([
+      { stopReason: 'context_exceeded' },
+      { stopReason: 'max_tokens', text: 'half an ans' },
+    ]);
     const signal = new AbortController().signal;
 
     expect(await agent.send({ text: 'one' }, signal)).toBe(false);
@@ -691,7 +755,9 @@ describe('Agent: error and limit paths', () => {
 
   it('gives up after 200 model turns of tool calls', async () => {
     const look = tool('look', () => ({ content: 'ok' }));
-    const { agent, conversation, events } = setup((turn) => ({ toolCalls: [call(`t${turn}`, 'look')] }), { tools: [look] });
+    const { agent, conversation, events } = setup((turn) => ({ toolCalls: [call(`t${turn}`, 'look')] }), {
+      tools: [look],
+    });
 
     expect(await agent.send({ text: 'go' }, new AbortController().signal)).toBe(false);
 
@@ -704,9 +770,11 @@ describe('Agent: error and limit paths', () => {
 describe('Agent: retrying transient provider errors', () => {
   const httpError = (code: number, extra: Record<string, unknown> = {}) =>
     Object.assign(new Error(`HTTP ${code}`), { status: code, ...extra });
-  const fail = (error: Error): Step => async () => {
-    throw error;
-  };
+  const fail =
+    (error: Error): Step =>
+    async () => {
+      throw error;
+    };
 
   it('waits, says so in the chat, and tries the request again', async () => {
     const { agent, conversation, events, sleep } = setup([fail(httpError(503)), { text: 'Recovered.' }]);
@@ -717,7 +785,9 @@ describe('Agent: retrying transient provider errors', () => {
     expect(conversation.users).toHaveLength(1);
     expect(sleep).toHaveBeenCalledTimes(1);
     expect(sleep.mock.calls[0][0]).toBe(2000);
-    expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual(['Server error (503). Retrying in 2 s (retry 1 of 4)…']);
+    expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual([
+      'Server error (503). Retrying in 2 s (retry 1 of 4)…',
+    ]);
     expect(eventsOf(events, 'assistant-end').at(-1)).toMatchObject({ text: 'Recovered.' });
     expect(eventsOf(events, 'error')).toEqual([]);
   });
@@ -751,7 +821,13 @@ describe('Agent: retrying transient provider errors', () => {
 
   it('backs off longer each time and gives up with the original error after four retries', async () => {
     const original = httpError(500);
-    const { agent, conversation, events, sleep } = setup([fail(original), fail(original), fail(original), fail(original), fail(original)]);
+    const { agent, conversation, events, sleep } = setup([
+      fail(original),
+      fail(original),
+      fail(original),
+      fail(original),
+      fail(original),
+    ]);
 
     await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toBe(original);
 
@@ -782,7 +858,12 @@ describe('Agent: retrying transient provider errors', () => {
   });
 
   it('shows errors that will not pass right away instead of retrying', async () => {
-    for (const error of [httpError(400), httpError(404), httpError(429, { code: 'insufficient_quota' }), new Error('plain failure')]) {
+    for (const error of [
+      httpError(400),
+      httpError(404),
+      httpError(429, { code: 'insufficient_quota' }),
+      new Error('plain failure'),
+    ]) {
       const { agent, conversation, sleep } = setup([fail(error)]);
       await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toBe(error);
       expect(conversation.turns).toBe(1);
@@ -813,7 +894,11 @@ describe('Agent: retrying transient provider errors', () => {
     const look = tool('look', run);
     const { agent, conversation } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 }, contextTokens: 10 },
+        {
+          toolCalls: [call('t1', 'look')],
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 },
+          contextTokens: 10,
+        },
         fail(httpError(503)),
         { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 0 }, contextTokens: 20 },
       ],
@@ -892,7 +977,11 @@ describe('Agent: streaming and usage', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const { agent, events } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, cacheWriteTokens: 1 }, contextTokens: 15 },
+        {
+          toolCalls: [call('t1', 'look')],
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, cacheWriteTokens: 1 },
+          contextTokens: 15,
+        },
         { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 6 }, contextTokens: 26 },
       ],
       { tools: [look] },
@@ -910,38 +999,51 @@ describe('Agent: streaming and usage', () => {
 });
 
 describe('Agent: provider continuation usage', () => {
-  it.each(['pause_turn', 'compaction'])('keeps final context separate from billable input after %s', async (stopReason) => {
-    const server = new MockApiServer();
-    const baseURL = await server.start();
-    try {
-      for (const [inputTokens, reason] of [[140_000, stopReason], [40_000, 'end_turn']] as const) {
-        const stream = anthropicStream([{ type: 'text', text: 'part' }], reason);
-        const start = stream.find((event) => event.event === 'message_start')!.data as {
-          message: { usage: { input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } };
-        };
-        Object.assign(start.message.usage, {
-          input_tokens: inputTokens, cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
+  it.each(['pause_turn', 'compaction'])(
+    'keeps final context separate from billable input after %s',
+    async (stopReason) => {
+      const server = new MockApiServer();
+      const baseURL = await server.start();
+      try {
+        for (const [inputTokens, reason] of [
+          [140_000, stopReason],
+          [40_000, 'end_turn'],
+        ] as const) {
+          const stream = anthropicStream([{ type: 'text', text: 'part' }], reason);
+          const start = stream.find((event) => event.event === 'message_start')!.data as {
+            message: {
+              usage: { input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number };
+            };
+          };
+          Object.assign(start.message.usage, {
+            input_tokens: inputTokens,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          });
+          server.queueSse(stream);
+        }
+        const events: ChatEvent[] = [];
+        const agent = new Agent({
+          conversation: new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+            model: 'claude-opus-5-5',
+            effort: 'high',
+          }),
+          system: 'sys',
+          tools: () => [],
+          approvalMode: () => 'auto',
+          requestApproval: async () => ({ approved: true }),
+          toolContext: () => {
+            throw new Error('No tools in this turn');
+          },
+          emit: (event) => events.push(event),
         });
-        server.queueSse(stream);
-      }
-      const events: ChatEvent[] = [];
-      const agent = new Agent({
-        conversation: new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
-          model: 'claude-opus-5-5', effort: 'high',
-        }),
-        system: 'sys',
-        tools: () => [],
-        approvalMode: () => 'auto',
-        requestApproval: async () => ({ approved: true }),
-        toolContext: () => { throw new Error('No tools in this turn'); },
-        emit: (event) => events.push(event),
-      });
-      await agent.send({ text: 'Continue' }, new AbortController().signal);
+        await agent.send({ text: 'Continue' }, new AbortController().signal);
 
-      expect(agent.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
-      expect(eventsOf(events, 'usage').at(-1)?.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
-    } finally {
-      await server.stop();
-    }
-  });
+        expect(agent.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
+        expect(eventsOf(events, 'usage').at(-1)?.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
+      } finally {
+        await server.stop();
+      }
+    },
+  );
 });

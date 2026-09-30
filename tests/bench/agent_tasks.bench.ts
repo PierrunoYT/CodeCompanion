@@ -1,52 +1,42 @@
-// Real-model task benchmark: runs small, self-checking coding tasks through the built app against the real Anthropic
-// API, in Auto mode, and records whether each task was solved, how many tool calls and assistant messages it took, the
-// tokens and the estimated cost. Results are recorded in docs/PERFORMANCE.md ("Agent task benchmark").
+// Real-model task benchmark: runs self-checking coding tasks through the built app against the real Anthropic API, in
+// Auto mode, and records whether each task was solved, how many tool calls and assistant messages it took, the tokens
+// and the estimated cost. Results are recorded in docs/PERFORMANCE.md ("Agent task benchmark").
 //
-// Opt-in and not part of `npm test` or CI, because it spends API credits:
+// Two suites: `small` (tiny projects written from scratch) and `large` (tasks on a copy of this repository at a pinned
+// commit, see large_tasks.ts). Opt-in and not part of `npm test` or CI, because it spends API credits:
 //
 //   PATCH_BENCH_PROFILE=<a Patch profile folder with a saved Anthropic key> npm run bench:agent
 //
 // Only `settings.json` and `Local State` are copied from that profile into a throwaway folder (the key stays encrypted;
 // `Local State` holds what decrypts it for the same Windows or macOS user). The copy's MCP servers are cleared so none
 // start. The real profile is never written to. Options: PATCH_BENCH_MODEL (default claude-sonnet-5-5),
-// PATCH_BENCH_REPS (default 2), PATCH_BENCH_TASKS (comma-separated task ids to run).
+// PATCH_BENCH_REPS (default 2), PATCH_BENCH_SUITE (small, large or all; default all), PATCH_BENCH_TASKS
+// (comma-separated task ids).
+//
+// PATCH_BENCH_SELFTEST=1 checks every task without the API: its check must fail on the untouched project and pass on
+// the reference solution.
 //
 // The tasks run in Auto mode, so the model runs commands without asking, inside a temporary project folder.
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { ChatSnapshot } from '../../src/shared/chat';
 import { estimateCost } from '../../src/shared/models';
 import { delay, launchApp } from '../e2e/app';
+import { cleanupLargeBase, LARGE_TASKS, removeLargeProject } from './large_tasks';
+import { hashes, type Task } from './task';
 
 const PROFILE = process.env.PATCH_BENCH_PROFILE;
+const SELFTEST = process.env.PATCH_BENCH_SELFTEST === '1';
 const MODEL = process.env.PATCH_BENCH_MODEL || 'claude-sonnet-5-5';
 const REPS = Number(process.env.PATCH_BENCH_REPS || 2);
+const SUITE = process.env.PATCH_BENCH_SUITE || 'all';
 const ONLY = process.env.PATCH_BENCH_TASKS?.split(',').map((id) => id.trim());
 const RUN_TIMEOUT_MS = 8 * 60_000;
 
 type Files = Record<string, string>;
-
-interface Task {
-  id: string;
-  description: string;
-  files: Files;
-  prompt: string;
-  // Whether the task was solved, judged from the project folder and the chat after the run.
-  check(project: string, answer: string, before: Map<string, string>): { ok: boolean; why: string };
-}
 
 const PACKAGE = JSON.stringify({ name: 'bench', version: '1.0.0', private: true, scripts: { test: 'node --test' } });
 
@@ -57,25 +47,8 @@ function node(project: string, ...args: string[]): { ok: boolean; out: string } 
 
 const testsPass = (project: string) => node(project, '--test').ok;
 
-function hashes(project: string): Map<string, string> {
-  const result = new Map<string, string>();
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === 'node_modules' || entry.name === '.git') continue;
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else
-        result.set(
-          path.slice(project.length + 1).replace(/\\/g, '/'),
-          createHash('sha256').update(readFileSync(path)).digest('hex'),
-        );
-    }
-  };
-  walk(project);
-  return result;
-}
-
-const TASKS: Task[] = [
+// Tiny projects written from scratch, one per task.
+const SMALL_TASKS: Array<Omit<Task, 'suite' | 'create'> & { files: Files }> = [
   {
     id: 'fix-bugs',
     description: 'Fix two bugs so failing tests pass, without touching the tests',
@@ -279,8 +252,17 @@ for (let i = 1; i < count; i++) {
   },
 ];
 
+const TASKS: Task[] = [
+  ...SMALL_TASKS.map(({ files, ...task }): Task => ({ ...task, suite: 'small', create: () => writeProject(files) })),
+  ...LARGE_TASKS,
+].filter((task) => (SUITE === 'all' || task.suite === SUITE) && (!ONLY || ONLY.includes(task.id)));
+
+const removeProject = (task: Task, project: string) =>
+  task.suite === 'large' ? removeLargeProject(project) : rmSync(project, { recursive: true, force: true });
+
 interface Result {
   task: string;
+  suite: Task['suite'];
   rep: number;
   solved: boolean;
   why: string;
@@ -317,7 +299,7 @@ function writeProject(files: Files): string {
 }
 
 async function runTask(task: Task, rep: number): Promise<Result> {
-  const project = writeProject(task.files);
+  const project = task.create();
   const before = hashes(project);
   const profile = copyProfile();
   const running = await launchApp({}, { userData: profile });
@@ -338,7 +320,7 @@ async function runTask(task: Task, rep: number): Promise<Result> {
       chat = await page.evaluate(() => window.api.invoke('chat:snapshot'));
       const answered = chat.transcript.some((item) => item.kind === 'assistant');
       if (!chat.busy && answered) break;
-      if (Date.now() - started > RUN_TIMEOUT_MS) {
+      if (Date.now() - started > (task.timeoutMs ?? RUN_TIMEOUT_MS)) {
         await page.evaluate(() => window.api.invoke('chat:stop'));
         throw new Error('timed out');
       }
@@ -354,6 +336,7 @@ async function runTask(task: Task, rep: number): Promise<Result> {
         : task.check(project, answer, before);
     return {
       task: task.id,
+      suite: task.suite,
       rep,
       solved: verdict.ok,
       why: verdict.why,
@@ -373,6 +356,7 @@ async function runTask(task: Task, rep: number): Promise<Result> {
   } catch (error) {
     return {
       task: task.id,
+      suite: task.suite,
       rep,
       solved: false,
       why: 'run failed',
@@ -391,19 +375,20 @@ async function runTask(task: Task, rep: number): Promise<Result> {
   } finally {
     await running.close().catch(() => {});
     rmSync(profile, { recursive: true, force: true });
-    rmSync(project, { recursive: true, force: true });
+    removeProject(task, project);
   }
 }
 
-describe.skipIf(!PROFILE)('agent task benchmark (real API)', () => {
+describe.skipIf(!PROFILE || SELFTEST)('agent task benchmark (real API)', () => {
   afterAll(() => {
-    console.log(`\nAgent task benchmark: ${MODEL}, ${REPS} run(s) per task\n`);
+    console.log(`\nAgent task benchmark: ${MODEL}, ${REPS} run(s) per task, suite ${SUITE}\n`);
     console.table(results.map(({ error: _error, ...row }) => row));
     mkdirSync(join(__dirname, '../../out'), { recursive: true });
     writeFileSync(
-      join(__dirname, '../../out/bench-agent-tasks.json'),
-      JSON.stringify({ model: MODEL, reps: REPS, date: new Date().toISOString(), results }, null, 2),
+      join(__dirname, `../../out/bench-agent-tasks-${SUITE}.json`),
+      JSON.stringify({ model: MODEL, reps: REPS, suite: SUITE, date: new Date().toISOString(), results }, null, 2),
     );
+    cleanupLargeBase();
   });
 
   it('has a profile with a saved Anthropic key', () => {
@@ -412,11 +397,34 @@ describe.skipIf(!PROFILE)('agent task benchmark (real API)', () => {
     expect(Boolean(saved.secrets?.anthropicApiKey)).toBe(true);
   });
 
-  for (const task of TASKS.filter((candidate) => !ONLY || ONLY.includes(candidate.id))) {
+  for (const task of TASKS) {
     for (let rep = 1; rep <= REPS; rep++) {
       it(`${task.id} #${rep}: ${task.description}`, async () => {
         results.push(await runTask(task, rep));
       });
     }
+  }
+});
+
+// No API: every check must reject the untouched project and accept the reference solution, so a task can be neither
+// solved by doing nothing nor impossible to solve. The small tasks have no reference solution; for them only the first
+// half is checked.
+describe.skipIf(!SELFTEST)('agent task benchmark: self-test of the checks', () => {
+  afterAll(() => cleanupLargeBase());
+
+  for (const task of TASKS) {
+    it(`${task.id}: the check fails before and passes on the reference solution`, () => {
+      const project = task.create();
+      try {
+        const before = hashes(project);
+        expect(task.check(project, '', before).ok, 'check accepts the unsolved project').toBe(false);
+        if (!task.solve && task.referenceAnswer === undefined) return;
+        if (task.solve) task.solve(project);
+        const verdict = task.check(project, task.referenceAnswer ?? '', before);
+        expect(verdict.ok, `reference solution rejected: ${verdict.why}`).toBe(true);
+      } finally {
+        removeProject(task, project);
+      }
+    }, 600_000);
   }
 });

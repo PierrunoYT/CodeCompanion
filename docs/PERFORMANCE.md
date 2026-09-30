@@ -245,23 +245,31 @@ After the MCP, plan mode, subagent, skills and UI-redesign merges, same machine,
 
 ## Agent task benchmark (2026-10-01)
 
-**Question:** does the agent, as built, reliably finish small everyday coding tasks, and what does a task cost?
+**Question:** does the agent, as built, reliably finish everyday coding tasks, in tiny projects and in a real codebase, and what does a task cost?
 
-**Answer:** yes for this set. Claude Sonnet 5.5 solved all 10 runs (5 tasks, 2 runs each) in 5–17 seconds, for $0.014–0.037 per task and $0.24 in total. The runs were very consistent.
+**Answer:** yes for these 12 tasks. Claude Sonnet 5.5 solved all 24 runs (12 tasks, 2 runs each):
+
+- **Small suite:** 5 tasks in tiny projects, solved in 5–17 s for $0.014–0.037 each ($0.24 for 10 runs).
+- **Large suite:** 7 tasks in a copy of this repository, solved in 13–81 s for $0.03–0.13 each ($1.08 for 14 runs).
+
+The runs of each task were consistent, and every failed tool call was recovered within the run.
 
 ### How it is measured
 
-`npm run bench:agent` (`tests/bench/agent_tasks.bench.ts`, output in `out/bench-agent-tasks.json`) drives the built app against the **real** Anthropic API, so it spends credits. It is opt-in and not part of `npm test` or CI:
+`npm run bench:agent` (`tests/bench/agent_tasks.bench.ts`, tasks also in `tests/bench/large_tasks.ts`, output in `out/bench-agent-tasks-<suite>.json`) drives the built app against the **real** Anthropic API, so it spends credits. It is opt-in and not part of `npm test` or CI:
 
 ```bash
 PATCH_BENCH_PROFILE=<a Patch profile folder with a saved Anthropic key> npm run bench:agent
+# only one suite:            PATCH_BENCH_SUITE=small   or   PATCH_BENCH_SUITE=large
+# check the tasks, no API:   PATCH_BENCH_SELFTEST=1 npx vitest run --project bench
 ```
 
 - **The key:** only `settings.json` and `Local State` are copied from that profile into a throwaway profile (the key stays encrypted, and `Local State` lets the same OS user decrypt it). The copy's MCP servers are cleared, and it is deleted afterwards. The real profile is never written to.
 - **The run:** each run starts the app on a fresh copy, opens a fresh temporary project, sets the model (`PATCH_BENCH_MODEL`, default `claude-sonnet-5-5`) and **Auto** mode, sends the task in a new chat, and waits until the assistant is done. In Auto mode the model runs commands without asking, inside the temporary project.
-- **Scoring:** afterwards an objective check decides whether the task was solved, from the project files and the answer. `PATCH_BENCH_REPS` (default 2) and `PATCH_BENCH_TASKS` (comma-separated ids) choose what runs.
+- **Scoring:** afterwards an objective check decides whether the task was solved, from the project files and the answer, often with a test the model never saw. `PATCH_BENCH_REPS` (default 2), `PATCH_BENCH_SUITE` and `PATCH_BENCH_TASKS` (comma-separated ids) choose what runs.
+- **Self-test:** `PATCH_BENCH_SELFTEST=1` runs every check without the API. It must reject the untouched project, and for the large suite accept a reference solution, so no task can be passed by doing nothing, and none is impossible.
 
-The five tasks use Node's built-in test runner, so no `npm install` is needed:
+**Small suite:** five tiny projects using Node's built-in test runner, so no `npm install` is needed:
 
 | Task          | What the model is asked                                  | How it is checked                                                  |
 | ------------- | -------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -271,9 +279,25 @@ The five tasks use Node's built-in test runner, so no `npm install` is needed:
 | `question`    | Say where the retry delay is computed and its maximum    | The answer names the file, function and 8,000 ms; no file changed  |
 | `cli-fix`     | Fix an off-by-one in a CLI and check it by running it    | The command prints the right lines for `--count 3` and no argument |
 
+**Large suite:** seven tasks on a copy of this repository at a pinned commit (`LARGE_BASE`, currently `8b0d536`): about 10k lines of TypeScript with its unit tests, typecheck and `AGENTS.md`, which the app adds to the model's instructions.
+
+- **Isolation:** each run gets a fresh copy with no git remote, so nothing can be pushed, and a shared copy of `node_modules`, not the checkout's.
+- **Bugs:** tasks that need one inject it by exact text replacement. After a newer `LARGE_BASE`, run the self-test to confirm they still apply.
+- **Instructions:** every prompt ends with "don't commit or push; check with `npm run typecheck` and `npm run test:unit`, not the end-to-end tests".
+
+| Task               | What the model is asked                                                               | How it is checked                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `export-bug`       | Fix exported file names that keep `?` and `\` (a symptom, no file named)              | Existing tests unchanged and passing, plus hidden cases for `?`, `\`, `:`, `\|`, `*`         |
+| `retry-limit`      | Failing requests are retried 5 times, the README promises 4: fix the code             | Retry tests unchanged and passing, `MAX_RETRIES` still 4, README unchanged                   |
+| `ipc-channel`      | Add a `history:count` IPC channel following the repository's rules                    | Channel in the type map **and** the `INVOKE` list, a handler in `index.ts`, typecheck passes |
+| `rename-constant`  | Rename `TRANSCRIPT_LIMITS` to `TRANSCRIPT_CAPS` in code, tests and docs               | Old name nowhere in `src/`, `tests/`, `docs/`, README, AGENTS.md; typecheck and tests pass   |
+| `write-tests`      | Write tests for the network allow-list (the existing tests are removed first)         | New tests pass and catch at least 2 of 3 injected bugs (mutants) in the source               |
+| `question-decline` | What happens to the rest of a tool batch after a decline without feedback, and where? | The answer names `agent.ts`, `runTools` and that the rest is not run; no file changed        |
+| `settings-cap`     | Cap `maxIndexedFiles` at 50,000 when settings load or save, with a test               | Hidden test of load and save, a new test mentioning 50,000 passes, typecheck passes          |
+
 ### Results
 
-Claude Sonnet 5.5, 2 runs per task, on the machine above:
+Small suite, Claude Sonnet 5.5, 2 runs per task, on the machine above:
 
 | Task          | Solved | Time    | Tool calls | Output tokens | Cache read / write (tokens) | Cost         |
 | ------------- | ------ | ------- | ---------- | ------------- | --------------------------- | ------------ |
@@ -285,4 +309,26 @@ Claude Sonnet 5.5, 2 runs per task, on the machine above:
 
 - **Prompt caching works:** uncached input was 8–14 tokens per task; everything else was read from or written to the cache. About 3.8k tokens (system prompt and tools) are written to the cache once per new chat, which is most of the cost of a short task.
 - **Failed tool calls are the model's own checks.** `fix-bugs` had one failed tool call in each run. A rerun that records them showed it was the model's first `npm test`, which exits 1 because the tests fail before the fix. `rename` had one in each of the first two runs and none in the rerun, so its cause was not recorded.
-- **Reading the numbers:** these are small tasks, two runs each, on one model, so the benchmark is a regression check for the app (tools, prompts, the agent loop) rather than a measure of model ability. Rerun it after changing the system prompt, tool descriptions or the loop, and compare solved counts, tool calls and cost.
+  Large suite, Claude Sonnet 5.5, 2 runs per task:
+
+| Task               | Solved | Time    | Tool calls | Output tokens | Cache read / write (tokens) | Cost         |
+| ------------------ | ------ | ------- | ---------- | ------------- | --------------------------- | ------------ |
+| `export-bug`       | 2 / 2  | 32–42 s | 5–11       | 1.0–1.7k      | 20k–77k / 9–13k             | $0.036–0.064 |
+| `retry-limit`      | 2 / 2  | 33–35 s | 6          | 1.0k          | 40k / 14k                   | $0.053–0.054 |
+| `ipc-channel`      | 2 / 2  | 45–53 s | 19–22      | 2.7–3.0k      | 121k / 18–20k               | $0.097–0.106 |
+| `rename-constant`  | 2 / 2  | 29–31 s | 3–4        | 0.9k          | 12k–19k / 8k                | $0.032–0.033 |
+| `write-tests`      | 2 / 2  | 72–81 s | 6–8        | 7.4–8.3k      | 43k–47k / 14–16k            | $0.116–0.133 |
+| `question-decline` | 2 / 2  | 13–17 s | 4          | 1.0k          | 38k–52k / 13–17k            | $0.049–0.063 |
+| `settings-cap`     | 2 / 2  | 57–60 s | 24–26      | 3.7–3.8k      | 159k–161k / 21k             | $0.123–0.124 |
+
+- **It follows the repository's rules.** `ipc-channel` added the channel to both the type map and the `INVOKE` list, plus a handler, as `AGENTS.md` requires, in both runs. `retry-limit` fixed the comparison rather than changing `MAX_RETRIES` or the README.
+- **It finds bugs from symptoms.** `export-bug` names no file; both runs found the export file-name function and fixed it so the hidden cases pass too.
+- **Its tests catch real bugs.** Both `write-tests` runs caught all 3 mutants. This task also showed that the repository's own tests for this function caught only 1 of the 3 (no non-HTTP URL with a host, no padded list entry). They were strengthened on 2026-10-01 (`7bf7e3f`).
+- **Failed tool calls were recovered within the run:** 6 in 14 runs:
+  - a `grep` with no matches;
+  - in both `rename-constant` runs, a PowerShell loop the model wrote to replace the name in three files, which failed and was fixed on the next try;
+  - its own new tests failing on the first run, then fixed;
+  - one `edit_file` whose `old_string` did not match.
+- **Cost grows with exploration, not codebase size.** `settings-cap` and `ipc-channel` read the most (about 120–160k cached tokens over 20+ tool calls), but still cost about $0.10–0.12 because almost all of it is cache reads.
+- **Not counted:** the cost column is the Anthropic API only. When an OpenAI key is saved, `search_code` embeds the project for semantic search, which adds a few cents per large run.
+- **Reading the numbers:** 12 tasks, two runs each, on one model. The benchmark is a regression check for the app (tools, prompts, the agent loop) rather than a measure of model ability. Rerun it after changing the system prompt, tool descriptions or the loop, and compare solved counts, tool calls and cost. Harder, longer tasks (multi-step features, flaky or concurrency bugs, larger refactors) and other models (Opus 5.5, GPT-6) are not covered yet.

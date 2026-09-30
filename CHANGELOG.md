@@ -49,8 +49,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Fixed
 
-- Look up projects by their real path in `ProjectStore`, so macOS's `/var` to `/private/var` rewrite no longer makes a stored project look unknown.
-
+- Closing, removing or editing a project whose path was given through a link (such as macOS's `/var` for `/private/var`) no longer fails with "Unknown project": `ProjectStore` looks every path up by its real path, like opening already did. A project whose folder later becomes a link elsewhere can still be closed and removed.
 - Prevent commands from starting after Stop, cancel foreground and active-project background process trees (including startup waits), and avoid hangs when child processes retain output pipes. Other projects' background jobs remain independent.
 - Serialize Undo against sending, resuming, compaction and project switching; use application-generated tool-card IDs to prevent collisions from reused provider IDs.
 - Keep failed or cancelled Anthropic continuation responses out of saved history and retry transient failures reported inside streams.

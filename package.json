@@ -16,8 +16,8 @@
     "test:unit": "vitest run --project unit --passWithNoTests",
     "test:e2e": "npm run build && vitest run --project e2e",
     "perf": "npm run build && vitest run --project perf",
-    "pack": "node scripts/ensure-closed.mjs && npm run build && electron-builder --dir",
-    "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder"
+    "pack": "node scripts/ensure-closed.mjs && npm run build && electron-builder --dir --publish never",
+    "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder --publish never"
   },
   "build": {
     "appId": "codecompanion",

@@ -9,6 +9,10 @@ export interface ToolPreviewView {
   diffOmittedLines?: number;
   // Set when the command text was cut: the start is kept, these many characters are left out.
   commandOmittedChars?: number;
+  // Free-form markdown shown on the card instead of a diff or command (plan mode).
+  text?: string;
+  // Set when that text was cut: the start is kept, these many characters are left out.
+  textOmittedChars?: number;
 }
 
 export type ToolStatus = 'awaiting-approval' | 'running' | 'done' | 'error' | 'declined';
@@ -154,7 +158,14 @@ export interface UserMessage {
 // How much of a tool's output, diff and command the transcript keeps. Beyond this the UI would slow down (the
 // transcript re-renders a card on every chunk of output, and a diff is laid out line by line) and saved chats grow.
 // What the model sees is not affected; the tools cut their own results.
-export const TRANSCRIPT_LIMITS = { outputChars: 20_000, diffLines: 2_000, diffChars: 200_000, commandChars: 20_000 };
+export const TRANSCRIPT_LIMITS = {
+  outputChars: 20_000,
+  diffLines: 2_000,
+  diffChars: 200_000,
+  commandChars: 20_000,
+  // A plan is meant to be read in a minute; beyond this the card keeps the start and says how much was left out.
+  planChars: 20_000,
+};
 
 const count = (value: number) => value.toLocaleString('en-US');
 
@@ -172,6 +183,10 @@ export function diffNotice(omittedLines: number, awaitingApproval: boolean): str
 
 export function commandNotice(omittedChars: number): string {
   return `Command too long to show in full: the last ${count(omittedChars)} characters are not shown.`;
+}
+
+export function planNotice(omittedChars: number): string {
+  return `Plan too long to show in full: the last ${count(omittedChars)} characters are not shown. Approving applies to the whole plan, including the part not shown.`;
 }
 
 // Keeps the end of the output, adding what is cut to the count of characters already left out.
@@ -205,6 +220,13 @@ export function limitPreview(preview: ToolPreviewView | undefined): ToolPreviewV
       ...result,
       command: preview.command.slice(0, TRANSCRIPT_LIMITS.commandChars),
       commandOmittedChars: preview.command.length - TRANSCRIPT_LIMITS.commandChars,
+    };
+  }
+  if (preview.text && preview.text.length > TRANSCRIPT_LIMITS.planChars) {
+    result = {
+      ...result,
+      text: preview.text.slice(0, TRANSCRIPT_LIMITS.planChars),
+      textOmittedChars: preview.text.length - TRANSCRIPT_LIMITS.planChars,
     };
   }
   return result;

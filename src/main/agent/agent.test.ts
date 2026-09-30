@@ -268,6 +268,45 @@ describe('agent loop', () => {
     expect(ran).toEqual(['change:z']);
   });
 
+  it('decides a plan before running the other calls in the same batch', async () => {
+    const plan = defineTool({
+      name: 'propose_plan',
+      description: 'plan',
+      schema: z.object({ summary: z.string() }),
+      requiresApproval: true,
+      alwaysAsk: true,
+      async run() {
+        ran.push('plan');
+        return { content: 'The user approved the plan.' };
+      },
+    });
+    const { session, conversation, nextApproval } = setup(
+      [
+        {
+          toolCalls: [
+            { id: 'edit', name: 'change', input: { to: 'x' } },
+            { id: 'plan', name: 'propose_plan', input: { summary: 'Do it' } },
+          ],
+        },
+        { text: 'continuing' },
+      ],
+      { mode: 'auto', tools: () => [lookTool, changeTool, plan] },
+    );
+    const sending = session.send({ text: 'go' });
+    const id = await nextApproval();
+    expect(ran).toEqual([]);
+    session.decide(id, { approved: false, feedback: 'not yet' });
+    await sending;
+
+    expect(ran).toEqual([]);
+    expect(conversation.turns).toBe(2);
+    const results = conversation.toolResults[0]!;
+    expect(results.find((result) => result.id === 'plan')!.content).toContain('not yet');
+    expect(results.find((result) => result.id === 'edit')!.content).toBe(
+      'Not run: wait for the plan decision, then call this again.',
+    );
+  });
+
   it('rejects invalid tool input without running the tool', async () => {
     const { session, conversation } = setup([
       { toolCalls: [{ id: 't1', name: 'look', input: { what: 42 } }] },

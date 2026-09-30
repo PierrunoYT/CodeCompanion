@@ -120,6 +120,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     h('option', { value: 'ask', selected: settings.approvalMode === 'ask' }, 'Ask before edits and commands'),
     h('option', { value: 'auto', selected: settings.approvalMode === 'auto' }, 'Run edits and commands without asking'),
   );
+  const planMode = h('input', { type: 'checkbox', class: 'form-check-input', checked: settings.planMode });
   const allowedCommands = h('textarea', {
     class: 'form-control font-monospace',
     rows: 4,
@@ -234,6 +235,16 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     ),
     field('Approvals', approval),
     field(
+      'Plan mode',
+      h(
+        'div',
+        { class: 'form-check' },
+        planMode,
+        h('label', { class: 'form-check-label' }, 'Propose a plan before multi-step changes'),
+      ),
+      'The assistant shows what it intends to do as an approval card before changing files or running commands. The card still appears in Auto mode. Approving lets the work begin; declining with a note sends that note back, and declining with nothing stops the task.',
+    ),
+    field(
       'Commands allowed without asking',
       allowedCommands,
       'One per line, used in "Ask" mode. "npm test" also allows "npm test -- foo". Commands with ; & | > < ` $ ( ) { } or a line break are always asked about. File edits are always asked about.',
@@ -281,6 +292,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
         model,
         effort: effort.value as Effort,
         approvalMode: approval.value as Settings['approvalMode'],
+        planMode: planMode.checked,
         allowedCommands: allowedCommands.value.trim(),
         allowedNetworkHosts: allowedNetworkHosts.value.trim(),
         theme: theme.value as Settings['theme'],

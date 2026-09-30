@@ -1,5 +1,12 @@
 import { markAnnounced, newAnnouncements } from '@shared/announce';
-import { commandNotice, diffNotice, outputNotice, type ApprovalDecision, type TranscriptItem } from '@shared/chat';
+import {
+  commandNotice,
+  diffNotice,
+  outputNotice,
+  planNotice,
+  type ApprovalDecision,
+  type TranscriptItem,
+} from '@shared/chat';
 import { h, icon, trustedHtml } from '../dom';
 import { renderDiff, renderMarkdown } from '../markdown';
 
@@ -327,7 +334,7 @@ export class TranscriptView {
       return h('div', { class: 'tool-card running', dataset: { id: item.id } }, header, output());
     }
 
-    const hasBody = Boolean(item.preview?.diff || item.preview?.command || item.output);
+    const hasBody = Boolean(item.preview?.diff || item.preview?.command || item.preview?.text || item.output);
     return h(
       'div',
       { class: `tool-card ${item.status}`, dataset: { id: item.id } },
@@ -365,6 +372,15 @@ export class TranscriptView {
         {},
         h('pre', { class: 'tool-command' }, `$ ${preview.command}${preview.commandOmittedChars ? ' …' : ''}`),
         preview.commandOmittedChars ? notice(commandNotice(preview.commandOmittedChars)) : null,
+      );
+    }
+    // Free-form preview text (the plan in plan mode), rendered as sanitized markdown.
+    if (preview?.text) {
+      return h(
+        'div',
+        {},
+        trustedHtml('div', 'markdown tool-plan', renderMarkdown(preview.text)),
+        preview.textOmittedChars ? notice(planNotice(preview.textOmittedChars)) : null,
       );
     }
     return null;

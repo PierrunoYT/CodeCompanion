@@ -26,6 +26,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Stricter TypeScript checks (`noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters`, `forceConsistentCasingInFileNames`) in both tsconfigs, and a declared minimum Node version (`engines.node` `>=22.12.0`).
 - A task interrupted by a crash can be resumed: the conversation is checkpointed after every tool batch, and on load a chat whose history ends with unanswered tool calls offers Resume, which repairs the history with synthetic failed results and continues.
 - Model Context Protocol (MCP) client support: configure servers in Settings as JSON (stdio child processes or Streamable HTTP endpoints). Their tools are offered to the agent namespaced as `mcp_<server>_<tool>` and always ask for approval, including in Auto mode. Per-server connection status is shown in the dialog. A server's environment variables and HTTP headers are encrypted at rest and never sent to the renderer, and a server that fails to connect, or the app quitting, closes its process tree instead of leaving it running.
+- Plan mode (Settings, "Propose a plan before multi-step changes"): the agent calls `propose_plan` and the plan appears as an approval card with rendered markdown, including in Auto mode. Approving lets the work begin; declining with a note sends the feedback back to the model, and declining with nothing stops the task. Other calls sent in the same response are not run until the plan is decided.
 
 ### Changed
 

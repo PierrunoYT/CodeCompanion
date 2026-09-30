@@ -22,6 +22,13 @@ describe('isCommandAllowed', () => {
     expect(isCommandAllowed('git statuses', allowed)).toBe(false);
   });
 
+  it('still allows ordinary arguments, including scoped packages, quotes and paths', () => {
+    const list = 'npm install\nnpx vitest';
+    expect(isCommandAllowed('npm install @types/node --save-dev', list)).toBe(true);
+    expect(isCommandAllowed('npx vitest run "src/a b.test.ts" -t "adds numbers"', list)).toBe(true);
+    expect(isCommandAllowed('npx vitest run src/main/agent --reporter=verbose', list)).toBe(true);
+  });
+
   it('rejects commands that are not on the list', () => {
     expect(isCommandAllowed('rm -rf .', allowed)).toBe(false);
     expect(isCommandAllowed('npm install', allowed)).toBe(false);
@@ -38,6 +45,12 @@ describe('isCommandAllowed', () => {
     'npm test `whoami`',
     'npm test $(whoami)',
     'npm test\nrm -rf .',
+    // PowerShell runs these even as arguments of a program.
+    'npm test (Remove-Item -Recurse -Force src)',
+    'npm test @(Remove-Item src)',
+    'npm test {Remove-Item src}',
+    'npm test $env:USERPROFILE',
+    'npm test ${HOME}',
   ])('never allows shell operators: %s', (command) => {
     expect(isCommandAllowed(command, allowed)).toBe(false);
   });

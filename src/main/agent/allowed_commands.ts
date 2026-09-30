@@ -1,7 +1,9 @@
-// Characters that let a shell run something else or redirect output: chaining (; & |), substitution (` $( ), and
-// redirection (< >), plus line breaks. A command containing any of them is never pre-approved, so an allowed prefix
-// such as "npm test" cannot be extended into "npm test && rm -rf ." or "npm test > ~/.bashrc".
-const SHELL_OPERATORS = /[;&|`<>\r\n]|\$\(/;
+// Characters that let a shell run something else or redirect output: chaining (; & |), redirection (< >), line
+// breaks, and anything that evaluates: backticks, `$` (variables and `$(...)`), parentheses and braces. On Windows,
+// commands run in PowerShell, which runs `(...)`, `@(...)` and `{...}` even inside the arguments of a program:
+// `npm test (Remove-Item -Recurse src)` deletes src. A command containing any of these is never pre-approved, so an
+// allowed prefix such as "npm test" cannot be extended into something else.
+const SHELL_OPERATORS = /[;&|`<>\r\n$(){}]/;
 
 export function parseAllowedCommands(setting: string): string[] {
   return setting

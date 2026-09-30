@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -55,6 +55,25 @@ describe('Workspace', () => {
     expect(() => context.workspace.resolve('../outside.txt')).toThrow(ToolError);
     expect(() => context.workspace.resolve(join(tmpdir(), 'x.txt'))).toThrow(/outside the project/);
     expect(context.workspace.resolve('src/app.ts')).toBe(join(context.workspace.root, 'src', 'app.ts'));
+  });
+
+  it('follows a folder link for a file that does not exist yet, so nothing is written outside the project', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'cc-outside-'));
+    try {
+      // A junction needs no special rights on Windows; elsewhere it is a plain directory symlink.
+      symlinkSync(outside, join(root, 'link'), 'junction');
+      expect(() => context.workspace.resolve('link/new.txt')).toThrow(/outside the project/);
+      expect(() => context.workspace.resolve('link/deeper/new.txt')).toThrow(/outside the project/);
+      await expect(call(writeFileTool, { path: 'link/new.txt', content: 'escaped' })).rejects.toThrow(/outside the project/);
+      expect(existsSync(join(outside, 'new.txt'))).toBe(false);
+
+      // A link that stays inside the project is fine, and so are new files in new folders.
+      symlinkSync(join(root, 'src'), join(root, 'inner'), 'junction');
+      expect(context.workspace.resolve('inner/new.ts')).toBe(join(context.workspace.root, 'src', 'new.ts'));
+      expect(context.workspace.resolve('brand/new/dir/file.ts')).toBe(join(context.workspace.root, 'brand', 'new', 'dir', 'file.ts'));
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 
   it('skips .gitignore matches and node_modules when listing', async () => {

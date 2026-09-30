@@ -1,11 +1,35 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import ignore, { type Ignore } from 'ignore';
 import { ToolError } from './types';
 
 // Always skipped when listing, searching or indexing, in addition to .gitignore.
 const ALWAYS_IGNORED = ['.git/', 'node_modules/', '.DS_Store', 'Thumbs.db'];
+
+// The real path of `target`: its deepest part that exists (a file, a folder or a link) is resolved through any links,
+// and the missing rest is appended. Null for a link that leads nowhere, whose destination cannot be checked.
+function realPathAllowingMissing(target: string): string | null {
+  const missing: string[] = [];
+  let current = target;
+  for (;;) {
+    try {
+      lstatSync(current);
+      break;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return target;
+      missing.unshift(basename(current));
+      current = parent;
+    }
+  }
+  try {
+    const real = realpathSync(current);
+    return missing.length > 0 ? join(real, ...missing) : real;
+  } catch {
+    return null;
+  }
+}
 
 // The project the agent works in. Every path from the model is resolved against the root and must stay inside it.
 export class Workspace {
@@ -20,8 +44,10 @@ export class Workspace {
   resolve(path: string): string {
     if (!path || typeof path !== 'string') throw new ToolError('A file path is required.');
     const target = resolve(this.root, path);
-    // Follow symlinks for existing paths so a link cannot point the agent outside the project.
-    const real = existsSync(target) ? realpathSync(target) : target;
+    // Follow links so none can point the agent outside the project, including for a file that does not exist yet:
+    // `link/new.txt`, where `link` is a folder link to somewhere else, must be checked where it would really be written.
+    const real = realPathAllowingMissing(target);
+    if (real === null) throw new ToolError(`Path is outside the project: ${path}`);
     const rel = relative(this.root, real);
     if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       throw new ToolError(`Path is outside the project: ${path}`);

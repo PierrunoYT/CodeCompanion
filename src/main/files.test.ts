@@ -144,6 +144,13 @@ describe('openInEditor', () => {
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 
+  it.runIf(process.platform !== 'win32')('refuses file names that the shell would expand on macOS and Linux', () => {
+    for (const name of ['$(touch pwned).js', '`id`.js', '$HOME.js', 'a\\b.js']) {
+      expect(() => openInEditor('code', dir, name)).toThrow('Unsupported characters in file path.');
+    }
+    expect(mocks.spawn).not.toHaveBeenCalled();
+  });
+
   it('ignores errors from an editor that cannot be started', () => {
     const on = vi.fn();
     mocks.spawn.mockReturnValue({ on, unref: mocks.unref });

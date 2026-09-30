@@ -183,7 +183,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     field(
       'Commands allowed without asking',
       allowedCommands,
-      'One per line, used in "Ask" mode. "npm test" also allows "npm test -- foo". Commands with ; & | > < ` or $( are always asked about. File edits are always asked about.',
+      'One per line, used in "Ask" mode. "npm test" also allows "npm test -- foo". Commands with ; & | > < ` $ ( ) { } or a line break are always asked about. File edits are always asked about.',
     ),
     field(
       'Network hosts allowed without asking',

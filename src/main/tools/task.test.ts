@@ -6,9 +6,10 @@ import { z } from 'zod';
 import type { TurnResult, TurnRequest, UserInput } from '../llm/types';
 import type { Conversation, ToolResult } from '../llm/types';
 import { SUBAGENT_MAX_TURNS } from '../agent/agent';
+import { AnthropicConversation, createAnthropicClient } from '../llm/anthropic';
 import { editFileTool } from './files';
 import { defineTool, type ToolContext } from './types';
-import { createTaskTool } from './task';
+import { createTaskTool, subagentConversation } from './task';
 import { Workspace } from './workspace';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
@@ -283,5 +284,73 @@ describe('task tool (subagent)', () => {
     });
     await taskTool.run({ task: 'Look around' }, context());
     expect(recorded).toEqual([2]);
+  });
+
+  it('counts the usage of the turns that ran when the subagent fails', async () => {
+    const recorded: number[] = [];
+    const taskTool = createTaskTool({
+      createConversation: () =>
+        new ScriptedConversation([
+          { toolCalls: [{ id: 't1', name: 'read_file', input: { path: 'a.ts' } }] },
+          () => Promise.reject(new Error('provider exploded')),
+        ]),
+      system: 'system prompt',
+      tools: () => [readTool],
+      recordUsage: (usage) => recorded.push(usage.inputTokens),
+    });
+    await expect(taskTool.run({ task: 'Look around' }, context())).rejects.toThrow(/provider exploded/);
+    expect(recorded).toEqual([2]);
+  });
+
+  it('does not answer with an earlier turn when the final turn has no text', async () => {
+    const taskTool = createTaskTool({
+      createConversation: () =>
+        new ScriptedConversation([
+          { text: 'Let me check the callers…', toolCalls: [{ id: 't1', name: 'read_file', input: { path: 'a.ts' } }] },
+          { text: '' },
+        ]),
+      system: 'system prompt',
+      tools: () => [readTool],
+    });
+    const output = await taskTool.run({ task: 'Find every caller' }, context());
+    expect(output.isError).toBe(true);
+    expect(output.content).toContain('did not finish');
+    expect(output.content).not.toContain('Let me check the callers');
+  });
+});
+
+describe('subagentConversation', () => {
+  it("starts empty on the chat's model and does not inherit the parent's compaction", () => {
+    const client = createAnthropicClient('sk-test', 'http://127.0.0.1:1');
+    const parent = new AnthropicConversation(client, {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+      messages: [
+        { role: 'user', content: 'Refactor the parser.' },
+        { role: 'assistant', content: 'Working on it.' },
+        { role: 'user', content: 'Also the lexer.' },
+      ],
+      compaction: { summary: 'PARENT SUMMARY', keepFrom: 2 },
+    });
+
+    const subagent = subagentConversation(
+      parent,
+      (saved) =>
+        new AnthropicConversation(client, {
+          model: saved.model,
+          effort: 'high',
+          messages: saved.messages as never,
+          compaction: saved.compaction ?? null,
+        }),
+    );
+    subagent.addUserMessage({ text: 'Where is the lexer defined?' });
+
+    expect(subagent.model).toBe('claude-opus-5-5');
+    const sent = JSON.stringify(
+      (subagent as AnthropicConversation).buildParams({ system: 'system', tools: [] }).messages,
+    );
+    expect(sent).toContain('Where is the lexer defined?');
+    expect(sent).not.toContain('PARENT SUMMARY');
+    expect(sent).not.toContain('Refactor the parser');
   });
 });

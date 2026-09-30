@@ -16,7 +16,7 @@ import type { SettingsStore } from './settings';
 import type { EditBackups } from './tools/edit_backups';
 import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
-import { createTaskTool } from './tools/task';
+import { createTaskTool, subagentConversation } from './tools/task';
 import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
 import type { McpHub } from './tools/mcp';
@@ -265,10 +265,7 @@ export class ChatManager {
     };
     const taskTool = createTaskTool({
       // The chat keeps its own model; a later change in Settings must not move the subagent to another provider.
-      createConversation: () => {
-        const saved = conversation.serialize();
-        return this.deps.llm.restoreConversation({ ...saved, messages: [] });
-      },
+      createConversation: () => subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved)),
       system,
       tools: sessionTools,
       recordUsage: (usage) => session.recordUsage(usage),

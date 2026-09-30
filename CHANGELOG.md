@@ -4,6 +4,8 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-30
+
 ### Security
 - The command allow-list ("Commands allowed without asking") could be bypassed on Windows. PowerShell runs `(...)` and `{...}` even inside a program's arguments, so with `npm test` allowed, `npm test (Remove-Item -Recurse src)` ran without an approval card. Commands containing `$`, `(`, `)`, `{` or `}` are now always asked about, as `; & | < >`, backticks and line breaks already were.
 - A new file could be written outside the project through a folder link inside it (`link/new.txt` with `link` pointing elsewhere), since only paths that already existed were resolved through links. The deepest existing part of a path is now resolved, and a link that leads nowhere is refused.

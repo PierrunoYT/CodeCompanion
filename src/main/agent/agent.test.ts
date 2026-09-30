@@ -286,6 +286,19 @@ describe('agent loop', () => {
     expect(session.snapshot().resumable).toBe(false);
   });
 
+  it('does not offer resume when a stop arrives as the run finishes on its own', async () => {
+    let stopNow = () => {};
+    const { session } = setup([
+      async () => {
+        stopNow();
+        return { text: 'Done.' };
+      },
+    ]);
+    stopNow = () => session.stop();
+    await session.send({ text: 'hi' });
+    expect(session.snapshot().resumable).toBe(false);
+  });
+
   it('resumes an aborted streaming turn and prevents simultaneous or duplicate resumes', async () => {
     const { session, conversation } = setup([
       (request) =>

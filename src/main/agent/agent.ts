@@ -38,21 +38,22 @@ export class Agent {
     this.usage = { ...value, cacheWriteTokens: value.cacheWriteTokens ?? 0 };
   }
 
-  async send(input: UserInput, signal: AbortSignal): Promise<void> {
+  // send and resume resolve to true when the run was cut short by a stop, and false when it finished on its own.
+  async send(input: UserInput, signal: AbortSignal): Promise<boolean> {
     this.options.conversation.addUserMessage(input);
-    await this.run(signal);
+    return this.run(signal);
   }
 
-  async resume(signal: AbortSignal): Promise<void> {
+  async resume(signal: AbortSignal): Promise<boolean> {
     this.options.conversation.addUserMessage({ text: RESUME_INSTRUCTION });
-    await this.run(signal);
+    return this.run(signal);
   }
 
-  private async run(signal: AbortSignal): Promise<void> {
+  private async run(signal: AbortSignal): Promise<boolean> {
     const { conversation, emit } = this.options;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      if (signal.aborted) return;
+      if (signal.aborted) return true;
       const tools = this.options.tools();
       const messageId = randomUUID();
       emit({ type: 'assistant-start', id: messageId });
@@ -105,15 +106,16 @@ export class Agent {
         if (result.stopReason === 'max_tokens') {
           emit({ type: 'notice', id: randomUUID(), text: 'The response hit the output limit and may be incomplete.' });
         }
-        return;
+        return false;
       }
 
       const { results, stop } = await this.runTools(tools, result.toolCalls, result.stopReason === 'max_tokens', signal);
       conversation.addToolResults(results);
-      if (stop || signal.aborted) return;
+      if (stop || signal.aborted) return signal.aborted;
     }
 
     emit({ type: 'notice', id: randomUUID(), text: `Stopped after ${MAX_TURNS} steps.` });
+    return false;
   }
 
   // Every tool call gets a result, even when skipped, because the API requires one per call.

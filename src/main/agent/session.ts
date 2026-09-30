@@ -139,21 +139,24 @@ export class ChatSession {
     return this.run((signal) => this.agent.resume(signal));
   }
 
-  private async run(work: (signal: AbortSignal) => Promise<void>): Promise<void> {
+  private async run(work: (signal: AbortSignal) => Promise<boolean>): Promise<void> {
     const controller = new AbortController();
     this.controller = controller;
     this.stopRequested = false;
+    let interrupted = false;
     this.emit({ type: 'busy', busy: true });
     try {
-      await work(controller.signal);
+      interrupted = await work(controller.signal);
     } catch (error) {
       if (controller.signal.aborted) {
+        interrupted = true;
         this.emit({ type: 'notice', id: randomUUID(), text: 'Stopped.' });
       } else {
         this.emit({ type: 'error', id: randomUUID(), text: error instanceof Error ? error.message : String(error) });
       }
     } finally {
-      const stopped = this.stopRequested;
+      // A stop that arrives as the run finishes on its own leaves nothing to resume.
+      const stopped = this.stopRequested && interrupted;
       this.controller = null;
       this.rejectPendingApprovals();
       if (stopped) this.setResumable(true);

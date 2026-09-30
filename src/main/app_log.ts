@@ -22,7 +22,7 @@ function clip(text: string, limit: number): string {
 }
 
 // Local log of crashes and other problems (`logs/app.log.jsonl` in the user data folder). Entries hold what went wrong
-// and where, never chat text, file contents or API keys, and the file is never sent anywhere. Until a file is set
+// and where, never chat history or API keys (messages can still mention a path), and the file is never sent anywhere. Until a file is set
 // (the user data folder is only known once the app starts) entries are dropped.
 export class AppLog {
   private readonly log = new JsonlLog(null);

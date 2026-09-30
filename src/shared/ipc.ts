@@ -26,12 +26,20 @@ export interface IndexStatus {
   chunks: number;
 }
 
+// An error that reached the top of the UI, for the local crash log. Message and stack only, never page content.
+export interface RendererErrorReport {
+  source: 'error' | 'unhandledrejection';
+  message: string;
+  stack?: string;
+}
+
 export type MenuCommand = 'open-project' | 'new-chat' | 'stop' | 'settings';
 
 export type ImageAttachment = NonNullable<UserMessage['images']>[number] & { name: string };
 
 export interface InvokeApi {
   'app:info': () => AppInfo;
+  'log:renderer-error': (report: RendererErrorReport) => void;
 
   'settings:get': () => SettingsView;
   'settings:update': (patch: Partial<Settings>) => SettingsView;
@@ -99,6 +107,7 @@ export type EventChannel = keyof EventMap;
 // without listing it here is a compile error.
 const INVOKE: Record<InvokeChannel, true> = {
   'app:info': true,
+  'log:renderer-error': true,
   'settings:get': true,
   'settings:update': true,
   'settings:set-secret': true,

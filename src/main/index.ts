@@ -13,6 +13,7 @@ import { createOpenAIClient } from './llm/openai';
 import { CodeIndex, openAIEmbedder, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
+import { RendererErrorReporter } from './renderer_errors';
 import { SettingsStore } from './settings';
 import { Workspace } from './tools/workspace';
 import type { IndexStatus } from '@shared/ipc';
@@ -141,6 +142,8 @@ function start(): void {
   };
 
   handle('app:info', () => ({ version: app.getVersion(), platform: process.platform }));
+  const rendererErrors = new RendererErrorReporter(appLog);
+  handle('log:renderer-error', (report) => rendererErrors.report(report));
 
   handle('settings:get', () => settings.view());
   handle('settings:update', (patch) => settings.update(patch));
@@ -245,7 +248,7 @@ function start(): void {
   handle('git:init', () => git().init());
 
   const openWindow = () => createMainWindow((guest) => browser.attach(guest));
-  buildMenu(() => mainWindow);
+  buildMenu(() => mainWindow, join(userData, 'logs'));
   mainWindow = openWindow();
   mainWindow.on('closed', () => (mainWindow = null));
 

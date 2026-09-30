@@ -129,7 +129,7 @@ To add a tool: create it with `defineTool` (name, description, Zod schema, `requ
 | `projects.json` | Recent projects (20) and their instructions |
 | `chats/index.json`, `chats/<uuid>.json` | Saved chats (transcript, conversation, usage) |
 | `indexes/<hash>.json` | Code search indexes |
-| `logs/app.log.jsonl` | Crashes and other problems (`AppLog` in `src/main/app_log.ts`): time, level, source, message, stack. Keys and tokens are redacted; no chat text or file contents. Local only; rotates to `.old` at 512 KB |
+| `logs/app.log.jsonl` | Crashes and other problems (`AppLog` in `src/main/app_log.ts`): time, level, source, message, stack. Keys and tokens are redacted; error messages can mention file paths, but chat history is never logged. UI errors arrive through `log:renderer-error` (`RendererErrorReporter`, capped at 100 per run). Local only; rotates to `.old` at 512 KB |
 | `logs/tool-input-errors.jsonl` | Tool calls rejected for missing fields: time, tool, model, field names only (never values). Local only; rotates to `.old` at 512 KB |
 
 Writes go through a temp file and rename. Setting `CODECOMPANION_USER_DATA` uses a different folder (tests use this).

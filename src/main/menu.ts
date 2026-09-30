@@ -1,8 +1,22 @@
-import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
+import { mkdirSync } from 'node:fs';
+import { app, BrowserWindow, Menu, shell, type MenuItemConstructorOptions } from 'electron';
 import type { MenuCommand } from '@shared/ipc';
+import { appLog } from './app_log';
 import { send } from './ipc';
 
-export function buildMenu(getWindow: () => BrowserWindow | null): void {
+// Opens the folder holding the crash and error logs in the system file manager.
+function showLogFolder(folder: string): void {
+  try {
+    mkdirSync(folder, { recursive: true });
+  } catch {
+    // openPath below reports the problem.
+  }
+  void shell.openPath(folder).then((problem) => {
+    if (problem) appLog.warn('menu', `Could not open the log folder: ${problem}`);
+  });
+}
+
+export function buildMenu(getWindow: () => BrowserWindow | null, logFolder: string): void {
   const command = (name: MenuCommand) => () => send(getWindow(), 'menu:command', name);
   const isMac = process.platform === 'darwin';
 
@@ -36,6 +50,7 @@ export function buildMenu(getWindow: () => BrowserWindow | null): void {
       ],
     },
     { role: 'windowMenu' },
+    { role: 'help', submenu: [{ label: 'Show Log Folder', click: () => showLogFolder(logFolder) }] },
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

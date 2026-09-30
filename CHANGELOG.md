@@ -5,7 +5,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Added
-- Log crashes and other problems to `logs/app.log.jsonl` in the user data folder: uncaught errors and unhandled rejections, a crashed or hung UI, helper processes that ended, failed IPC calls (channel only), the app page failing to load, and errors shown in the chat. Entries have no chat text or file contents, API keys and tokens are redacted, and the file stays on the machine and rotates at 512 KB.
+- Log crashes and other problems to `logs/app.log.jsonl` in the user data folder: uncaught errors and unhandled rejections, a crashed or hung UI, helper processes that ended, failed IPC calls (channel and error message, not the arguments), the app page failing to load, errors that reach the top of the UI, and errors shown in the chat. Entries hold error messages and stacks, which can mention file paths, but no chat history; API keys and tokens are redacted. The file stays on the machine and rotates at 512 KB. Help → Show Log Folder opens it.
 - Log tool calls that arrive with required fields missing (tool, model, missing and received field names, never values) to `logs/tool-input-errors.jsonl` in the user data folder, so the dropped `new_string` problem in `edit_file` can be measured. The file stays on the machine and rotates at 512 KB.
 
 ### Changed

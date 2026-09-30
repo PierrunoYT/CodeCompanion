@@ -11,13 +11,16 @@ const tempFolderInsideRepo = spawnSync('git', ['rev-parse', '--show-toplevel'], 
 let root: string;
 let service: GitService;
 
-async function initRepo(): Promise<void> {
+async function initRepo(initialCommit = true): Promise<void> {
   const git = simpleGit({ baseDir: root });
   await git.init();
   await git.addConfig('user.name', 'Test');
   await git.addConfig('user.email', 'test@example.com');
   await git.addConfig('commit.gpgsign', 'false');
   await git.addConfig('core.autocrlf', 'false');
+  await git.addConfig('status.renames', 'true');
+  await git.addConfig('diff.renames', 'true');
+  if (!initialCommit) return;
   writeFileSync(join(root, 'a.txt'), 'one\n');
   await git.add('-A');
   await git.commit('first');
@@ -72,6 +75,49 @@ describe('GitService', () => {
     expect(onlyNew).not.toContain('+two');
   });
 
+  it('shows staged additions and working edits before the first commit', async () => {
+    await initRepo(false);
+    const git = simpleGit({ baseDir: root });
+    writeFileSync(join(root, 'initial.txt'), 'staged content\n');
+    writeFileSync(join(root, 'other.txt'), 'other staged content\n');
+    await git.add(['initial.txt', 'other.txt']);
+    writeFileSync(join(root, 'initial.txt'), 'working content\n');
+    writeFileSync(join(root, 'untracked.txt'), 'untracked content\n');
+
+    const all = await service.diff(null);
+    expect(all).toContain('+staged content');
+    expect(all).toContain('-staged content');
+    expect(all).toContain('+working content');
+    expect(all).toContain('+other staged content');
+    expect(all).toContain('+untracked content');
+
+    const selected = await service.diff('initial.txt');
+    expect(selected).toContain('+staged content');
+    expect(selected).toContain('+working content');
+    expect(selected).not.toContain('other staged content');
+    expect(selected).not.toContain('untracked content');
+  });
+
+  it('limits tracked diffs and discard to a literal filename', async () => {
+    await initRepo();
+    const git = simpleGit({ baseDir: root });
+    writeFileSync(join(root, 'file[1].txt'), 'literal baseline\n');
+    writeFileSync(join(root, 'file1.txt'), 'neighbor baseline\n');
+    await git.add(['file[1].txt', 'file1.txt']);
+    await git.commit('literal filenames');
+    writeFileSync(join(root, 'file[1].txt'), 'literal edit\n');
+    writeFileSync(join(root, 'file1.txt'), 'neighbor edit\n');
+
+    const diff = await service.diff('file[1].txt');
+    expect(diff).toContain('+literal edit');
+    expect(diff).not.toContain('neighbor edit');
+
+    const status = await service.discard('file[1].txt');
+    expect(readFileSync(join(root, 'file[1].txt'), 'utf8')).toBe('literal baseline\n');
+    expect(readFileSync(join(root, 'file1.txt'), 'utf8')).toBe('neighbor edit\n');
+    expect(status.files).toEqual([{ path: 'file1.txt', status: 'modified' }]);
+  });
+
   it('commits all changes and rejects an empty message', async () => {
     await initRepo();
     writeFileSync(join(root, 'a.txt'), 'two\n');
@@ -101,6 +147,52 @@ describe('GitService', () => {
     expect(existsSync(join(root, 'dir', 'staged.txt'))).toBe(false);
     expect(status.files).toEqual([]);
   });
+
+  it.each(['none', 'staged', 'unstaged', 'both'])(
+    'discards a staged rename with %s modifications without touching other changes',
+    async (modifications) => {
+      await initRepo();
+      const git = simpleGit({ baseDir: root });
+      const baseline = 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n';
+      writeFileSync(join(root, 'a.txt'), baseline);
+      await git.add('a.txt');
+      await git.commit('rename baseline');
+      await git.mv('a.txt', 'renamed[1].txt');
+      let content = baseline;
+      if (modifications === 'staged' || modifications === 'both') {
+        content += 'staged edit\n';
+        writeFileSync(join(root, 'renamed[1].txt'), content);
+        await git.add('renamed[1].txt');
+      }
+      if (modifications === 'unstaged' || modifications === 'both') {
+        content += 'working edit\n';
+        writeFileSync(join(root, 'renamed[1].txt'), content);
+      }
+      writeFileSync(join(root, 'unrelated.txt'), 'keep staged\n');
+      await git.add('unrelated.txt');
+      writeFileSync(join(root, 'untracked.txt'), 'keep untracked\n');
+
+      expect((await service.status()).files).toContainEqual({ path: 'renamed[1].txt', status: 'renamed' });
+      const diff = await service.diff('renamed[1].txt');
+      expect(diff).toContain('rename from a.txt');
+      expect(diff).toContain('rename to renamed[1].txt');
+      if (modifications === 'staged' || modifications === 'both') expect(diff).toContain('+staged edit');
+      if (modifications === 'unstaged' || modifications === 'both') expect(diff).toContain('+working edit');
+
+      const status = await service.discard('renamed[1].txt');
+      expect(readFileSync(join(root, 'a.txt'), 'utf8')).toBe(baseline);
+      expect(existsSync(join(root, 'renamed[1].txt'))).toBe(false);
+      expect(await git.show([':a.txt'])).toBe(baseline);
+      expect(await git.raw(['ls-files', '--', ':(literal)renamed[1].txt'])).toBe('');
+      expect(await git.diff(['--'])).toBe('');
+      expect(status.files).toEqual([
+        { path: 'unrelated.txt', status: 'added' },
+        { path: 'untracked.txt', status: 'untracked' },
+      ]);
+      expect(await git.show([':unrelated.txt'])).toBe('keep staged\n');
+      expect(readFileSync(join(root, 'untracked.txt'), 'utf8')).toBe('keep untracked\n');
+    },
+  );
 
   it('ignores a discard of a file without changes', async () => {
     await initRepo();

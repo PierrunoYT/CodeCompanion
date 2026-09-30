@@ -28,9 +28,30 @@ export class GitService {
     const files = toFiles(status).filter((file) => path === null || file.path === path);
 
     const parts: string[] = [];
-    const tracked = files.filter((file) => file.status !== 'untracked').map((file) => file.path);
-    if (tracked.length > 0) {
-      parts.push(await this.git.diff(['HEAD', '--', ...tracked]).catch(() => this.git.diff(['--', ...tracked])));
+    const originals = new Map(status.renamed.map((rename) => [rename.to, rename.from]));
+    const tracked = new Set<string>();
+    for (const file of files) {
+      if (file.status === 'untracked') continue;
+      tracked.add(file.path);
+      const original = originals.get(file.path);
+      if (original) tracked.add(original);
+    }
+    if (tracked.size > 0) {
+      const paths = [...tracked].map((path) => {
+        this.workspace.resolve(path);
+        return `:(literal)${path}`;
+      });
+      const hasHead = await this.git.revparse(['--verify', 'HEAD']).then(
+        () => true,
+        () => false,
+      );
+      if (hasHead) {
+        parts.push(await this.git.diff(['HEAD', '--', ...paths]));
+      } else {
+        // An unborn branch has no HEAD: show both the initial index and subsequent working edits.
+        parts.push(await this.git.diff(['--cached', '--', ...paths]));
+        parts.push(await this.git.diff(['--', ...paths]));
+      }
     }
     for (const file of files.filter((candidate) => candidate.status === 'untracked')) {
       const absolute = this.workspace.resolve(file.path);
@@ -49,16 +70,32 @@ export class GitService {
 
   // Reverts one file to the last commit; new (untracked) files are deleted.
   async discard(path: string): Promise<GitStatus> {
-    const file = (await this.status()).files.find((candidate) => candidate.path === path);
+    if (!(await this.isRepo())) return this.status();
+    const status = await this.git.status();
+    const file = toFiles(status).find((candidate) => candidate.path === path);
     if (!file) return this.status();
+    const absolute = this.workspace.resolve(path);
+    const literalPath = `:(literal)${path}`;
+    const rename = status.renamed.find((candidate) => candidate.to === path);
     if (file.status === 'untracked') {
-      await rm(this.workspace.resolve(path), { force: true, recursive: true });
+      await rm(absolute, { force: true, recursive: true });
+    } else if (rename) {
+      this.workspace.resolve(rename.from);
+      await this.git.raw([
+        '--literal-pathspecs',
+        'restore',
+        '--source=HEAD',
+        '--staged',
+        '--worktree',
+        '--',
+        rename.from,
+        path,
+      ]);
     } else if (file.status === 'added') {
-      await this.git.rm(['--cached', '--', path]);
-      const absolute = this.workspace.resolve(path);
+      await this.git.rm(['--cached', '--', literalPath]);
       if (existsSync(absolute)) await rm(absolute, { force: true });
     } else {
-      await this.git.checkout(['HEAD', '--', path]);
+      await this.git.checkout(['HEAD', '--', literalPath]);
     }
     return this.status();
   }

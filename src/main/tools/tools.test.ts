@@ -151,8 +151,8 @@ describe('file tools', () => {
     for (let page = 0; page < 10; page++) {
       const result = await call(readFileTool, { path: 'big.txt', offset });
       const [text, note] = result.content.split('\n\n(');
-      expect(text.length).toBeLessThanOrEqual(30_000);
-      seen.push(...text.split('\n').map((line) => line.split('\t')[1]));
+      expect(text!.length).toBeLessThanOrEqual(30_000);
+      seen.push(...text!.split('\n').map((line) => line.split('\t')[1]!));
       if (!note) break;
       const next = Number(/Use offset=(\d+)/.exec(note)![1]);
       expect(next).toBeGreaterThan(offset);
@@ -168,10 +168,10 @@ describe('file tools', () => {
     writeFileSync(join(root, 'short-lines.txt'), Array.from({ length: 50 }, (_, index) => `${index}`).join('\n'));
     const result = await call(readFileTool, { path: 'short-lines.txt', limit: 10 });
     const [text, note] = result.content.split('\n\n(');
-    expect(text.split('\n').map((line) => line.split('\t')[1])).toEqual(
+    expect(text!.split('\n').map((line) => line.split('\t')[1])).toEqual(
       Array.from({ length: 10 }, (_, index) => `${index}`),
     );
-    expect(Number(/Use offset=(\d+)/.exec(note)![1])).toBe(11);
+    expect(Number(/Use offset=(\d+)/.exec(note!)![1])).toBe(11);
   });
 
   it.each(['x'.repeat(29_998), 'x'.repeat(29_999), `${'x'.repeat(29_997)}😀${'é漢😀'.repeat(20_000)}`])(
@@ -185,8 +185,8 @@ describe('file tools', () => {
       for (let page = 0; page < 20; page++) {
         const result = await call(readFileTool, { path: 'min.js', offset, char_offset, limit: 1 });
         const [text, note] = result.content.split('\n\n(');
-        expect(text.length).toBeLessThanOrEqual(30_000);
-        for (const numbered of text.split('\n')) {
+        expect(text!.length).toBeLessThanOrEqual(30_000);
+        for (const numbered of text!.split('\n')) {
           const tab = numbered.indexOf('\t');
           const fragment = numbered.slice(tab + 1);
           expect(fragment).not.toMatch(/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/u);
@@ -345,7 +345,7 @@ describe('browser tool', () => {
     await call(browserTool, { url: 'http://localhost:3000' }, ctx);
     await call(browserTool, { url: pathToFileURL(join(root, 'index.html')).href }, ctx);
     expect(opened[0]).toBe('http://localhost:3000');
-    expect(opened[1].toLowerCase()).toContain('index.html');
+    expect(opened[1]!.toLowerCase()).toContain('index.html');
   });
 
   it('confines later browser navigation to the approved exact hostname', async () => {

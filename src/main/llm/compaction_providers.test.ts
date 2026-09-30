@@ -87,7 +87,7 @@ describe('Anthropic conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     // The first kept message is an assistant one, so the summary is a message of its own in front of it.
     expect(sent).toHaveLength(original.length - 3 + 1);
     expect(sent[0].role).toBe('user');
@@ -109,11 +109,11 @@ describe('Anthropic conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     expect(sent).toHaveLength(2);
     expect(sent[0].content).toHaveLength(2);
     expect(sent[0].content[0].text).toContain('THE SUMMARY');
-    expect(sent[0].content[1]).toEqual(original[6].content[0]);
+    expect(sent[0].content[1]).toEqual(original[6]!.content[0]);
     // The stored message was copied, not edited.
     expect(conversation.serialize().messages[6]).toEqual(original[6]);
   });
@@ -129,7 +129,7 @@ describe('Anthropic conversation compaction', () => {
     const reopened = create(saved.messages, saved.compaction);
     await reopened.runTurn(request());
     // The first conversation added its reply after the request, so compare what was sent.
-    expect(server.requests[1].body.messages).toEqual(server.requests[0].body.messages);
+    expect(server.requests[1]!.body.messages).toEqual(server.requests[0]!.body.messages);
   });
 
   it('compacts again later from the previous summary, moving the cut forward', () => {
@@ -202,7 +202,7 @@ describe('OpenAI conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     // system, the summary, then the four kept messages.
     expect(sent).toHaveLength(1 + 1 + 4);
     expect(sent[1].role).toBe('user');
@@ -222,7 +222,7 @@ describe('OpenAI conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     expect(sent).toHaveLength(2);
     expect(sent[1].content).toMatch(/^Summary of the earlier part[\s\S]*THE SUMMARY[\s\S]*LATEST/);
     expect(conversation.serialize().messages[5]).toEqual(original[5]);
@@ -240,7 +240,7 @@ describe('OpenAI conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    expect(JSON.stringify(server.requests[0].body.messages).length / 4).toBeLessThan(110_000);
+    expect(JSON.stringify(server.requests[0]!.body.messages).length / 4).toBeLessThan(110_000);
     expect(conversation.serialize().messages.slice(0, huge.length)).toEqual(huge);
   });
 });
@@ -322,7 +322,7 @@ describe('OpenAI Responses conversation compaction', () => {
     ]);
     await conversation.runTurn(request());
 
-    const input = server.requests[0].body.input;
+    const input = server.requests[0]!.body.input;
     expect(input).toHaveLength(1 + (original.length - 4));
     expect(input[0].role).toBe('user');
     expect(input[0].content[0].text).toContain('THE SUMMARY');

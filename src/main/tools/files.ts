@@ -221,8 +221,9 @@ export function fitLines(lines: string[], budget: number): { text: string; lines
     count++;
   }
   if (count === 0 && lines.length > 0) {
-    const end = splitsSurrogatePair(lines[0], budget) ? budget - 1 : budget;
-    return { text: lines[0].slice(0, end), lines: 1, cutLine: true };
+    const line = lines[0] ?? '';
+    const end = splitsSurrogatePair(line, budget) ? budget - 1 : budget;
+    return { text: line.slice(0, end), lines: 1, cutLine: true };
   }
   return { text: lines.slice(0, count).join('\n'), lines: count, cutLine: false };
 }

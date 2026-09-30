@@ -90,12 +90,16 @@ export class CodeIndex implements CodeSearch {
   async search(query: string, limit: number, signal: AbortSignal): Promise<SearchHit[]> {
     await this.update(signal);
     const [queryVector] = await this.embedder.embed([query], signal);
+    if (!queryVector) throw new Error('The embedding service returned no vector for the query.');
     const q = normalize(Float32Array.from(queryVector));
 
     const scored: Array<{ path: string; chunk: IndexedChunk; score: number }> = [];
     for (const [path, file] of Object.entries(this.data.files)) {
       const vectors = this.vectorsFor(path, file);
-      file.chunks.forEach((chunk, i) => scored.push({ path, chunk, score: dot(q, vectors[i]) }));
+      file.chunks.forEach((chunk, i) => {
+        const vector = vectors[i];
+        if (vector) scored.push({ path, chunk, score: dot(q, vector) });
+      });
     }
     scored.sort((a, b) => b.score - a.score);
 
@@ -181,11 +185,15 @@ export class CodeIndex implements CodeSearch {
         signal,
       );
       batch.forEach((item, j) => {
+        const vector = vectors[j];
+        // A short response would otherwise be saved as if the file were fully indexed, and it would stay
+        // unsearchable until the file changed. Failing leaves it to be retried.
+        if (!vector) throw new Error(`The embedding service returned no vector for ${item.file.path}.`);
         const list = results.get(item.file.path) ?? [];
         list.push({
           startLine: item.chunk.startLine,
           endLine: item.chunk.endLine,
-          vector: encode(normalize(Float32Array.from(vectors[j]))),
+          vector: encode(normalize(Float32Array.from(vector))),
         });
         results.set(item.file.path, list);
       });
@@ -232,7 +240,7 @@ function normalize(vector: Float32Array): Float32Array {
 
 function dot(a: Float32Array, b: Float32Array): number {
   let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
+  for (let i = 0; i < a.length; i++) sum += (a[i] ?? 0) * (b[i] ?? 0);
   return sum;
 }
 

@@ -10,6 +10,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Declare `engines.node` of `>=22.12.0` and turn on `noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters` and `forceConsistentCasingInFileNames` in both tsconfigs.
+
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.
 - Workspace tools for reading, searching and editing files, running foreground and background commands, fetching pages, web search and optional semantic code search.
 - Approval cards with command and diff previews, feedback when declining, Ask first and Auto modes, and global and per-project command and network allow-lists.

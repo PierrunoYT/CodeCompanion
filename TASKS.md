@@ -41,7 +41,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [x] Make end-to-end teardown fail fast with a clear error (CI timed out once closing the app after `projects.test.ts`; not reproducible locally)
 - [x] Audit the code and docs before the release (three reviews: main process, UI, docs against code). Fixed: the command allow-list could be bypassed through PowerShell `(...)`; a new file could be written outside the project through a folder link; "Open in editor" shell injection on macOS/Linux; mid-stream overload errors were not retried; custom-endpoint trimming could send a tool result without its call; a refusal with tool calls broke the chat; deleted chats came back; OpenAI compaction could split a reasoning item from its message; scrolling to the bottom with `content-visibility`; focus lost on Undo; and about 20 doc discrepancies
 - [x] Move the unreleased changelog entries into `[0.2.0] - 2026-09-30` and bump the version to 0.2.0
-- [ ] Tag `v0.2.0` once CI is green, and check that the release workflow attaches the installer
+- [x] Tag `v0.2.0` once CI is green, and check that the release workflow attaches the installer (published 2026-09-30 with `CodeCompanion-Installer.exe`; the first release run failed on the end-to-end teardown hang below, a second attempt of the same commit passed)
 
 ### Reliability
 
@@ -76,7 +76,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [ ] Add a per-project setting for allowed commands and network hosts (today they are global)
 - [ ] Measure the main process's per-event transcript updates during streaming in long chats (not covered by `npm run perf` yet)
 - [ ] Find what makes streaming in a 5,000-item chat 14–21 ms per frame since the scroll-to-bottom fix instead of 7 ms (`docs/PERFORMANCE.md`, follow-up section)
-- [ ] Find the cause if the end-to-end teardown hang comes back (the harness now reports it after 20 s)
+- [ ] Fix the end-to-end teardown hang on Windows CI (2 of 5 runs around the 0.2.0 release, always after `projects.test.ts` with all tests passed). The harness's 20 s report shows `node-pty`'s `conpty_console_list_agent.js` crashing with `AttachConsole failed`: closing two project tabs quickly kills a terminal whose console is not ready yet, and the app then does not quit. The forked agents also print inspector output (Playwright starts the app with the inspector on, and forks inherit it), which may be why it only hangs under test; not reproducible locally (30 rapid open/close rounds quit in ~0.1 s). Options: `node-pty`'s `useConptyDll` (no agent process), or not killing a terminal that is still starting
 - [ ] Key edit backups and tool cards by an id of the app's own instead of the provider's tool-call id, which some OpenAI-compatible servers reuse across turns
 - [ ] Lock Undo against a message sent at the same moment (today the model is then told about the undo one message later)
 - [ ] Save the pending "you undid an edit" note with the chat, so it survives a restart

@@ -40,7 +40,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 
 ### Reliability
 
-- [ ] Add unit tests for `chat_store`, `projects` and `files` (only `chat_manager`, `settings` and `stores` are covered in `src/main`)
+- [x] Add unit tests for `chat_store`, `projects` and `files` (only `chat_manager`, `settings` and `stores` are covered in `src/main`)
 - [ ] Add unit tests for the agent loop (`src/main/agent`): stop, resume, tool-result pairing and error paths
 - [ ] Log dropped-field tool errors (tool name and missing fields, never file contents) to make the open `edit_file` bug measurable
 - [ ] Retry transient provider errors (429, 5xx, network) with backoff, and show the retry in the chat

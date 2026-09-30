@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Changed
+- Add unit tests for the chat store, the project store and the file helpers (image picker, save dialog, open in editor).
+
 ## [0.1.1] - 2026-09-30
 
 ### Added

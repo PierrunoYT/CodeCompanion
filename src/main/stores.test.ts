@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -97,6 +97,87 @@ describe('ChatStore', () => {
     rmSync(join(dir, 'chats', 'index.json'));
     expect(new ChatStore(join(dir, 'chats')).list().map((item) => item.id)).toEqual([idA]);
   });
+
+  it('replaces a chat that is saved again instead of listing it twice', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    store.save(chat(idA, '2026-01-01T00:00:00Z'));
+    store.save({ ...chat(idA, '2026-01-02T00:00:00Z'), title: 'Renamed' });
+
+    expect(store.list()).toEqual([
+      { id: idA, title: 'Renamed', projectPath: null, updatedAt: '2026-01-02T00:00:00Z' },
+    ]);
+    expect(new ChatStore(join(dir, 'chats')).load(idA)?.title).toBe('Renamed');
+  });
+
+  it('returns null for chats that are missing or saved by another version', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    expect(store.load(idB)).toBeNull();
+    writeFileSync(join(dir, 'chats', `${idB}.json`), JSON.stringify({ ...chat(idB, '2026-01-01T00:00:00Z'), version: 2 }));
+    expect(store.load(idB)).toBeNull();
+    writeFileSync(join(dir, 'chats', `${idB}.json`), '{ not json');
+    expect(store.load(idB)).toBeNull();
+  });
+
+  it('ignores delete requests for ids that are not UUIDs', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    store.save(chat(idA, '2026-01-01T00:00:00Z'));
+    store.delete('../chats/index');
+    store.delete('index');
+    expect(existsSync(join(dir, 'chats', 'index.json'))).toBe(true);
+    expect(store.list()).toHaveLength(1);
+  });
+
+  it('deletes every chat and its file', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    store.save(chat(idA, '2026-01-01T00:00:00Z'));
+    store.save(chat(idB, '2026-02-01T00:00:00Z'));
+    store.deleteAll();
+
+    expect(store.list()).toEqual([]);
+    expect(store.search('chat')).toEqual([]);
+    expect(store.load(idA)).toBeNull();
+    expect(existsSync(join(dir, 'chats', `${idA}.json`))).toBe(false);
+    expect(existsSync(join(dir, 'chats', `${idB}.json`))).toBe(false);
+    expect(new ChatStore(join(dir, 'chats')).list()).toEqual([]);
+  });
+
+  it('requires every word to match and ignores case when searching', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    store.save({
+      ...chat(idA, '2026-01-01T00:00:00Z'),
+      title: 'Fix Login',
+      projectPath: 'D:\\code\\Shop',
+      transcript: [{ kind: 'user', id: 'u', text: 'Refresh TOKEN expired', imageCount: 0 }],
+    });
+
+    expect(store.search('FIX shop').map((item) => item.id)).toEqual([idA]);
+    expect(store.search('token REFRESH').map((item) => item.id)).toEqual([idA]);
+    expect(store.search('fix missing')).toEqual([]);
+    expect(store.search('token missing')).toEqual([]);
+  });
+
+  it('rebuilds the index without corrupt, unsupported or foreign files', () => {
+    const chats = join(dir, 'chats');
+    mkdirSync(chats);
+    const idC = '33333333-3333-3333-3333-333333333333';
+    const idD = '44444444-4444-4444-4444-444444444444';
+    writeFileSync(join(chats, `${idA}.json`), JSON.stringify(chat(idA, '2026-01-01T00:00:00Z')));
+    writeFileSync(join(chats, `${idB}.json`), '{ truncated');
+    writeFileSync(join(chats, `${idC}.json`), JSON.stringify({ ...chat(idC, '2026-01-02T00:00:00Z'), version: 2 }));
+    writeFileSync(join(chats, 'notes.json'), JSON.stringify(chat(idD, '2026-01-03T00:00:00Z')));
+
+    const store = new ChatStore(chats);
+    expect(store.list().map((item) => item.id)).toEqual([idA]);
+    // The recovered index is written back, so the next start does not have to scan the folder.
+    rmSync(join(chats, `${idA}.json`));
+    expect(new ChatStore(chats).list().map((item) => item.id)).toEqual([idA]);
+  });
+
+  it('starts empty and writes no index for an empty folder', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    expect(store.list()).toEqual([]);
+    expect(existsSync(join(dir, 'chats', 'index.json'))).toBe(false);
+  });
 });
 
 describe('ProjectStore', () => {
@@ -182,5 +263,89 @@ describe('ProjectStore', () => {
     store.close(one);
     expect(store.current()).toBeNull();
     expect(store.opened()).toEqual([]);
+  });
+
+  it('makes another open project current when the current one is closed', () => {
+    const one = join(dir, 'one');
+    const two = join(dir, 'two');
+    mkdirSync(one);
+    mkdirSync(two);
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    store.open(one);
+    const second = store.open(two);
+    expect(store.current()?.name).toBe('two');
+    store.close(second.path);
+    expect(store.current()?.name).toBe('one');
+  });
+
+  it('keeps instructions and a single entry when a project is opened again by another spelling of its path', () => {
+    const one = join(dir, 'one');
+    mkdirSync(one);
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    const first = store.open(one);
+    store.setInstructions(first.path, 'Run the tests first.');
+
+    const again = store.open(join(one, '..', 'one', '.'));
+    expect(again.path).toBe(first.path);
+    expect(again.instructions).toBe('Run the tests first.');
+    expect(store.list()).toHaveLength(1);
+  });
+
+  it('removes a project from the list, the open projects and the saved file', () => {
+    const one = join(dir, 'one');
+    const two = join(dir, 'two');
+    mkdirSync(one);
+    mkdirSync(two);
+    const file = join(dir, 'projects.json');
+    const store = new ProjectStore(file);
+    const first = store.open(one);
+    store.open(two);
+
+    store.remove(first.path);
+    expect(store.list().map((project) => project.name)).toEqual(['two']);
+    expect(store.opened().map((project) => project.name)).toEqual(['two']);
+    expect(new ProjectStore(file).list().map((project) => project.name)).toEqual(['two']);
+    expect(() => store.setInstructions(first.path, 'gone')).toThrow(/Unknown project/);
+  });
+
+  it('rejects instructions for a project it does not know', () => {
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    expect(() => store.setInstructions(join(dir, 'unknown'), 'text')).toThrow(/Unknown project/);
+  });
+
+  it('hands out copies so callers cannot change the stored projects', () => {
+    const one = join(dir, 'one');
+    mkdirSync(one);
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    const opened = store.open(one);
+    opened.instructions = 'changed by caller';
+    store.opened()[0].instructions = 'changed by caller';
+    expect(store.current()?.instructions).toBe('');
+    expect(store.list()[0].instructions).toBe('');
+  });
+
+  it('forgets the oldest closed projects beyond the recent limit', () => {
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    for (let index = 0; index < 25; index++) {
+      const path = join(dir, `project-${index}`);
+      mkdirSync(path);
+      store.close(store.open(path).path);
+    }
+    const names = store.list().map((project) => project.name);
+    expect(names).toHaveLength(20);
+    expect(names[0]).toBe('project-24');
+    expect(names).not.toContain('project-0');
+  });
+
+  it('starts empty when the saved file is missing or corrupt and skips malformed entries', () => {
+    const file = join(dir, 'projects.json');
+    expect(new ProjectStore(file).list()).toEqual([]);
+
+    writeFileSync(file, '{ not json');
+    expect(new ProjectStore(file).list()).toEqual([]);
+
+    const valid = { path: join(dir, 'ok'), name: 'ok', instructions: '', lastOpened: '2026-01-01T00:00:00.000Z' };
+    writeFileSync(file, JSON.stringify([null, { name: 'no path' }, { path: 5 }, valid]));
+    expect(new ProjectStore(file).list()).toEqual([valid]);
   });
 });

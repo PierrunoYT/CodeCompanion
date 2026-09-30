@@ -322,6 +322,31 @@ export class ChatManager {
     this.deps.onHistoryChanged();
   }
 
+  // Called before chats are deleted from the history: an open or parked session of a deleted chat is dropped without
+  // being saved, or it would be written back later (on a project switch, a pending save, or quit). Deleting the chat
+  // that is running is refused until it is stopped.
+  forget(ids: string[] | 'all'): void {
+    const deleted = (session: ChatSession) => ids === 'all' || ids.includes(session.id);
+    if (this.session && deleted(this.session)) {
+      if (this.session.busy) throw new Error('Stop the current task before deleting its chat.');
+      this.drop(this.session);
+      this.session = null;
+      this.deps.onSnapshot(this.snapshot());
+    }
+    for (const parked of this.parked.values()) {
+      if (parked.session && deleted(parked.session)) {
+        this.drop(parked.session);
+        parked.session = null;
+      }
+    }
+  }
+
+  private drop(session: ChatSession): void {
+    clearTimeout(this.saveTimers.get(session));
+    this.saveTimers.delete(session);
+    session.stop();
+  }
+
   private closeSession(): void {
     if (!this.session) return;
     this.session.stop();

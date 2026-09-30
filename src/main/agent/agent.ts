@@ -109,14 +109,26 @@ export class Agent {
       if (result.stopReason === 'context_exceeded') {
         emit({ type: 'notice', id: randomUUID(), text: 'The conversation is too long for the model. Start a new chat.' });
       }
-      if (result.toolCalls.length === 0 || result.stopReason === 'refusal') {
+      if (result.stopReason === 'refusal') {
+        // Tool calls that came with a refusal are not run, but each still gets a result: the history would otherwise
+        // hold a call without one, and every later request in the chat would be rejected.
+        if (result.toolCalls.length > 0) {
+          conversation.addToolResults(
+            result.toolCalls.map((call) => ({ id: call.id, content: 'Not run: the response was stopped by a refusal.', isError: true })),
+          );
+        }
+        return false;
+      }
+      if (result.toolCalls.length === 0) {
         if (result.stopReason === 'max_tokens') {
           emit({ type: 'notice', id: randomUUID(), text: 'The response hit the output limit and may be incomplete.' });
         }
         return false;
       }
 
-      const { results, stop } = await this.runTools(tools, result.toolCalls, result.stopReason === 'max_tokens', signal);
+      // A response cut off by the output limit or by a full context window may have cut off a tool input too.
+      const truncated = result.stopReason === 'max_tokens' || result.stopReason === 'context_exceeded';
+      const { results, stop } = await this.runTools(tools, result.toolCalls, truncated, signal);
       conversation.addToolResults(results);
       if (stop || signal.aborted) return signal.aborted;
     }

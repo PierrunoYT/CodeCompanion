@@ -153,6 +153,45 @@ describe('retryDecision: errors from the provider SDKs', () => {
   });
 });
 
+describe('retryDecision: errors sent inside a stream, built the way the SDKs build them', () => {
+  it('retries an overloaded error in a Claude stream', () => {
+    // As @anthropic-ai/sdk core/streaming.js does for an SSE `error` event after a 200 response.
+    const body = { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } };
+    const error = new Anthropic.APIError(undefined, body, undefined, new Headers(), 'overloaded_error');
+    expect(retryDecision(error, 0, middle)).toEqual({ delayMs: 2000, reason: 'Provider error (overloaded)' });
+  });
+
+  it('retries an api_error in a Claude stream, and not an invalid request', () => {
+    const transient = new Anthropic.APIError(undefined, { type: 'error', error: { type: 'api_error' } }, undefined, new Headers(), 'api_error');
+    expect(retryDecision(transient, 0, middle)?.reason).toBe('Provider error (api)');
+    const invalid = new Anthropic.APIError(
+      undefined,
+      { type: 'error', error: { type: 'invalid_request_error' } },
+      undefined,
+      new Headers(),
+      'invalid_request_error',
+    );
+    expect(retryDecision(invalid, 0, middle)).toBeNull();
+  });
+
+  it('retries a server error in an OpenAI stream', () => {
+    // As openai core/streaming.js does for an SSE `error` event.
+    const error = new OpenAI.APIError(undefined, { type: 'server_error', code: 'server_error', message: 'The server had an error' }, undefined, new Headers());
+    expect(retryDecision(error, 0, middle)?.reason).toBe('Provider error (server)');
+  });
+
+  it('does not retry an OpenAI stream error that will not pass', () => {
+    const error = new OpenAI.APIError(undefined, { type: 'invalid_request_error', code: 'context_length_exceeded' }, undefined, new Headers());
+    expect(retryDecision(error, 0, middle)).toBeNull();
+  });
+
+  it('does not retry 501 or 505, which mean the server cannot do this at all', () => {
+    expect(retryDecision(status(501), 0, middle)).toBeNull();
+    expect(retryDecision(status(505), 0, middle)).toBeNull();
+    expect(retryDecision(status(504), 0, middle)?.reason).toBe('Server error (504)');
+  });
+});
+
 describe('abortableSleep', () => {
   afterEach(() => vi.useRealTimers());
 

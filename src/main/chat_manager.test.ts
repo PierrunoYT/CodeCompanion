@@ -79,6 +79,45 @@ describe('project chat retention', () => {
     expect(manager.snapshot().transcript.filter((item) => item.kind === 'user').at(-1)).toMatchObject({ imageCount: 1 });
   });
 
+  it('does not write a deleted chat back, whether it was open or parked in another project', async () => {
+    open('alpha');
+    await manager.send({ text: 'Alpha task' });
+    const alphaId = manager.snapshot().id;
+    open('beta');
+    await manager.send({ text: 'Beta task' });
+    const betaId = manager.snapshot().id;
+    expect(chats.list().map((chat) => chat.id).sort()).toEqual([alphaId, betaId].sort());
+
+    // Beta is open, Alpha is parked. Delete both, the way the history dialog does.
+    for (const id of [alphaId, betaId]) {
+      manager.forget([id]);
+      chats.delete(id);
+    }
+    expect(manager.snapshot().id).toBe('');
+
+    // Switching projects and quitting used to save them again.
+    open('alpha');
+    open('beta');
+    manager.dispose();
+    expect(chats.list()).toEqual([]);
+    expect(chats.load(alphaId)).toBeNull();
+    expect(chats.load(betaId)).toBeNull();
+  });
+
+  it('forgets every session when all chats are deleted, and keeps chats that were not deleted', async () => {
+    open('alpha');
+    await manager.send({ text: 'Keep me' });
+    const kept = manager.snapshot().id;
+    manager.forget(['someone-else']);
+    manager.dispose();
+    expect(chats.load(kept)).not.toBeNull();
+
+    manager.forget('all');
+    chats.deleteAll();
+    manager.dispose();
+    expect(chats.list()).toEqual([]);
+  });
+
   it('has no edit to undo without a chat, or when nothing keeps backups', async () => {
     open('alpha');
     await expect(manager.undoEdit('toolu_1')).rejects.toThrow(/no edit to undo/);

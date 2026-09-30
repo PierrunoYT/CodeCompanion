@@ -232,6 +232,7 @@ function start(): void {
     return snapshot;
   });
   handle('history:delete', (id) => {
+    manager.forget([id]);
     chats.delete(id);
     // The backups of a chat's edits go with the chat.
     editBackups.deleteChat(id);
@@ -239,6 +240,7 @@ function start(): void {
   });
   handle('history:search', (query) => chats.search(typeof query === 'string' ? query.slice(0, 200) : ''));
   handle('history:clear', () => {
+    manager.forget('all');
     chats.deleteAll();
     editBackups.deleteAll();
     return chats.list();

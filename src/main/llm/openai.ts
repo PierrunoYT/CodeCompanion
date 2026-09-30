@@ -3,6 +3,7 @@ import { zodResponseFormat } from 'openai/helpers/zod';
 import type { z } from 'zod';
 import {
   clip,
+  estimateChars,
   MAX_TEXT_CHARS,
   MAX_TOOL_INPUT_CHARS,
   MAX_TOOL_RESULT_CHARS,
@@ -185,18 +186,22 @@ export class OpenAIConversation implements Conversation {
   }
 }
 
-// What is sent when the history is too large: whole turns are dropped from the front, keeping the first user message
+// What is sent when the history is too large: messages are dropped from the front, keeping the first user message
 // (the task) so the goal is never lost. Only the copy that is sent is shortened; the stored history is not.
-function trimHistory(messages: MessageParam[]): MessageParam[] {
+// A tool message must follow the assistant message that called it, so the kept part never starts with one, and the
+// last assistant message with its tool results (the step in progress) is always kept whole.
+export function trimHistory(messages: MessageParam[]): MessageParam[] {
   if (estimateTokens(messages) <= MAX_HISTORY_TOKENS) return messages;
   const [first, ...rest] = messages;
-  const kept = [...rest];
-  while (kept.length > 1 && estimateTokens([first, ...kept]) > MAX_HISTORY_TOKENS) {
-    kept.shift();
-    // A tool or assistant message cannot start the kept history; drop up to the next user message.
-    while (kept.length > 1 && kept[0].role !== 'user') kept.shift();
+  let lastGroup = rest.length - 1;
+  while (lastGroup > 0 && rest[lastGroup].role === 'tool') lastGroup--;
+  let start = 0;
+  while (start < lastGroup && estimateTokens([first, ...rest.slice(start)]) > MAX_HISTORY_TOKENS) {
+    start++;
+    while (start < lastGroup && rest[start].role === 'tool') start++;
   }
-  return [first, { role: 'user', content: '(Earlier messages were removed to fit the context window.)' }, ...kept];
+  if (start === 0) return messages;
+  return [first, { role: 'user', content: '(Earlier messages were removed to fit the context window.)' }, ...rest.slice(start)];
 }
 
 function parseArguments(raw: string): unknown {
@@ -207,8 +212,10 @@ function parseArguments(raw: string): unknown {
   }
 }
 
+// Characters / 4, with images counted at a small fixed size: their base64 text would otherwise make one screenshot
+// look like hundreds of thousands of tokens and push everything else out.
 function estimateTokens(messages: MessageParam[]): number {
-  return Math.ceil(JSON.stringify(messages).length / 4);
+  return Math.ceil(estimateChars(messages) / 4);
 }
 
 function mapFinishReason(reason: string | null, hasToolCalls: boolean): StopReason {

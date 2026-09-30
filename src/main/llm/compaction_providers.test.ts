@@ -266,6 +266,18 @@ describe('OpenAI Responses conversation compaction', () => {
     expect(plan.text).not.toContain('E0');
   });
 
+  it('never cuts between a reasoning item and the message it produced', () => {
+    // Without the tool call, the latest safe point near the end would be the assistant message after rs_0.
+    const items = [
+      { role: 'user', content: [{ type: 'input_text', text: big('TASK', 40_000) }] },
+      { type: 'reasoning', id: 'rs_0', summary: [], encrypted_content: 'E0' },
+      { type: 'message', id: 'msg_0', role: 'assistant', status: 'completed', content: text(big('ANSWER', 40_000)) },
+      { role: 'user', content: [{ type: 'input_text', text: big('LATEST', 2_000) }] },
+    ];
+    // msg_0 (index 2) follows rs_0, so it may not start the kept part.
+    expect(create(items).planCompaction()?.keepFrom).not.toBe(2);
+  });
+
   it('describes function calls and their output', () => {
     const plan = create([...history(), ...history(), ...history()], { summary: 'S', keepFrom: 4 }).planCompaction()!;
     expect(plan.text).toContain('Assistant called read_file: {"path":"a.ts"}');

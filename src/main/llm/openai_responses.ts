@@ -47,12 +47,18 @@ function partsText(content: unknown): string {
 }
 
 // A cut is safe before a message or a reasoning item. Before a function call it is not: the call needs the reasoning
-// item that precedes it, and before a call's output it would leave the output without its call.
+// item that precedes it, and before a call's output it would leave the output without its call. Nor is it right after
+// a reasoning item: the message or call that item produced would be sent without it, which the API rejects without
+// server-side storage (store: false).
 const compactionAdapter: CompactionAdapter<InputItem> = {
   safeCut(item, index, all) {
     const { type } = item as LooseItem;
     const previous = all[index - 1] as LooseItem | undefined;
-    return (type === undefined || type === 'message' || type === 'reasoning') && previous?.type !== 'function_call';
+    return (
+      (type === undefined || type === 'message' || type === 'reasoning') &&
+      previous?.type !== 'function_call' &&
+      previous?.type !== 'reasoning'
+    );
   },
   describe(item) {
     const { type, role, content, name, arguments: args, output } = item as LooseItem;

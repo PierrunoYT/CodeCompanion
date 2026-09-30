@@ -609,11 +609,27 @@ describe('Agent: error and limit paths', () => {
     expect(await agent.send({ text: 'two' }, signal)).toBe(false);
 
     expect(run).not.toHaveBeenCalled();
-    expect(conversation.results).toEqual([]);
+    // Each call still gets a result, or every later request in the chat would be rejected for a call without one.
+    expect(conversation.results).toEqual([
+      [{ id: 't1', content: 'Not run: the response was stopped by a refusal.', isError: true }],
+      [{ id: 't2', content: 'Not run: the response was stopped by a refusal.', isError: true }],
+    ]);
     expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual([
       'Not able to help with that.',
       'The model declined this request.',
     ]);
+  });
+
+  it('does not run tool calls from a response cut off by a full context window', async () => {
+    const run = vi.fn(() => ({ content: 'ran' }));
+    const write = tool('write', run);
+    const { agent, conversation } = setup([{ stopReason: 'context_exceeded', toolCalls: [call('t1', 'write')] }, { text: 'ok' }], {
+      tools: [write],
+    });
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    expect(run).not.toHaveBeenCalled();
+    expect(conversation.results[0][0]).toMatchObject({ id: 't1', isError: true, content: expect.stringContaining('may be cut off') });
   });
 
   it('tells the user when the conversation is too long or the answer was cut off', async () => {

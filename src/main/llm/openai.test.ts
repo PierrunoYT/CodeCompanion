@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createOpenAIClient, OpenAIConversation } from './openai';
+import { createOpenAIClient, OpenAIConversation, trimHistory } from './openai';
 import { MockApiServer } from './test_server';
 import type { TurnRequest } from './types';
 
@@ -146,6 +146,39 @@ describe('OpenAIConversation', () => {
     expect(messages[0]).toEqual({ role: 'tool', tool_call_id: 'call_1', content: 'Loaded' });
     expect(messages[1].role).toBe('user');
     expect(messages[1].content[0].image_url.url).toBe('data:image/png;base64,AAAA');
+  });
+
+  it('never sends a tool result without the call it answers, and keeps the step in progress whole', () => {
+    const big = 'x'.repeat(150_000);
+    const history: any[] = [
+      { role: 'user', content: 'THE TASK' },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'c1', content: big },
+      { role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(600_000)}` } }] },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'c2', type: 'function', function: { name: 'read_file', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'c2', content: big },
+    ];
+    const sent = trimHistory(history);
+
+    // Every tool message still follows the assistant message whose call it answers.
+    sent.forEach((message: any, index: number) => {
+      if (message.role !== 'tool') return;
+      const caller = sent.slice(0, index).reverse().find((candidate: any) => candidate.role !== 'tool') as any;
+      expect(caller?.tool_calls?.map((call: any) => call.id)).toContain(message.tool_call_id);
+    });
+    expect(sent[0]).toEqual({ role: 'user', content: 'THE TASK' });
+    // The last call and its result, the step the model is working on, are there.
+    expect(sent.slice(-2).map((message: any) => message.role)).toEqual(['assistant', 'tool']);
+  });
+
+  it('counts an image as small when deciding what to drop', () => {
+    const history: any[] = [
+      { role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(900_000)}` } }, { type: 'text', text: 'THE TASK' }] },
+      { role: 'assistant', content: 'first answer' },
+      { role: 'user', content: 'follow-up' },
+    ];
+    // Well under the budget once the image is not counted by its base64 length.
+    expect(trimHistory(history)).toBe(history);
   });
 
   it('drops the oldest turns but keeps the task when history grows too large', async () => {

@@ -67,6 +67,8 @@ function transientReason(error: ErrorLike): string | null {
     if (status === 429) return QUOTA_PATTERN.test(errorText(error)) ? null : 'Rate limited (429)';
     if (status === 408) return 'Request timed out (408)';
     if (status === 529) return 'Provider overloaded (529)';
+    // 501 (not implemented) and 505 (HTTP version not supported) mean the server cannot do this at all.
+    if (status === 501 || status === 505) return null;
     if (status >= 500 && status < 600) return `Server error (${status})`;
     return null;
   }
@@ -92,12 +94,20 @@ function kind(error: ErrorLike): string | null {
   return typeof constructorName === 'string' ? constructorName : null;
 }
 
-// The SDKs wrap a stream error event as { error: { type: 'overloaded_error' } } or { error: { error: { type } } }.
+// An error event sent inside a stream. The Anthropic SDK turns it into an APIError whose body is the event,
+// { type: 'error', error: { type: 'overloaded_error' } }, and whose own `type` is the inner type; OpenAI's carries a
+// `code` such as 'server_error'. The generic outer type 'error' says nothing, so the most specific value wins.
 function streamedErrorType(error: ErrorLike): string | null {
-  for (const body of [error.error, isObject(error.error) ? error.error.error : undefined]) {
-    if (isObject(body) && typeof body.type === 'string') return body.type;
-  }
-  return typeof error.type === 'string' ? error.type : null;
+  const candidates = [
+    isObject(error.error) && isObject(error.error.error) ? error.error.error.type : undefined,
+    isObject(error.error) && isObject(error.error.error) ? error.error.error.code : undefined,
+    isObject(error.error) ? error.error.type : undefined,
+    isObject(error.error) ? error.error.code : undefined,
+    error.type,
+    typeof error.status === 'number' ? undefined : error.code,
+  ];
+  const specific = candidates.filter((value): value is string => typeof value === 'string' && value !== 'error');
+  return specific.find((value) => TRANSIENT_ERROR_TYPES.has(value)) ?? specific[0] ?? null;
 }
 
 function networkCode(error: ErrorLike): string | null {

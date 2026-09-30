@@ -128,10 +128,12 @@ export class MockClaude {
   }
 
   stop(): Promise<void> {
-    return new Promise((resolve) => {
-      this.server.close(() => resolve());
-      // A hanging answer would otherwise keep the server from closing.
-      this.server.closeAllConnections();
-    });
+    // A hanging answer or a kept-alive connection would otherwise keep the server from closing.
+    this.server.closeAllConnections();
+    const closed = new Promise<void>((resolve) => this.server.close(() => resolve()));
+    const timeout = new Promise<never>((_resolve, reject) =>
+      setTimeout(() => reject(new Error('The mock Claude API did not shut down within 5 s.')), 5_000).unref(),
+    );
+    return Promise.race([closed, timeout]);
   }
 }

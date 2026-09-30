@@ -140,6 +140,12 @@ export class MockOpenAI {
   }
 
   stop(): Promise<void> {
-    return new Promise((resolve) => this.server.close(() => resolve()));
+    // A kept-alive connection would otherwise keep the server from closing.
+    this.server.closeAllConnections();
+    const closed = new Promise<void>((resolve) => this.server.close(() => resolve()));
+    const timeout = new Promise<never>((_resolve, reject) =>
+      setTimeout(() => reject(new Error('The mock OpenAI API did not shut down within 5 s.')), 5_000).unref(),
+    );
+    return Promise.race([closed, timeout]);
   }
 }

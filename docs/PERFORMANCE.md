@@ -242,3 +242,47 @@ After the MCP, plan mode, subagent, skills and UI-redesign merges, same machine,
 - **Main process, per streamed event:** unchanged within noise: 12.3 / 50.9 / 358 ms per answer at 1,250 / 5,000 / 20,000 items (2026-09-30: 12 / 48 / 370 ms).
 - **Renderer, 250 turns (1,250 items):** opening takes 295–312 ms (297 ms). While an answer streams, frames are p50 8 ms and p95 23 ms. The 7 ms p95 in the first table above was measured with the answer off screen (see the Windows bisection); following the answer costs more, which is [#19](https://github.com/PierrunoYT/patch/issues/19).
 - **The UI redesign** (`9231ee4`), measured against the commit before it: layout time while streaming went from 0.68 s to 0.82 s in the long chat, and from 0.48 s to 0.64 s in the empty chat (20–35% more). Frame p95 was 17–22 ms before and 23 ms after, so frame times barely changed. The extra layout is the new card borders, shadows and composer box; worth keeping in mind for #19.
+
+## Agent task benchmark (2026-10-01)
+
+**Question:** does the agent, as built, reliably finish small everyday coding tasks, and what does a task cost?
+
+**Answer:** yes for this set. Claude Sonnet 5.5 solved all 10 runs (5 tasks, 2 runs each) in 5–17 seconds, for $0.014–0.037 per task and $0.24 in total. The runs were very consistent.
+
+### How it is measured
+
+`npm run bench:agent` (`tests/bench/agent_tasks.bench.ts`, output in `out/bench-agent-tasks.json`) drives the built app against the **real** Anthropic API, so it spends credits. It is opt-in and not part of `npm test` or CI:
+
+```bash
+PATCH_BENCH_PROFILE=<a Patch profile folder with a saved Anthropic key> npm run bench:agent
+```
+
+- **The key:** only `settings.json` and `Local State` are copied from that profile into a throwaway profile (the key stays encrypted, and `Local State` lets the same OS user decrypt it). The copy's MCP servers are cleared, and it is deleted afterwards. The real profile is never written to.
+- **The run:** each run starts the app on a fresh copy, opens a fresh temporary project, sets the model (`PATCH_BENCH_MODEL`, default `claude-sonnet-5-5`) and **Auto** mode, sends the task in a new chat, and waits until the assistant is done. In Auto mode the model runs commands without asking, inside the temporary project.
+- **Scoring:** afterwards an objective check decides whether the task was solved, from the project files and the answer. `PATCH_BENCH_REPS` (default 2) and `PATCH_BENCH_TASKS` (comma-separated ids) choose what runs.
+
+The five tasks use Node's built-in test runner, so no `npm install` is needed:
+
+| Task          | What the model is asked                                  | How it is checked                                                  |
+| ------------- | -------------------------------------------------------- | ------------------------------------------------------------------ |
+| `fix-bugs`    | Make failing tests pass without changing them (two bugs) | `node --test` passes and the test file is unchanged                |
+| `add-feature` | Add `slugify` and tests for it                           | Hidden test cases pass, the test file uses it, `npm test` passes   |
+| `rename`      | Rename a function in four files, tests included          | No old name left, the new one is exported, tests pass              |
+| `question`    | Say where the retry delay is computed and its maximum    | The answer names the file, function and 8,000 ms; no file changed  |
+| `cli-fix`     | Fix an off-by-one in a CLI and check it by running it    | The command prints the right lines for `--count 3` and no argument |
+
+### Results
+
+Claude Sonnet 5.5, 2 runs per task, on the machine above:
+
+| Task          | Solved | Time    | Tool calls | Output tokens | Cache read / write (tokens) | Cost         |
+| ------------- | ------ | ------- | ---------- | ------------- | --------------------------- | ------------ |
+| `fix-bugs`    | 2 / 2  | 10–11 s | 7          | 684           | 17.8k / 5.6–5.7k            | $0.024       |
+| `add-feature` | 2 / 2  | 10–14 s | 6–7        | 1.2k          | 11.4k / 5.5–5.7k            | $0.029       |
+| `rename`      | 2 / 2  | 15–17 s | 14         | 1.5k          | 24.0k / 6.6k                | $0.036–0.037 |
+| `question`    | 2 / 2  | 7 s     | 2          | 500–540       | 6.8k / 3.9k                 | $0.016–0.017 |
+| `cli-fix`     | 2 / 2  | 5–7 s   | 3          | 316–317       | 6.6k / 3.8k                 | $0.014       |
+
+- **Prompt caching works:** uncached input was 8–14 tokens per task; everything else was read from or written to the cache. About 3.8k tokens (system prompt and tools) are written to the cache once per new chat, which is most of the cost of a short task.
+- **Failed tool calls are the model's own checks.** `fix-bugs` had one failed tool call in each run. A rerun that records them showed it was the model's first `npm test`, which exits 1 because the tests fail before the fix. `rename` had one in each of the first two runs and none in the rerun, so its cause was not recorded.
+- **Reading the numbers:** these are small tasks, two runs each, on one model, so the benchmark is a regression check for the app (tools, prompts, the agent loop) rather than a measure of model ability. Rerun it after changing the system prompt, tool descriptions or the loop, and compare solved counts, tool calls and cost.

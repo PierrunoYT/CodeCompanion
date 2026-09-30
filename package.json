@@ -22,6 +22,7 @@
     "test:unit": "vitest run --project unit --passWithNoTests",
     "test:e2e": "npm run build && vitest run --project e2e",
     "perf": "npm run build && vitest run --project perf",
+    "bench:agent": "npm run build && vitest run --project bench",
     "pack": "node scripts/ensure-closed.mjs && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && npm run build && electron-builder --dir --publish never",
     "dist": "node scripts/ensure-closed.mjs && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && npm run build && electron-builder --publish never"
   },

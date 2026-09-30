@@ -37,6 +37,18 @@ export default defineConfig({
           fileParallelism: false,
         },
       },
+      {
+        // Real-model task benchmark: `npm run bench:agent`. Opt-in (needs PATCH_BENCH_PROFILE), spends API credits,
+        // and is not part of `npm test` or CI.
+        extends: true,
+        test: {
+          name: 'bench',
+          include: ['tests/bench/**/*.bench.ts'],
+          testTimeout: 900_000,
+          hookTimeout: 120_000,
+          fileParallelism: false,
+        },
+      },
     ],
   },
 });

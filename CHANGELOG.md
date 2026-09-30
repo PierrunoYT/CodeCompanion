@@ -4,6 +4,8 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-30
+
 ### Fixed
 - Undo can no longer overlap a message sent at the same moment: sending, resuming, compacting and switching chats wait until the undo has finished and the model's note about it is queued, so the model hears about the undo with the very next message.
 - The note telling the model about an undone edit is saved with the chat, so it is still sent after a restart of the app.

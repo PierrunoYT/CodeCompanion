@@ -33,6 +33,7 @@ After every change, fix or feature:
 1. Update the docs the change affects: `README.md`, `docs/`, `CHANGELOG.md` and `TASKS.md` (tick finished tasks, add new ones).
 2. Run `npm run typecheck` and `npm run test:unit` (and `npm test` for user-visible changes).
 3. Make a commit for that change, with a Conventional Commit message. One change per commit; don't batch unrelated work.
+4. Push to `main` only. Don't create or push other branches, and don't open pull requests.
 
 Don't leave a finished change uncommitted or its docs stale.
 

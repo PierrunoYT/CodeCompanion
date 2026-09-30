@@ -114,6 +114,8 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - [x] Add a GitHub Actions workflow: typecheck, unit tests, end-to-end tests (Windows only)
 - [x] Add Linux and macOS jobs to the CI workflow (non-blocking until they pass; then remove `continue-on-error`)
 - [ ] ~~Make the Linux and macOS CI jobs blocking once they pass~~ (won't fix for now; the jobs stay non-blocking and their failures are ignored)
+- [x] Remove the failing Linux and macOS jobs from CI; CI tests on Windows only
+- [ ] Bring the Linux and macOS CI jobs back once `node-pty` works on the macOS runners and `long_run` passes on Linux ([#14](https://github.com/PierrunoYT/patch/issues/14))
 - [x] Add Prettier with `format` and `format:check` scripts, and a CI job that checks formatting
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
 - [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them)

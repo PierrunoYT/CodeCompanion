@@ -122,6 +122,26 @@ export class ChatSession {
     return this.transcript.length === 0;
   }
 
+  // Adds token usage that happened outside the chat's own turns (a subagent's requests) to the totals the status bar
+  // and the cost estimate show. The context size stays the chat's own: a subagent's prompt does not fill this chat.
+  recordUsage(usage: UsageTotals): void {
+    const totals = this.agent.totals;
+    totals.inputTokens += usage.inputTokens;
+    totals.outputTokens += usage.outputTokens;
+    totals.cacheReadTokens += usage.cacheReadTokens;
+    totals.cacheWriteTokens = (totals.cacheWriteTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
+    if (usage.longContext) {
+      const long = totals.longContext ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+      long.inputTokens += usage.longContext.inputTokens;
+      long.outputTokens += usage.longContext.outputTokens;
+      long.cacheReadTokens += usage.longContext.cacheReadTokens;
+      long.cacheWriteTokens += usage.longContext.cacheWriteTokens;
+      totals.longContext = long;
+    }
+    this.agent.totals = totals;
+    this.emit({ type: 'usage', totals: this.agent.totals });
+  }
+
   snapshot(): ChatSnapshot {
     return {
       id: this.id,

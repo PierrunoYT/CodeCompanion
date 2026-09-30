@@ -14,6 +14,7 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 
 - Model Context Protocol (MCP) servers: configure them in Settings (stdio or Streamable HTTP) and their tools are offered to the assistant, always behind an approval card
 - Optional **Plan mode**: the assistant proposes what it intends to do as an approval card before multi-step changes, including in Auto mode
+- Delegates broad research to a read-only subagent (`task` tool) so the main context stays small; its progress streams into the chat while it works, and a file it reads still has to be read before it can be edited
 
 ## Features
 

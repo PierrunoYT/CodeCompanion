@@ -8,6 +8,8 @@ import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 
 // Safety net against a model that never stops calling tools.
 const MAX_TURNS = 200;
+// Subagents get a tighter cap: they answer one delegated question, not open-ended tasks.
+export const SUBAGENT_MAX_TURNS = 25;
 const RESUME_INSTRUCTION =
   'Continue the task that I stopped. Use the completed conversation and tool results above; do not repeat the original request. Some interrupted tool actions may have completed even when their result says they were stopped, so inspect the current state before repeating any action with side effects.';
 
@@ -34,6 +36,8 @@ export interface AgentOptions {
   // Called after every tool-result batch is appended to the conversation, so a crash mid-task can be resumed
   // from the last completed batch instead of losing the whole run.
   onCheckpoint?: () => void;
+  // Defaults to MAX_TURNS; subagents run with a tighter cap.
+  maxTurns?: number;
   emit: (event: ChatEvent) => void;
   // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
   onDroppedFields?: (error: DroppedFieldError) => void;
@@ -48,6 +52,7 @@ export interface AgentOptions {
 // needed), send the results back, and repeat until the model answers without tool calls.
 export class Agent {
   private usage: UsageTotals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  private lastOutcome: 'answer' | 'turn-cap' | 'context' | 'max-tokens' | 'refusal' | 'stopped' | 'other' = 'other';
 
   constructor(private readonly options: AgentOptions) {}
 
@@ -71,6 +76,12 @@ export class Agent {
     return this.run(signal);
   }
 
+  // Why the last run ended, for a caller that needs more than the stopped/finished flag. A subagent only treats a
+  // final turn with no tool calls as an answer; a turn cap, a full context or a cut-off response is not one.
+  outcome(): 'answer' | 'turn-cap' | 'context' | 'max-tokens' | 'refusal' | 'stopped' | 'other' {
+    return this.lastOutcome;
+  }
+
   // `note` is anything the model must be told that happened while the task was stopped, e.g. an undone edit.
   async resume(signal: AbortSignal, note = ''): Promise<boolean> {
     this.options.conversation.addUserMessage({ text: note ? `${note}\n\n${RESUME_INSTRUCTION}` : RESUME_INSTRUCTION });
@@ -80,8 +91,12 @@ export class Agent {
   private async run(signal: AbortSignal): Promise<boolean> {
     const { conversation, emit } = this.options;
 
-    for (let turn = 0; turn < MAX_TURNS; turn++) {
-      if (signal.aborted) return true;
+    const maxTurns = this.options.maxTurns ?? MAX_TURNS;
+    for (let turn = 0; turn < maxTurns; turn++) {
+      if (signal.aborted) {
+        this.lastOutcome = 'stopped';
+        return true;
+      }
       const tools = this.options.tools();
       const { result, messageId } = await this.runTurnWithRetries(tools, signal);
       emit({ type: 'assistant-end', id: messageId, text: result.text });
@@ -130,11 +145,17 @@ export class Agent {
             })),
           );
         }
+        this.lastOutcome = 'refusal';
         return false;
       }
       if (result.toolCalls.length === 0) {
         if (result.stopReason === 'max_tokens') {
           emit({ type: 'notice', id: randomUUID(), text: 'The response hit the output limit and may be incomplete.' });
+          this.lastOutcome = 'max-tokens';
+        } else if (result.stopReason === 'context_exceeded') {
+          this.lastOutcome = 'context';
+        } else {
+          this.lastOutcome = 'answer';
         }
         return false;
       }
@@ -144,10 +165,14 @@ export class Agent {
       const { results, stop } = await this.runTools(tools, result.toolCalls, truncated, signal);
       conversation.addToolResults(results);
       this.options.onCheckpoint?.();
-      if (stop || signal.aborted) return signal.aborted;
+      if (stop || signal.aborted) {
+        this.lastOutcome = signal.aborted ? 'stopped' : 'other';
+        return signal.aborted;
+      }
     }
 
-    emit({ type: 'notice', id: randomUUID(), text: `Stopped after ${MAX_TURNS} steps.` });
+    this.lastOutcome = 'turn-cap';
+    emit({ type: 'notice', id: randomUUID(), text: `Stopped after ${maxTurns} steps.` });
     return false;
   }
 

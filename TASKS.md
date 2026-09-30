@@ -26,8 +26,6 @@ Tick a box (`- [x]`) when a task is done.
 
 - [x] Move the unreleased changelog entries into `[0.1.1] - 2026-09-30`, bump the version, tag `v0.1.1` (the release workflow builds and publishes the Windows installer)
 - [x] Check that the `v0.1.1` release workflow passes and the installer is attached on GitHub Releases
-- [x] Before 0.2.0: run the built app against the real Anthropic and OpenAI APIs (edit and undo, stop and resume, an image, compact chat). Found and fixed OpenAI chats failing after the first turn (`parsed_arguments`), which v0.1.1 very likely has too
-- [x] `read_file` on a file over 30,000 characters drops the middle with only a "characters omitted" marker; say which lines were left out and how to read them with `offset` and `limit` (seen with both GPT-6 Sol and Claude Opus 5.5 working around it with shell commands)
 
 ## Later: other platforms (after the Windows release)
 
@@ -36,9 +34,14 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [ ] ~~Test on macOS: build the DMG, check signing and notarization~~ (won't fix for now)
 - [ ] ~~Test on Linux (`node-pty` compiles from source there) and add a Linux build target~~ (won't fix for now)
 
-## Next: 0.2.0 (planned)
+## Release 0.2.0
 
-Proposed, in rough priority order. Reorder or drop as you see fit.
+- [x] Run the built app against the real Anthropic and OpenAI APIs (edit and undo, stop and resume, an image, compact chat). Found and fixed OpenAI chats failing after the first turn (`parsed_arguments`), which v0.1.1 very likely has too
+- [x] `read_file` on a file over 30,000 characters dropped the middle with only a "characters omitted" marker; it now reads whole lines in pages and says where to continue (seen with both GPT-6 Sol and Claude Opus 5.5 working around it with shell commands)
+- [x] Make end-to-end teardown fail fast with a clear error (CI timed out once closing the app after `projects.test.ts`; not reproducible locally)
+- [x] Audit the code and docs before the release (three reviews: main process, UI, docs against code). Fixed: the command allow-list could be bypassed through PowerShell `(...)`; a new file could be written outside the project through a folder link; "Open in editor" shell injection on macOS/Linux; mid-stream overload errors were not retried; custom-endpoint trimming could send a tool result without its call; a refusal with tool calls broke the chat; deleted chats came back; OpenAI compaction could split a reasoning item from its message; scrolling to the bottom with `content-visibility`; focus lost on Undo; and about 20 doc discrepancies
+- [x] Move the unreleased changelog entries into `[0.2.0] - 2026-09-30` and bump the version to 0.2.0
+- [ ] Tag `v0.2.0` once CI is green, and check that the release workflow attaches the installer
 
 ### Reliability
 
@@ -54,7 +57,6 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Add a "compact chat" action that summarizes old turns when a chat nears the context limit, keeping the history append-only
 - [x] Add an undo for the last approved file edit (keep a backup per edit, restore from the diff card)
 - [x] Show the running cost of a chat in the chat list, not only in the status bar
-- [ ] Add a per-project setting for allowed commands and network hosts (today they are global)
 - [x] Let the user attach an image to a message for models that accept images, gated behind `claudeCapabilities`
 
 ### Quality
@@ -63,12 +65,23 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Add an end-to-end test for multi-project switching (separate chats and drafts)
 - [x] Add a size limit and truncation notice for very large tool results shown in the UI
 - [x] Review the renderer for long-chat performance (virtualize or paginate the message list) and record a measurement: not needed yet; three targeted fixes, see `docs/PERFORMANCE.md`
-- [ ] Measure the main process's per-event transcript updates during streaming in long chats (not covered by `npm run perf` yet)
 
 ### Docs
 
 - [x] Add a short user guide (`docs/USAGE.md`) covering approvals, allow-lists, resume and export
-- [ ] Keep `CHANGELOG.md` `[Unreleased]` in sync as each item above lands
+- [x] Keep `CHANGELOG.md` `[Unreleased]` in sync as each item above lands
+
+## Next
+
+- [ ] Add a per-project setting for allowed commands and network hosts (today they are global)
+- [ ] Measure the main process's per-event transcript updates during streaming in long chats (not covered by `npm run perf` yet)
+- [ ] Find what makes streaming in a 5,000-item chat 14–21 ms per frame since the scroll-to-bottom fix instead of 7 ms (`docs/PERFORMANCE.md`, follow-up section)
+- [ ] Find the cause if the end-to-end teardown hang comes back (the harness now reports it after 20 s)
+- [ ] Key edit backups and tool cards by an id of the app's own instead of the provider's tool-call id, which some OpenAI-compatible servers reuse across turns
+- [ ] Lock Undo against a message sent at the same moment (today the model is then told about the undo one message later)
+- [ ] Save the pending "you undid an edit" note with the chat, so it survives a restart
+- [ ] On the Anthropic path, keep the first part of a turn that was paused or compacted server-side out of the history until the turn completes, so a retry cannot leave it behind
+- [ ] Redact more token formats in the local log (custom-endpoint keys such as `gsk_…` or `xai-…`)
 
 ## Project setup
 
@@ -78,7 +91,7 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Add Linux and macOS jobs to the CI workflow (non-blocking until they pass; then remove `continue-on-error`)
 - [ ] ~~Make the Linux and macOS CI jobs blocking once they pass~~ (won't fix for now; the jobs stay non-blocking and their failures are ignored)
 - [x] Add a release workflow that builds the Windows installer (`.github/workflows/release.yml`, runs on `v*` tags)
-- [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them; one approval screenshot so far)
+- [x] Add screenshots to the README (`E2E_SCREENSHOTS` can generate them)
 - [x] Add more README screenshots (settings, Git and browser panels) without local paths
 - [x] Decide whether the repo should be public (it is public: https://github.com/PierrunoYT/CodeCompanion)
 
@@ -88,11 +101,11 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Fix `run_command` hanging after the command exited while a leftover child held the output pipe
 - [x] Always inject `AGENTS.md` into the session and show in the UI that it is loaded
 - [x] Add a stop-and-resume option for long agent runs, including reopening stopped chats
-- [x] Show cost estimates next to the token usage in the status bar (Claude models only)
+- [x] Show cost estimates next to the token usage in the status bar (Claude models at first; GPT-6 prices added later)
 - [x] Add verified GPT-6 prices, per-request long-context tiers, and cache-write tokens to cost estimates
 - [x] Add a setting to allow specific commands without approval
 - [x] Support several open projects with separate chats and drafts (one active agent run; stop before switching)
-- [x] Add a search box for saved chats (title and project path; searching the message text is not done)
+- [x] Add a search box for saved chats (title and project path)
 - [x] Search the message text of saved chats, not only title and project
 - [x] Export a chat as Markdown
 
@@ -115,4 +128,4 @@ Proposed, in rough priority order. Reorder or drop as you see fit.
 - [x] Require approval for `fetch_url` and the `browser` tool on hosts outside an allow-list (browser subresources and Google search remain documented limits)
 - [x] Check for accessibility problems (keyboard navigation, contrast): code audit done and fixed, see the changelog
 - [x] Measure representative rendered text contrast in both themes, including approval controls and their hover/focus states
-- [ ] Test with a real screen reader (NVDA); requires a Windows session with NVDA, unavailable in the Linux orb. Not tested yet. Check: approval cards and finished answers are announced once, errors and retry notices are read, the Undo, Compact chat and project-tab buttons have sensible names, and tool cards read correctly once expanded (their content is now built on first expand)
+- [ ] Test with a real screen reader (NVDA); requires a Windows session with NVDA, unavailable in the Linux orb. Not tested yet. Check: approval cards and finished answers are announced once, errors and retry notices are read, the Undo, Compact chat and project-tab buttons have sensible names, and tool cards read correctly once expanded (their content is now built on first expand). Also check the Undo and Open-in-editor buttons, which sit inside a card's `<summary>`: some screen readers flatten or skip buttons nested in a summary; if so, move a card's actions out of the summary

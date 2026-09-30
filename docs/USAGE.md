@@ -6,7 +6,7 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 
 1. **File → Open Project…** (`Ctrl+O`) and pick a folder. The assistant can only read and change files inside it.
 2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are stored encrypted by the operating system and are never shown again; type a new one to replace it, or press **Remove**.
-3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each). All built-in models accept images. For a Claude model id entered under *Other model id…* that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
+3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under *Other model id…* that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
 
 Each chat keeps the model it started with. Changing the model in Settings applies to new chats.
 
@@ -49,7 +49,7 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 
 ### Ask first or Auto
 
-**Settings → Approvals** chooses between:
+**Settings → Approvals**, or the **Ask first** / **Auto** button in the header, chooses between:
 
 - **Ask before edits and commands** (default): as above.
 - **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do.
@@ -72,7 +72,7 @@ git status
 ```
 
 - `npm test` also allows `npm test -- --watch`, but not `npm testing` or `npm run test`.
-- Any command containing `;`, `&`, `|`, `>`, `<`, a backtick, `$(` or a line break is always asked about, so an allowed `npm test` cannot become `npm test && rm -rf .`.
+- Any command containing `;`, `&`, `|`, `>`, `<`, a backtick, `$`, `(`, `)`, `{`, `}` or a line break is always asked about, so an allowed `npm test` cannot become `npm test && rm -rf .`, nor, in PowerShell (which runs the commands on Windows), `npm test (Remove-Item -Recurse src)`. Ordinary arguments such as `npm install @types/node` or `npx vitest run "src/a b.test.ts"` still match.
 - File edits are always asked about, whatever is on this list.
 - Only allow commands you would run yourself. `npm run` would let the assistant run any script in `package.json`.
 
@@ -104,7 +104,7 @@ Rate limits (429), server errors (5xx) and dropped connections are retried autom
 ## Chats and projects
 
 - **New chat**: `Ctrl+N`. Chats are saved automatically.
-- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
+- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Deleting removes the chat for good, also when it is open or in another project's tab, together with its edit backups; the chat that is running cannot be deleted until it is stopped. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
 - **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
 
 ### Compact a long chat
@@ -117,11 +117,25 @@ Press it to have the older turns summarized. The summary is written by the small
 - Nothing is deleted. The saved chat file keeps every message, so a compacted chat can still be searched and exported in full. Compacting again later summarizes the previous summary together with what came after it.
 - The first request afterwards re-reads the whole prompt once, so it costs like the first message of a chat. The summarizing request itself is not counted in the token totals.
 - A summary can lose detail. If the assistant seems to have forgotten something, say it again. For a task that is nearly finished, starting a new chat can work better.
-- Nothing happens for a short chat ("not enough older history"). Current Claude models also compact on the server side; this button works with every model and is what shortens OpenAI chats.
+- Nothing happens for a short chat ("not enough older history"). Current Claude models also compact on the server side, and OpenAI chats otherwise drop their oldest turns once the context fills up; this button works with every model and keeps a summary of those turns instead.
 
 ### Export
 
-The download button in the chat header (*Export chat*) asks where to save and writes the chat as a Markdown file: your messages, the assistant's answers, and the diffs and commands it proposed. Tool output and the assistant's thinking are left out.
+The download button in the chat header (*Export chat*) asks where to save and writes the chat as a Markdown file: your messages, the assistant's answers, and the diffs and commands it proposed (an edit you undid is marked "(undone)"). Tool output and the assistant's thinking are left out.
+
+## Settings
+
+Besides the API keys, approvals and allow-lists described above, **Settings** has:
+
+- **Model**, and **Other model id…** for a model that is not in the list. A chat keeps the model it started with.
+- **Effort**: how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
+- **Theme**: dark or light.
+- **Editor command**: what the **Open in editor** link on a tool card runs, e.g. `code`, `cursor` or `subl`.
+- **OpenAI-compatible base URL**: for Ollama, OpenRouter, LM Studio and similar. Leave it empty for OpenAI itself.
+- **Google search engine id**: with a Google API key, turns on web search.
+- **Maximum files to index for code search**, and the current project's index status with a **Reindex** button.
+
+The project menu (the folder button at the top) also has **Remove from recent** on each recent project.
 
 ## Side panel
 
@@ -134,7 +148,7 @@ The panel button in the header shows or hides the side panel with three tabs:
 ## Where things are
 
 - Settings, projects, saved chats and code indexes are in the app's user data folder. **Help → Show Log Folder** opens its `logs` folder.
-- `logs/app.log.jsonl` records crashes and other problems, one JSON line each. It holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and it is never sent anywhere. Attach it when reporting a bug, after a glance at what is in it.
+- `logs/app.log.jsonl` records crashes and other problems, one JSON line each, plus a line per start with the app and Electron version and platform. It holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and it is never sent anywhere. Attach it when reporting a bug, after a glance at what is in it.
 - The `CODECOMPANION_USER_DATA=<folder>` environment variable starts the app with a clean profile.
 
 ## Costs

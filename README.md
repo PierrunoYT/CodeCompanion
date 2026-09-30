@@ -20,17 +20,17 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
 - Web search (Google Custom Search) and page fetching
 - Long chats are handled by server-side compaction (current Claude models), and **Compact chat** (header button) summarizes the older turns on demand for any model; the status bar shows how large the prompt is and the button turns yellow when it is getting big. The full history stays in the saved chat
-- Rate limits (429), server errors (5xx) and dropped connections are retried automatically with a growing wait (up to 4 retries, or as long as the provider asks), and each retry is shown in the chat; **Stop** works during the wait
+- Rate limits (429), server errors (5xx) and dropped connections are retried automatically, up to 4 times, waiting about 2 to 16 seconds or as long as the provider asks (up to a minute); each retry is shown in the chat and **Stop** works during the wait
 - Stop a running task and use **Resume** to continue it, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
 - `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
-- Image attachments (attach or paste) for models that accept images; the paperclip is disabled for a Claude model id that is not known to
-- Token and estimated cost totals for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar and for every chat in the chat history; custom endpoints have no official-price estimate
+- Image attachments (attach or paste) for models that accept images; the paperclip and paste are disabled for a Claude model id the app does not know to accept images (entered under *Other model id…*)
+- Token totals and estimated cost for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar, and each chat's estimated cost in the chat history; custom endpoints have no official-price estimate
 
 ## Getting started
 
-Requirements: Node.js 20.19+ or 22.12+, Git (optional, for the Git panel).
+Requirements: Node.js 22.12+ (22.x, 24.x or 26+, as Electron and Vitest need), Git (optional, for the Git panel).
 
 ```bash
 npm install
@@ -63,10 +63,10 @@ For development in Amp orbs, the repository includes setup and resume scripts to
 
 ## Privacy and security
 
-- The app talks only to the APIs you configure (Anthropic, OpenAI or your OpenAI-compatible endpoint, Google search) and to pages you or the assistant open. There is no telemetry and no update check. Crashes and errors are written to a log file in the app's data folder (`logs/app.log.jsonl`) for your own troubleshooting; it holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and is never sent anywhere. **Help → Show Log Folder** opens it.
+- The app talks only to the APIs you configure (Anthropic, OpenAI or your OpenAI-compatible endpoint, Google search) and to pages you or the assistant open. There is no telemetry and no update check. Crashes and errors are written to a log file in the app's data folder (`logs/app.log.jsonl`) for your own troubleshooting, along with a line per start giving the app and Electron version and platform; it holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and is never sent anywhere. **Help → Show Log Folder** opens it.
 - To make **Undo** possible, the previous version of every file the assistant edits is copied to the app's data folder (`edit-backups`, the latest 50 edits per chat, deleted with the chat). Those copies are not encrypted; delete the chat if a project contains secrets you do not want copied.
 - API keys are encrypted with the operating system's keychain (Electron `safeStorage`) and never reach the UI process.
-- The assistant's file access is confined to the open project folder. Commands run in your shell with your permissions — keep **Ask first** mode on unless you trust the task. In Settings, "Commands allowed without asking" lists commands (one per line, for example `npm test`) that skip the approval card in Ask first mode; a line also allows the command with arguments. Commands containing `;`, `&`, `|`, `>`, `<`, a backtick or `$(` are always asked about, and file edits always wait for you. Only allow commands you would run yourself: `npm run` would let the assistant run any script in `package.json`.
+- The assistant's file access is confined to the open project folder, including through links: a file is checked where it would really be written, even when it does not exist yet. Commands run in your shell with your permissions — keep **Ask first** mode on unless you trust the task. In Settings, "Commands allowed without asking" lists commands (one per line, for example `npm test`) that skip the approval card in Ask first mode; a line also allows the command with arguments. Commands containing `;`, `&`, `|`, `>`, `<`, a backtick, `$`, `(`, `)`, `{`, `}` or a line break are always asked about (PowerShell, which runs the commands on Windows, runs `(...)` and `{...}` even inside a program's arguments), and file edits always wait for you. Only allow commands you would run yourself: `npm run` would let the assistant run any script in `package.json`.
 - The UI runs sandboxed without Node.js access; model output is sanitized before display.
 - In **Ask first** mode, page fetching and browser tools require approval unless their exact hostname is listed in Settings → "Network hosts allowed without asking". The list starts empty and does not include subdomains automatically. Cross-host redirects require a separate tool call; browser popups are denied. **Auto** mode skips tool approvals. This is not a network sandbox: browser subresources and Google search are not covered, and approved hosts may receive private data. Avoid untrusted pages in projects with secrets.
 

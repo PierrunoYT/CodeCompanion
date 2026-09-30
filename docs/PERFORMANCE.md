@@ -52,6 +52,36 @@ Machine: Intel Core Ultra 9 285K (24 threads), 47 GB RAM, Windows 11, Electron 4
 3. **Every finished tool card built its diff up front,** even though the card is collapsed. The diffs were most of the DOM (diff2html lays out a table row per line).
    - *Fix:* a finished card's diff and output are built the first time the card is opened. Approval cards and running cards are unchanged.
 
+### Follow-up: scrolling to the bottom (2026-09-30, 0.2.0 audit)
+
+`content-visibility: auto` broke scrolling to the bottom. Items that were off screen count at their 80 px placeholder height until laid out, so:
+- opening a chat of 200 tall items landed 3,300 px above the end;
+- a new approval card appended while following the chat left Approve out of view.
+
+The fix:
+- after a chat is opened, the view jumps to the bottom again for 10 frames, and for 2 frames after an item is added;
+- a view at the bottom stays there when the scroll area gets smaller;
+- the user's own scrolling ends all of this.
+
+`tests/e2e/transcript_view.test.ts` covers it.
+
+**Cost, from three runs of each variant:**
+
+| Streaming, frame p50 / p95 | 250 turns | 1,000 turns |
+|---|---|---|
+| Before the fix | 7 / 7 ms | 7 / 14 ms (one run in three: 21 / 28 ms) |
+| With the fix | 7 / 21 ms | 14–21 / 28 ms |
+
+Opening times are unchanged. For comparison, the same 1,000-turn chat was at 42 / 49 ms before the three changes above.
+
+**Other ways that were measured and dropped:** each made streaming in the 1,000-turn chat two to three times slower.
+- following every height change, with a frame loop or with a ResizeObserver on the transcript;
+- laying out the newest items with an inline `content-visibility` style.
+
+**Not yet found:** which part of the kept fix costs the remaining time at 1,000 turns. Every piece was measured on its own and none accounts for it alone. It is a task in `TASKS.md`.
+
+**The benchmark is noisy:** the same build sometimes measures 7 ms and sometimes 21 ms, so compare at least three runs.
+
 ### Not changed, and why
 
 - **Re-rendering the streaming message's Markdown on each frame.** The whole answer so far is re-parsed, highlighted and sanitized on every frame: about 2.2 s of script over the 20,000-character answer, or about 3 ms per frame. This cost depends on the answer, not the chat, and is the same in an empty chat. If very long answers stutter, render only the last Markdown block while streaming.

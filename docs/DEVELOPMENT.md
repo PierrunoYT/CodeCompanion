@@ -2,7 +2,7 @@
 
 ## Setup
 
-Requirements: Node.js 20.19+ or 22.12+, Git.
+Requirements: Node.js 22.12+ (22.x, 24.x or 26+, as Electron and Vitest need), Git.
 
 ```bash
 npm install
@@ -49,7 +49,7 @@ To reproduce the cropped README panels without local paths or secrets: `npm run 
 
 Project-store tests use a fixed clock to cover equal-timestamp opens and reopening existing folders; newest-open ordering must survive reload without synthesizing future timestamps.
 
-Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/en/about-claude/pricing) (default 5-minute cache writes) and [OpenAI prices](https://developers.openai.com/api/docs/pricing). OpenAI input totals include cached/read and cache-write tokens; providers normalize them into separate categories before accumulation. Requests above 272,000 input tokens retain their long-context bucket instead of selecting a tier from chat totals. Older saved usage lacks cache-write and per-request tier data, so historical estimates are incomplete. Custom endpoints, title generation, embeddings, and failed requests are not included in the estimate.
+Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/en/about-claude/pricing) (default 5-minute cache writes) and [OpenAI prices](https://developers.openai.com/api/docs/pricing). OpenAI input totals include cached/read and cache-write tokens; providers normalize them into separate categories before accumulation. Requests above 272,000 input tokens retain their long-context bucket instead of selecting a tier from chat totals. Older saved usage lacks cache-write and per-request tier data, so historical estimates are incomplete. Custom endpoints, title generation, compaction summaries, embeddings, and failed requests are not included in the estimate.
 
 `pack` and `dist` first run `scripts/ensure-closed.mjs`. On Windows, electron-builder cannot replace `dist/win-unpacked` while an app started from it is running, so the script stops with "Close CodeCompanion first" instead of an `EBUSY` error. An installed copy (outside `dist/`) does not matter.
 
@@ -95,5 +95,5 @@ Before tagging, use the built app once against the real Anthropic and OpenAI API
 
 - **View → Toggle Developer Tools** for the renderer; the main process logs to the terminal that launched the app.
 - `CODECOMPANION_USER_DATA=<folder>` starts with a clean profile.
-- **Crash and error log**: `logs/app.log.jsonl` in the user data folder records uncaught errors, unhandled rejections, a crashed or hung UI (`render-process-gone`, `unresponsive`), helper processes that ended, failed IPC handlers (channel and error message; the arguments are not logged, but a message can repeat a path), the app page failing to load, errors that reach the top of the UI (`installErrorReporting` in the renderer sends them over `log:renderer-error`; identical errors once, at most 20 per page load), and errors shown in the chat. Help → Show Log Folder opens the folder. Call `appLog.error(source, error, context)` from main-process code for anything else worth keeping; put only names, codes and numbers in `context`, never user content. Messages and stacks are redacted for API keys and tokens and cut to a fixed length.
+- **Crash and error log**: `logs/app.log.jsonl` in the user data folder records uncaught errors, unhandled rejections, a crashed or hung UI (`render-process-gone`, `unresponsive`), helper processes that ended, failed IPC handlers (channel and error message; the arguments are not logged, but a message can repeat a path), the app page failing to load, errors that reach the top of the UI (`installErrorReporting` in the renderer sends them over `log:renderer-error`; identical errors once, at most 20 per page load), and errors shown in the chat, plus an `info` line per start (app and Electron version, platform) and one when a hung window responds again. Help → Show Log Folder opens the folder. Call `appLog.error(source, error, context)` from main-process code for anything else worth keeping; put only names, codes and numbers in `context`, never user content. Messages and stacks are redacted for API keys and tokens and cut to a fixed length.
 - **Dropped tool fields**: when the model calls a tool without a required field (the known `new_string` problem in `edit_file`), one JSON line goes to `logs/tool-input-errors.jsonl` in the user data folder, with the tool, model and field names but never values. Count them per tool and model with, for example, `jq -r '[.tool, .model, (.missing | join(","))] | @tsv' tool-input-errors.jsonl | sort | uniq -c`. The file stays on the machine and rotates to `.old` at 512 KB.

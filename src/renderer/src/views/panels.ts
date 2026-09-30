@@ -269,7 +269,7 @@ class GitPanel implements Panel {
   private async refresh(): Promise<void> {
     try {
       this.status = await api.invoke('git:status');
-    } catch (error) {
+    } catch {
       setChildren(this.header, h('div', { class: 'text-body-secondary p-3' }, 'Open a project to see its changes.'));
       this.fileList.replaceChildren();
       this.diffView.replaceChildren();

@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ImageData } from '../llm/types';
+import type { ImageData, JsonObjectSchema } from '../llm/types';
 import type { BrowserController } from './browser';
 import type { ShellRunner } from './shell';
 import type { Workspace } from './workspace';
@@ -32,6 +32,8 @@ export interface ToolPreview {
   title: string;
   diff?: string;
   command?: string;
+  // Free-form markdown (e.g. the plan in plan mode) shown on the approval card instead of a diff or command.
+  text?: string;
 }
 
 export interface CodeSearch {
@@ -64,9 +66,14 @@ export interface ToolContext {
 export interface AgentTool<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
   name: string;
   description: string;
-  schema: S;
+  // Built-in tools validate with Zod. MCP tools have no Zod schema; they declare the server's JSON Schema and
+  // input is only checked structurally (object with required fields) before being sent to the server.
+  schema?: S;
+  jsonSchema?: JsonObjectSchema;
   // Tools that change files or run commands wait for approval unless the user chose auto mode.
   requiresApproval: boolean;
+  // Still asks in Auto mode. MCP tools run programs the user configured, so they are never pre-approved.
+  alwaysAsk?: boolean;
   preview?(input: z.infer<S>, context: ToolContext): Promise<ToolPreview>;
   run(input: z.infer<S>, context: ToolContext): Promise<ToolOutput>;
 }

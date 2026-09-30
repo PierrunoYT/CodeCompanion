@@ -117,6 +117,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@mozilla/readability": "^0.6.0",
     "diff": "^9.0.0",
     "ignore": "^7.0.10",

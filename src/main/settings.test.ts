@@ -68,6 +68,36 @@ describe('SettingsStore', () => {
     expect(new SettingsStore(file, reversingCipher).getSecret('anthropicApiKey')).toBe('sk-ant-123');
   });
 
+  it('keeps MCP server secrets when an unrelated setting is saved', () => {
+    const store = new SettingsStore(file, reversingCipher);
+    store.update({
+      mcpServers: [
+        {
+          name: 'docs',
+          transport: 'http',
+          url: 'https://example.com/mcp',
+          headers: { Authorization: 'Bearer secret' },
+        },
+      ],
+    });
+    expect(JSON.stringify(store.view())).not.toContain('Bearer secret');
+    expect(readFileSync(file, 'utf8')).not.toContain('Bearer secret');
+
+    store.update({ theme: 'light' });
+    expect(store.mcpServers()[0]!.headers).toEqual({ Authorization: 'Bearer secret' });
+  });
+
+  it('keeps an MCP secret the dialog sends back as an empty value, and drops one the user removed', () => {
+    const store = new SettingsStore(file, reversingCipher);
+    store.update({
+      mcpServers: [{ name: 'docs', transport: 'stdio', command: 'server', env: { TOKEN: 'abc', OTHER: 'def' } }],
+    });
+    store.update({
+      mcpServers: [{ name: 'docs', transport: 'stdio', command: 'server', env: { TOKEN: '' } }],
+    });
+    expect(store.mcpServers()[0]!.env).toEqual({ TOKEN: 'abc' });
+  });
+
   it('clears a secret when set to an empty string', () => {
     const store = new SettingsStore(file, reversingCipher);
     store.setSecret('openaiApiKey', 'sk-1');

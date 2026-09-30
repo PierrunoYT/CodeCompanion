@@ -10,7 +10,15 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
-- A task interrupted by a crash can be resumed: the conversation is checkpointed after every tool batch, and on load a chat whose history ends with unanswered tool calls offers Resume, which repairs the history with synthetic failed results and continues.
+- MCP server tools always ask for approval, including in Auto mode. A server's environment variables and HTTP headers are encrypted at rest and never sent to the renderer, and a server that fails to connect or a quit closes its process instead of leaving it running.
+
+
+
+
+
+
+- Model Context Protocol (MCP) client support: configure servers in Settings as JSON (stdio child processes or Streamable HTTP endpoints). Their tools are offered to the agent namespaced as `mcp_<server>_<tool>`, always behind an approval card, and per-server connection status is shown in the dialog.
+
 
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.
 - Workspace tools for reading, searching and editing files, running foreground and background commands, fetching pages, web search and optional semantic code search.
@@ -45,6 +53,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Separate planning mode and manual chat saving; planning happens within the conversation and chats save automatically.
 
 ### Fixed
+
+- Look up projects by their real path in `ProjectStore`, so macOS's `/var` to `/private/var` rewrite no longer makes a stored project look unknown.
 
 - Prevent commands from starting after Stop, cancel foreground and active-project background process trees (including startup waits), and avoid hangs when child processes retain output pipes. Other projects' background jobs remain independent.
 - Serialize Undo against sending, resuming, compaction and project switching; use application-generated tool-card IDs to prevent collisions from reused provider IDs.

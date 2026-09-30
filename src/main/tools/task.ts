@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ChatEvent, UsageTotals } from '@shared/chat';
-import type { Conversation, UserInput } from '../llm/types';
+import type { Conversation, SerializedConversation, UserInput } from '../llm/types';
 import { Agent, SUBAGENT_MAX_TURNS } from '../agent/agent';
 import { defineTool, ToolError, truncateOutput, type AgentTool, type ToolContext } from './types';
 
@@ -13,6 +13,17 @@ export interface TaskToolOptions {
   tools: () => AgentTool[];
   // Adds the subagent's token usage to the chat totals, so the status bar and cost estimate include delegated work.
   recordUsage?: (usage: UsageTotals) => void;
+}
+
+// An empty conversation on the parent chat's own model and API, for one subagent run. The parent's compaction state
+// is not carried over: requests are built from `messages.slice(keepFrom)`, which would drop the subagent's own first
+// messages (its question) and send the parent's summary instead.
+export function subagentConversation(
+  parent: Conversation,
+  restore: (saved: SerializedConversation) => Conversation,
+): Conversation {
+  const { compaction: _compaction, ...saved } = parent.serialize();
+  return restore({ ...saved, messages: [] });
 }
 
 const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'grep', 'search_code']);
@@ -56,7 +67,8 @@ async function runSubagent(options: TaskToolOptions, task: string, context: Tool
     maxTurns: SUBAGENT_MAX_TURNS,
     emit: (event) => {
       // Interim text (a turn that also called tools) is only progress. The answer is taken from the outcome below.
-      if (event.type === 'assistant-end' && event.text) partial = event.text;
+      // Every turn replaces it, so a final turn without text is not answered with an earlier turn's text.
+      if (event.type === 'assistant-end') partial = event.text ?? '';
       forwardProgress(event, context.onProgress);
     },
   });
@@ -68,8 +80,10 @@ async function runSubagent(options: TaskToolOptions, task: string, context: Tool
   } catch (error) {
     if (context.signal.aborted) throw new ToolError('The subagent was stopped.');
     throw new ToolError(`The subagent failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    // Also after a failure: the turns that did run were billed.
+    options.recordUsage?.(agent.totals);
   }
-  options.recordUsage?.(agent.totals);
   const usage = agent.totals;
   const usageLine = `(Subagent token usage: ${usage.inputTokens} in / ${usage.outputTokens} out.)`;
   if (outcome === 'answer' && partial.trim()) {

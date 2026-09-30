@@ -22,6 +22,7 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ### Development
 
+- Declare `engines.node >=22.12` and raise TypeScript strictness with `noUncheckedIndexedAccess`, `noImplicitOverride`, `noUnusedParameters` and `forceConsistentCasingInFileNames`; add the necessary guards and assertions across the codebase. Stop tracking `*.tsbuildinfo` incremental build artifacts.
 - Add ESLint with the typescript-eslint recommended rules (`eslint.config.mjs`, `npm run lint`) and a CI lint job. Test files and mock servers may use `any`; three production findings were fixed (an unused catch binding, an intentional control-character regex in the export file name, an unused test handler parameter).
 - Install Prettier as a devDependency and enforce formatting: `npm run format` rewrites the repository and `npm run format:check` runs in CI. This reformats the existing sources once (mechanical changes only); `package-lock.json` is excluded via `.prettierignore`.
 - Reset focus between theme checks and wait for CSS transitions before measuring rendered contrast.

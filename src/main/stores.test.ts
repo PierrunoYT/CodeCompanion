@@ -72,8 +72,8 @@ describe('ChatStore', () => {
     // A title match has no snippet; a message match carries an excerpt.
     expect(store.search('fix')).toEqual([expect.not.objectContaining({ snippet: expect.anything() })]);
     const [byMessage] = store.search('refresh token');
-    expect(byMessage.id).toBe(idA);
-    expect(byMessage.snippet).toContain('refresh token is rejected');
+    expect(byMessage!.id).toBe(idA);
+    expect(byMessage!.snippet).toContain('refresh token is rejected');
     // Words may be split between the title and the messages; tool output is not searched.
     expect(store.search('login rejected').map((item) => item.id)).toEqual([idA]);
     expect(store.search('zebra')).toEqual([]);
@@ -124,7 +124,7 @@ describe('ProjectStore', () => {
 
     const reloaded = new ProjectStore(file);
     expect(reloaded.list().map((project) => project.name)).toEqual(['two', 'one']);
-    expect(reloaded.list()[0].instructions).toBe('Use pnpm.');
+    expect(reloaded.list()[0]!.instructions).toBe('Use pnpm.');
     expect(reloaded.current()).toBeNull();
   });
 

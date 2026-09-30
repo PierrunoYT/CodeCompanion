@@ -169,7 +169,7 @@ describe('OpenAIResponsesConversation', () => {
     conversation.addUserMessage({ text: 'hi', images: [{ mediaType: 'image/png', base64: 'AAAA' }] });
     await conversation.runTurn(request());
 
-    const { path, body } = server.requests[0];
+    const { path, body } = server.requests[0]!;
     expect(path).toBe('/responses');
     expect(body).toMatchObject({
       model,
@@ -201,7 +201,7 @@ describe('OpenAIResponsesConversation', () => {
     conversation.addToolResults([{ id: 'call_1', content: 'file contents' }]);
     await conversation.runTurn(request());
 
-    const input = server.requests[1].body.input;
+    const input = server.requests[1]!.body.input;
     expect(input.map((item: any) => item.type ?? item.role)).toEqual([
       'user',
       'reasoning',

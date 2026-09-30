@@ -2,7 +2,7 @@
 
 ## Setup
 
-Requirements: Node.js 20.19+ or 22.12+, Git.
+Requirements: Node.js 22.12+ (declared in the `engines` field), Git.
 
 ```bash
 npm install
@@ -76,7 +76,7 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 ## Conventions
 
-- TypeScript strict mode; Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes. ESLint (`npm run lint`, flat config in `eslint.config.mjs`) is also enforced in CI; test files and mock servers may use `any`, production sources may not.
+- TypeScript strict mode plus `noUncheckedIndexedAccess`, `noImplicitOverride` and `noUnusedParameters`; index access returns `T | undefined`, so guard or assert after bounds checks. Prettier (`.prettierrc`: 120 columns, single quotes) is enforced by `npm run format:check` in CI. Run `npm run format` after changes. ESLint (`npm run lint`, flat config in `eslint.config.mjs`) is also enforced in CI; test files and mock servers may use `any`, production sources may not.
 - Renderer code builds DOM with `h()` (`src/renderer/src/dom.ts`), which inserts text safely. Use `trustedHtml` only for HTML that went through `renderMarkdown`/`renderDiff` (DOMPurify).
 - Never pass API keys or unsanitized model output to the renderer as HTML.
 - Keep the Claude conversation history append-only; add new request features through `claudeCapabilities` so models that do not support them keep working.

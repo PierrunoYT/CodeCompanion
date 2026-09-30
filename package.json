@@ -6,6 +6,9 @@
   "author": "PierrunoYT <pierrebruno@hotmail.ch>",
   "license": "MIT",
   "main": "out/main/index.js",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

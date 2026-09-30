@@ -200,7 +200,7 @@ async function measureContrast(running: RunningApp, targets: [string, string][])
     const parse = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
     const blend = (foreground: number[], background: number[]) => {
       const alpha = foreground[3] ?? 1;
-      return foreground.slice(0, 3).map((channel, index) => channel * alpha + background[index] * (1 - alpha));
+      return foreground.slice(0, 3).map((channel, index) => channel * alpha + (background[index] ?? 0) * (1 - alpha));
     };
     const background = (element: Element) => {
       let result = [255, 255, 255];
@@ -215,7 +215,7 @@ async function measureContrast(running: RunningApp, targets: [string, string][])
         const value = channel / 255;
         return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
       });
-      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
     };
     return entries.map(([name, selector]) => {
       const element = document.querySelector(selector);
@@ -226,7 +226,7 @@ async function measureContrast(running: RunningApp, targets: [string, string][])
       const [lighter, darker] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
       return {
         name,
-        ratio: (lighter + 0.05) / (darker + 0.05),
+        ratio: (lighter! + 0.05) / (darker! + 0.05),
         foreground: style.color,
         background: style.backgroundColor,
       };

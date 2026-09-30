@@ -82,7 +82,7 @@ describe('OpenAIConversation', () => {
       longContext: false,
     });
 
-    const body = server.requests[0].body;
+    const body = server.requests[0]!.body;
     expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' });
     expect(body.tools[0].function.parameters).toMatchObject({ type: 'object', required: ['path'] });
   });
@@ -136,7 +136,7 @@ describe('OpenAIConversation', () => {
     const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test');
     conversation.addUserMessage({ text: 'x' });
     const result = await conversation.runTurn(request());
-    expect(result.toolCalls[0].input).toEqual({ __invalidJson: '{"path":' });
+    expect(result.toolCalls[0]!.input).toEqual({ __invalidJson: '{"path":' });
   });
 
   it('sends tool screenshots as a follow-up user message', () => {
@@ -163,7 +163,7 @@ describe('OpenAIConversation', () => {
     const conversation = new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test', history as any);
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     expect(sent[1]).toEqual({ role: 'user', content: 'THE TASK' });
     expect(sent[2].content).toContain('removed to fit');
     expect(JSON.stringify(sent).length / 4).toBeLessThan(110_000);

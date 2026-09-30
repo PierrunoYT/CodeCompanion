@@ -68,7 +68,7 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await conversation.runTurn(request());
 
-    const { body, headers } = server.requests[0];
+    const { body, headers } = server.requests[0]!;
     expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     expect(body.output_config).toEqual({ effort: 'xhigh' });
     expect(body.context_management).toEqual({ edits: [{ type: 'compact_20260112' }] });
@@ -94,7 +94,7 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await conversation.runTurn(request());
 
-    const { body, headers } = server.requests[0];
+    const { body, headers } = server.requests[0]!;
     expect(body.thinking).toBeUndefined();
     expect(body.output_config).toBeUndefined();
     expect(body.context_management).toBeUndefined();
@@ -126,7 +126,7 @@ describe('AnthropicConversation', () => {
     ]);
     await conversation.runTurn(request());
 
-    const second = server.requests[1].body.messages;
+    const second = server.requests[1]!.body.messages;
     expect(second).toHaveLength(3);
     // The assistant turn is sent back exactly as it was returned.
     expect(second[1].role).toBe('assistant');
@@ -189,7 +189,7 @@ describe('AnthropicCompletionClient', () => {
     await server.stop();
 
     expect(result).toEqual({ title: 'Fix login bug' });
-    const body = server.requests[0].body;
+    const body = server.requests[0]!.body;
     expect(body.output_config.format.type).toBe('json_schema');
     expect(body.tool_choice).toBeUndefined();
   });

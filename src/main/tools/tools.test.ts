@@ -156,7 +156,7 @@ describe('browser tool', () => {
     await call(browserTool, { url: 'http://localhost:3000' }, ctx);
     await call(browserTool, { url: pathToFileURL(join(root, 'index.html')).href }, ctx);
     expect(opened[0]).toBe('http://localhost:3000');
-    expect(opened[1].toLowerCase()).toContain('index.html');
+    expect(opened[1]!.toLowerCase()).toContain('index.html');
   });
 
   it('confines later browser navigation to the approved exact hostname', async () => {

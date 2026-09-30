@@ -197,7 +197,7 @@ describe('agent loop', () => {
 
     expect(ran).toEqual([]);
     expect(conversation.turns).toBe(1);
-    expect(conversation.toolResults[0].map((result) => [result.id, result.isError])).toEqual([
+    expect(conversation.toolResults[0]!.map((result) => [result.id, result.isError])).toEqual([
       ['t1', true],
       ['t2', true],
     ]);
@@ -213,7 +213,7 @@ describe('agent loop', () => {
     await sending;
 
     expect(conversation.turns).toBe(2);
-    expect(conversation.toolResults[0][0].content).toContain('use y');
+    expect(conversation.toolResults[0]![0]!.content).toContain('use y');
   });
 
   it('skips approval in auto mode', async () => {
@@ -231,8 +231,8 @@ describe('agent loop', () => {
     ]);
     await session.send({ text: 'go' });
     expect(ran).toEqual([]);
-    expect(conversation.toolResults[0][0]).toMatchObject({ isError: true });
-    expect(conversation.toolResults[0][0].content).toContain('Invalid input for look');
+    expect(conversation.toolResults[0]![0]!).toMatchObject({ isError: true });
+    expect(conversation.toolResults[0]![0]!.content).toContain('Invalid input for look');
   });
 
   it('names missing fields and the fields that were received', async () => {
@@ -241,7 +241,7 @@ describe('agent loop', () => {
       { text: 'retrying' },
     ]);
     await session.send({ text: 'go' });
-    const content = conversation.toolResults[0][0].content;
+    const content = conversation.toolResults[0]![0]!.content;
     expect(content).toContain('required but missing');
     expect(content).toContain('Received fields: (none)');
   });
@@ -253,7 +253,7 @@ describe('agent loop', () => {
     ]);
     await session.send({ text: 'go' });
     expect(ran).toEqual([]);
-    expect(conversation.toolResults[0][0].content).toContain('output limit');
+    expect(conversation.toolResults[0]![0]!.content).toContain('output limit');
   });
 
   it('answers every pending call when stopped during approval', async () => {
@@ -296,8 +296,8 @@ describe('agent loop', () => {
 
     expect(ran).toEqual([]);
     expect(conversation.users).toHaveLength(2);
-    expect(conversation.users[0].text).toBe('change it');
-    expect(conversation.users[1].text).toContain('inspect the current state');
+    expect(conversation.users[0]!.text).toBe('change it');
+    expect(conversation.users[1]!.text).toContain('inspect the current state');
     expect(session.snapshot().transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
     expect(session.snapshot().resumable).toBe(false);
   });

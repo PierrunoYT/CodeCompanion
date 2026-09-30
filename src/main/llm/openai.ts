@@ -84,6 +84,7 @@ export class OpenAIConversation implements Conversation {
 
     const completion = await stream.finalChatCompletion();
     const choice = completion.choices[0];
+    if (!choice) throw new Error('The model response contained no choices.');
     const message = choice.message;
 
     const toolCalls: ToolCall[] = (message.tool_calls ?? [])
@@ -125,11 +126,12 @@ export class OpenAIConversation implements Conversation {
   private trimHistory(): void {
     if (estimateTokens(this.messages) <= MAX_HISTORY_TOKENS) return;
     const [first, ...rest] = this.messages;
+    if (!first) return;
     const kept = [...rest];
     while (kept.length > 1 && estimateTokens([first, ...kept]) > MAX_HISTORY_TOKENS) {
       kept.shift();
       // A tool or assistant message cannot start the kept history; drop up to the next user message.
-      while (kept.length > 1 && kept[0].role !== 'user') kept.shift();
+      while (kept.length > 1 && kept[0]?.role !== 'user') kept.shift();
     }
     this.messages = [
       first,

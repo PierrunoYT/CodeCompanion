@@ -60,7 +60,7 @@ export async function fetchWithoutCrossHostRedirect(initial: URL, signal: AbortS
     const response = await fetch(current, {
       redirect: 'manual',
       signal: withTimeout(signal),
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; CodeCompanion)' },
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; Patch)' },
     });
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get('location');

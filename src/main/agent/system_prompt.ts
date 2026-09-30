@@ -15,7 +15,7 @@ export interface SystemPromptInput {
 // Built once when a chat starts and kept byte-identical afterwards so the prompt prefix stays cached.
 export function buildSystemPrompt(input: SystemPromptInput): string {
   const sections = [
-    `You are CodeCompanion, a coding assistant working directly in the user's project on their computer. You can read and change files, run commands and look things up, using the tools provided.`,
+    `You are Patch, a coding assistant working directly in the user's project on their computer. You can read and change files, run commands and look things up, using the tools provided.`,
 
     `# Environment
 - Project: ${basename(input.workspace.root)} at ${input.workspace.root}

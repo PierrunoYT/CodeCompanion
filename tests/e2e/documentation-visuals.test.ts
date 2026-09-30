@@ -22,7 +22,7 @@ describe('documentation visuals and text contrast', () => {
     git('init', '-q');
     git('config', 'user.email', 'docs@example.test');
     git('config', 'user.name', 'Documentation');
-    writeFileSync(join(project, 'README.md'), '# Sample project\n\nA small CodeCompanion demo.\n');
+    writeFileSync(join(project, 'README.md'), '# Sample project\n\nA small Patch demo.\n');
     git('add', '.');
     git('commit', '-qm', 'Initial project');
     writeFileSync(

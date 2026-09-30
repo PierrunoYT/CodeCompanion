@@ -1,6 +1,6 @@
 {
-  "name": "codecompanion",
-  "productName": "CodeCompanion",
+  "name": "patch",
+  "productName": "Patch",
   "version": "0.3.0",
   "description": "AI coding assistant desktop app",
   "author": "PierrunoYT <pierrebruno@hotmail.ch>",
@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "codecompanion",
-    "productName": "CodeCompanion",
+    "productName": "Patch",
     "files": [
       "out/**",
       "package.json"

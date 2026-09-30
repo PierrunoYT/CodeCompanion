@@ -8,7 +8,7 @@ This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x), now named P
 
 Repository: https://github.com/PierrunoYT/patch
 
-Patch is the new project name. The app currently retains the CodeCompanion window title, executable and installer names, and `CODECOMPANION_*` environment variables; use those names when following the build and development instructions.
+The application and installer are named Patch (`Patch.exe` and `Patch-Installer.exe` on Windows). Existing CodeCompanion profiles, installer identity and `CODECOMPANION_*` environment variables are retained so settings, keys and chats remain accessible.
 
 ![The assistant shows a diff and waits for Approve or Decline before editing a file](docs/images/approval.png)
 

@@ -257,7 +257,7 @@ export class App {
       if (generation !== this.welcomeGeneration) return;
       setChildren(this.welcome, 
         h('h1', { class: 'h4' }, 'Open a project to start'),
-        h('p', { class: 'text-body-secondary' }, 'CodeCompanion works inside a project folder: it reads and edits files there and runs commands in it.'),
+        h('p', { class: 'text-body-secondary' }, 'Patch works inside a project folder: it reads and edits files there and runs commands in it.'),
         h('button', { class: 'btn btn-primary', onclick: () => void this.chooseProject() }, icon('folder-plus'), ' Open folder…'),
         projects.length > 0 ? h('h2', { class: 'h6 mt-4 text-body-secondary' }, 'Recent') : null,
         h('div', { class: 'list-group recent-projects' }, ...projects.map((project) => this.recentProjectItem(project))),

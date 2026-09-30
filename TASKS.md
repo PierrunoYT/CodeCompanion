@@ -6,6 +6,7 @@ The release checklists below record historical CodeCompanion work. Those release
 
 ## Done
 
+- [x] Complete the runtime and installer rename to Patch while preserving existing profiles and installer identity
 - [x] Fix audit findings in chat deletion and active-project background cancellation, with late-callback and process-lifecycle regressions
 - [x] Fix truncated/refused tool execution, final-request context accounting and pinned custom-endpoint summarizer selection
 - [x] Strip untrusted inline styles, confine ignore-file reads and migrate/report plaintext API-key storage accurately

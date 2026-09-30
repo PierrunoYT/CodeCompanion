@@ -23,19 +23,18 @@ import { GitService } from './panels/git';
 import { TerminalService } from './panels/terminal';
 import { createMainWindow } from './window';
 
-app.setName('CodeCompanion');
+app.setName('Patch');
 
-// Lets tests (and anyone who wants a throwaway profile) run with separate settings and history.
-if (process.env.CODECOMPANION_USER_DATA) {
-  app.setPath('userData', process.env.CODECOMPANION_USER_DATA);
-}
+// Keep existing settings, chats and encrypted credentials in the legacy profile after the display-name change.
+// The existing override still lets tests (and anyone who wants a throwaway profile) use a separate profile.
+app.setPath('userData', process.env.CODECOMPANION_USER_DATA || join(app.getPath('appData'), 'CodeCompanion'));
 
 // Crashes and other problems go to a local log (never sent anywhere). Set up before anything else can fail.
 appLog.setFile(join(app.getPath('userData'), 'logs', 'app.log.jsonl'));
 process.on('uncaughtException', (error) => {
   appLog.error('uncaught-exception', error);
   // A listener replaces Electron's own error dialog, so keep telling the user.
-  dialog.showErrorBox('CodeCompanion hit an unexpected error', error instanceof Error ? error.message : String(error));
+  dialog.showErrorBox('Patch hit an unexpected error', error instanceof Error ? error.message : String(error));
 });
 process.on('unhandledRejection', (reason) => appLog.error('unhandled-rejection', reason));
 app.on('render-process-gone', (_event, _contents, details) =>

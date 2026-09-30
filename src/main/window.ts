@@ -15,7 +15,7 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
     height: Math.min(1000, Math.floor(screenHeight * 0.85)),
     minWidth: 800,
     minHeight: 500,
-    title: 'CodeCompanion',
+    title: 'Patch',
     icon: join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'build'), 'icon.png'),
     ...(quietTestRun ? { opacity: 0, skipTaskbar: true } : {}),
     webPreferences: {

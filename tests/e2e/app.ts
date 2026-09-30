@@ -32,17 +32,17 @@ export function killTree(pid: number | undefined): void {
 // Launches the built app (run `npm run build` first) with a throwaway profile. Pass `userData` to start again on the
 // profile of an earlier launch, as after a restart; that folder is then left for the caller to remove.
 export async function launchApp(env: Record<string, string> = {}, options: { userData?: string } = {}): Promise<RunningApp> {
-  const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'codecompanion-e2e-'));
+  const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'patch-e2e-'));
   const root = resolve(__dirname, '../..');
   const app = await electron.launch({
     args: [root],
     cwd: root,
     env: {
       ...process.env,
-      CODECOMPANION_USER_DATA: userData,
+      PATCH_USER_DATA: userData,
       // Invisible windows that never take focus, so a test run does not flash windows over your work.
       // Set E2E_SHOW_WINDOW=1 to watch the tests.
-      ...(process.env.E2E_SHOW_WINDOW ? {} : { CODECOMPANION_E2E_QUIET: '1' }),
+      ...(process.env.E2E_SHOW_WINDOW ? {} : { PATCH_E2E_QUIET: '1' }),
       ...env,
     } as Record<string, string>,
   });

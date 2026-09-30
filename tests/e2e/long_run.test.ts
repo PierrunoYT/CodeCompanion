@@ -15,11 +15,11 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
   let profile: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-long-run-project-'));
-    profile = mkdtempSync(join(tmpdir(), 'cc-long-run-profile-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-long-run-project-'));
+    profile = mkdtempSync(join(tmpdir(), 'patch-long-run-profile-'));
     claude = new MockClaude();
     url = await claude.start();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: url }, { userData: profile });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: url }, { userData: profile });
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-e2e'));
     // Commands run without approval cards, so the run goes on by itself until it is stopped.
@@ -92,7 +92,7 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
 
     // Restart the app on the same profile and continue from the saved chat.
     await running.close();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: url }, { userData: profile });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: url }, { userData: profile });
     await running.page.evaluate((id) => window.api.invoke('history:open', id), stopped.id);
     const resumeButton = running.page.getByRole('button', { name: /Resume/ });
     await resumeButton.waitFor();

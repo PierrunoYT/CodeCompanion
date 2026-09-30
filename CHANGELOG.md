@@ -4,7 +4,7 @@ All notable changes to Patch will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-Patch continues the from-scratch TypeScript rewrite of CodeCompanion.AI. The previous CodeCompanion releases have been removed; their changes are consolidated below as the unreleased Patch baseline, not published Patch versions.
+Patch's changes are consolidated below as an unreleased baseline, not published versions.
 
 ## [Unreleased]
 
@@ -24,7 +24,7 @@ Patch continues the from-scratch TypeScript rewrite of CodeCompanion.AI. The pre
 
 ### Changed
 
-- Rename the project and running application to Patch, including window titles, welcome text, assistant identity, package name, executable and installer. Repository and contribution links use `PierrunoYT/patch`. Retain the existing profile location, installer identity and `CODECOMPANION_*` environment variables to preserve settings, keys and chats.
+- Use Patch throughout the application, documentation and tooling, including the `patch` package and installer ID, default `Patch` profile directory, and `PATCH_*` environment variables. Repository and contribution links use `PierrunoYT/patch`. Previous environment-variable names are no longer recognized; profiles are not migrated automatically. Set `PATCH_USER_DATA` to an existing profile folder to reuse it. Installations with a different application ID are not upgraded in place.
 - Use the Patch logo from `assets/logo-icon.svg` for the app window, favicon, Windows executable, installer and uninstaller, and macOS icon. Regenerate native assets with `npm run icons`.
 - Replace the former JavaScript application with an Electron and TypeScript implementation using an isolated main process, sandboxed renderer and typed IPC.
 - Improve long-chat rendering with batched streaming updates, deferred off-screen layout and lazily rendered tool output; explicitly identify truncated previews and exports.

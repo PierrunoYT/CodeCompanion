@@ -4,7 +4,7 @@ import { appLog } from './app_log';
 
 // Set by the end-to-end tests: the window is fully transparent, has no taskbar entry and never takes focus. It is still
 // shown, so the page renders and animation frames run as they do for a user.
-const quietTestRun = process.env.CODECOMPANION_E2E_QUIET === '1';
+const quietTestRun = process.env.PATCH_E2E_QUIET === '1';
 
 export function createMainWindow(onBrowserAttached: (guest: WebContents) => void): BrowserWindow {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;

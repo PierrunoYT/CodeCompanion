@@ -13,10 +13,10 @@ describe('undo an approved edit (mock Claude API)', () => {
   const notes = () => join(project, 'notes.txt');
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-undo-project-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-undo-project-'));
     writeFileSync(notes(), 'The secret word is pineapple.\n');
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
     // Undo asks "are you sure?" with a browser confirm; answer yes.
     running.page.on('dialog', (dialog) => void dialog.accept());
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);

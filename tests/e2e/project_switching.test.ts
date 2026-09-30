@@ -17,13 +17,13 @@ describe('switching between open projects (mock Claude API)', () => {
   let betaChatId: string;
 
   beforeAll(async () => {
-    root = mkdtempSync(join(tmpdir(), 'cc-switching-'));
+    root = mkdtempSync(join(tmpdir(), 'patch-switching-'));
     alpha = join(root, 'Alpha');
     beta = join(root, 'Beta');
     for (const path of [alpha, beta]) mkdirSync(path);
     writeFileSync(join(alpha, 'AGENTS.md'), 'ALPHA-AGENTS-RULES\n');
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-e2e'));
   });
 

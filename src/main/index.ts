@@ -25,9 +25,7 @@ import { createMainWindow } from './window';
 
 app.setName('Patch');
 
-// Keep existing settings, chats and encrypted credentials in the legacy profile after the display-name change.
-// The existing override still lets tests (and anyone who wants a throwaway profile) use a separate profile.
-app.setPath('userData', process.env.CODECOMPANION_USER_DATA || join(app.getPath('appData'), 'CodeCompanion'));
+app.setPath('userData', process.env.PATCH_USER_DATA || join(app.getPath('appData'), 'Patch'));
 
 // Crashes and other problems go to a local log (never sent anywhere). Set up before anything else can fail.
 appLog.setFile(join(app.getPath('userData'), 'logs', 'app.log.jsonl'));
@@ -48,7 +46,7 @@ app.on('child-process-gone', (_event, details) => {
 
 // End-to-end tests run in an invisible window (see window.ts). Chromium would treat it as hidden or covered and slow
 // its timers and rendering, which makes tests time out, so that is switched off for test runs only.
-if (process.env.CODECOMPANION_E2E_QUIET === '1') {
+if (process.env.PATCH_E2E_QUIET === '1') {
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
   app.commandLine.appendSwitch('disable-background-timer-throttling');

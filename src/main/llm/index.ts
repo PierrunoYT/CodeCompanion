@@ -14,9 +14,9 @@ import {
 export * from './types';
 
 // End-to-end tests point the app at a local mock API. Unset in normal use.
-const TEST_ANTHROPIC_BASE_URL = process.env.CODECOMPANION_TEST_ANTHROPIC_URL || undefined;
+const TEST_ANTHROPIC_BASE_URL = process.env.PATCH_TEST_ANTHROPIC_URL || undefined;
 // Only used when no custom base URL is set in settings, so the Responses API path can be tested.
-const TEST_OPENAI_BASE_URL = process.env.CODECOMPANION_TEST_OPENAI_URL || undefined;
+const TEST_OPENAI_BASE_URL = process.env.PATCH_TEST_OPENAI_URL || undefined;
 
 // Requests that are not part of a chat turn (titles) retry silently inside the SDK. Chat turns are retried by the
 // agent loop instead, where the retry can be shown.

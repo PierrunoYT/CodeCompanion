@@ -55,12 +55,12 @@ describe('long chat performance', () => {
   let profile: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-perf-project-'));
-    profile = mkdtempSync(join(tmpdir(), 'cc-perf-profile-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-perf-project-'));
+    profile = mkdtempSync(join(tmpdir(), 'patch-perf-profile-'));
     mkdirSync(join(profile, 'chats'));
     writeFileSync(join(profile, 'chats', `${LONG_ID}.json`), JSON.stringify(savedChat(LONG_ID, project, transcript(TURNS))));
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() }, { userData: profile });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() }, { userData: profile });
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-perf'));
   });

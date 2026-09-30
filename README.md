@@ -4,11 +4,11 @@
 
 A desktop AI coding assistant. Open a project folder, describe a task, and Patch reads the code, edits files, runs commands and checks its work, asking for your approval before it changes anything.
 
-This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x), now named Patch. The previous CodeCompanion releases have been removed; [CHANGELOG.md](CHANGELOG.md) tracks the unreleased Patch baseline using Keep a Changelog.
+Patch is a from-scratch TypeScript desktop coding assistant. [CHANGELOG.md](CHANGELOG.md) tracks the unreleased baseline using Keep a Changelog.
 
 Repository: https://github.com/PierrunoYT/patch
 
-The application and installer are named Patch (`Patch.exe` and `Patch-Installer.exe` on Windows). Existing CodeCompanion profiles, installer identity and `CODECOMPANION_*` environment variables are retained so settings, keys and chats remain accessible.
+The application and installer are named Patch (`Patch.exe` and `Patch-Installer.exe` on Windows). The default profile directory is `Patch` under the system application-data directory. Environment variables use the `PATCH_*` prefix. Existing profiles are not migrated automatically: set `PATCH_USER_DATA` to an existing profile folder to reuse its settings, keys and chats. The installer uses the `patch` application ID and does not upgrade installations with a different ID.
 
 ![The assistant shows a diff and waits for Approve or Decline before editing a file](docs/images/approval.png)
 

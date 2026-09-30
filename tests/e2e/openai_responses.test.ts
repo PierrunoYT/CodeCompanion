@@ -12,10 +12,10 @@ describe('OpenAI Responses API end to end (mock OpenAI API)', () => {
   let project: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-e2e-openai-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-e2e-openai-'));
     writeFileSync(join(project, 'notes.txt'), 'The secret word is pineapple.\n');
     openai = new MockOpenAI();
-    running = await launchApp({ CODECOMPANION_TEST_OPENAI_URL: await openai.start() });
+    running = await launchApp({ PATCH_TEST_OPENAI_URL: await openai.start() });
   });
 
   afterAll(async () => {

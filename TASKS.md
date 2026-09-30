@@ -2,11 +2,11 @@
 
 Tick a box (`- [x]`) when a task is done.
 
-The release checklists below record historical CodeCompanion work. Those releases have been removed; they are not available Patch releases. Patch's changelog starts with an unreleased baseline.
+The release checklists below record historical development work. Those releases have been removed; they are not available Patch releases. Patch's changelog starts with an unreleased baseline.
 
 ## Done
 
-- [x] Complete the runtime and installer rename to Patch while preserving existing profiles and installer identity
+- [x] Complete the Patch naming cutover across runtime, profile directory, installer identity, environment variables, tests and documentation
 - [x] Fix audit findings in chat deletion and active-project background cancellation, with late-callback and process-lifecycle regressions
 - [x] Fix truncated/refused tool execution, final-request context accounting and pinned custom-endpoint summarizer selection
 - [x] Strip untrusted inline styles, confine ignore-file reads and migrate/report plaintext API-key storage accurately
@@ -20,11 +20,11 @@ The release checklists below record historical CodeCompanion work. Those release
 - [x] Approval cards, Auto / Ask first mode
 - [x] GPT-6 models through the OpenAI Responses API
 - [x] Docs, changelog, `AGENTS.md`
-- [x] Push to `PierrunoYT/CodeCompanion`
+- [x] Push to `PierrunoYT/patch`
 
 ## Release 0.1.0
 
-- [x] Manually test the packaged Windows build (`dist/win-unpacked/CodeCompanion.exe`)
+- [x] Manually test the packaged Windows build
 - [x] Build the NSIS installer (`npm run dist`, 119 MB, version 0.1.0); the packaged app starts cleanly
 - [x] Run the installer, then check the Start menu entry, launch, and uninstall (worked)
 - [x] Fix `npm run dist` failing with EBUSY when `dist/win-unpacked` is in use (a guard script asks you to close the app)
@@ -52,7 +52,7 @@ Won't fix for now: 0.1.0 supports Windows only, so these stay open but are not p
 - [x] Make end-to-end teardown fail fast with a clear error (CI timed out once closing the app after `projects.test.ts`; not reproducible locally)
 - [x] Audit the code and docs before the release (three reviews: main process, UI, docs against code). Fixed: the command allow-list could be bypassed through PowerShell `(...)`; a new file could be written outside the project through a folder link; "Open in editor" shell injection on macOS/Linux; mid-stream overload errors were not retried; custom-endpoint trimming could send a tool result without its call; a refusal with tool calls broke the chat; deleted chats came back; OpenAI compaction could split a reasoning item from its message; scrolling to the bottom with `content-visibility`; focus lost on Undo; and about 20 doc discrepancies
 - [x] Move the unreleased changelog entries into `[0.2.0] - 2026-09-30` and bump the version to 0.2.0
-- [x] Tag `v0.2.0` once CI is green, and check that the release workflow attaches the installer (published 2026-09-30 with `CodeCompanion-Installer.exe`; the first release run failed on the end-to-end teardown hang below, a second attempt of the same commit passed)
+- [x] Tag `v0.2.0` once CI is green, and check that the release workflow attaches the installer (published 2026-09-30; the first release run failed on the end-to-end teardown hang below, a second attempt of the same commit passed)
 
 ### Reliability
 

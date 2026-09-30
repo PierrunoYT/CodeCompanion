@@ -12,9 +12,9 @@ describe('very large tool results in the chat (mock Claude API)', () => {
   let project: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-large-project-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-large-project-'));
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-e2e'));
   });

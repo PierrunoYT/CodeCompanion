@@ -29,8 +29,8 @@ describe('the transcript view (mock Claude API)', () => {
   let profile: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-view-project-'));
-    profile = mkdtempSync(join(tmpdir(), 'cc-view-profile-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-view-project-'));
+    profile = mkdtempSync(join(tmpdir(), 'patch-view-profile-'));
     writeFileSync(join(project, 'notes.txt'), 'hello\n');
     mkdirSync(join(profile, 'chats'));
     writeFileSync(
@@ -50,7 +50,7 @@ describe('the transcript view (mock Claude API)', () => {
       }),
     );
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() }, { userData: profile });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() }, { userData: profile });
     running.page.on('dialog', (dialog) => void dialog.accept());
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-e2e'));

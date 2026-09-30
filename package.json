@@ -20,7 +20,7 @@
     "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder --publish never"
   },
   "build": {
-    "appId": "codecompanion",
+    "appId": "patch",
     "productName": "Patch",
     "files": [
       "out/**",

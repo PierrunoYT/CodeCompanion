@@ -24,8 +24,8 @@ describe('LlmService summarizer selection', () => {
     custom = new MockApiServer();
     const standardURL = await standard.start();
     customURL = await custom.start();
-    vi.stubEnv('CODECOMPANION_TEST_OPENAI_URL', standardURL);
-    vi.stubEnv('CODECOMPANION_TEST_ANTHROPIC_URL', standardURL);
+    vi.stubEnv('PATCH_TEST_OPENAI_URL', standardURL);
+    vi.stubEnv('PATCH_TEST_ANTHROPIC_URL', standardURL);
     vi.resetModules();
     // Module loading is intentional: the local API overrides are captured at module initialization.
     ({ LlmService } = await import('./index'));

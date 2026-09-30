@@ -156,7 +156,7 @@ Before a repository's first commit, the diff includes staged additions and any l
 
 - Settings, projects, saved chats and code indexes are in the app's user data folder. **Help → Show Log Folder** opens its `logs` folder.
 - `logs/app.log.jsonl` records crashes and other problems, one JSON line each, plus a line per start with the app and Electron version and platform. It holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and it is never sent anywhere. Attach it when reporting a bug, after a glance at what is in it.
-- The `CODECOMPANION_USER_DATA=<folder>` environment variable starts the app with a clean profile.
+- The `PATCH_USER_DATA=<folder>` environment variable selects a profile directory. The default is `Patch` under the system application-data directory; to reuse an existing profile, point this variable at its folder.
 
 ## Costs
 

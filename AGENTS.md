@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working on CodeCompanion, an Electron + TypeScript desktop coding assistant. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) before larger changes.
+Guidance for AI coding agents working on Patch, an Electron + TypeScript desktop coding assistant. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) before larger changes.
 
 ## Commands
 
@@ -59,4 +59,4 @@ Don't leave a finished change uncommitted or its docs stale.
 - `dist/`, `out/` and `node_modules/` are git-ignored; don't commit them.
 - `node-pty` is a native module: packaging uses its prebuilds (`npmRebuild: false`) and it is unpacked from the asar.
 - If `node_modules/electron/dist` is missing after install, run `node node_modules/electron/install.js`.
-- `CODECOMPANION_USER_DATA=<folder>` starts the app with a clean profile.
+- `PATCH_USER_DATA=<folder>` starts the app with a clean profile.

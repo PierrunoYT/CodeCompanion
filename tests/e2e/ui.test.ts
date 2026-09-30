@@ -14,10 +14,10 @@ describe('user interface', () => {
   let project: string;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-ui-project-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-ui-project-'));
     writeFileSync(join(project, 'app.js'), 'console.log("hello");\n');
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
   });
 
   afterAll(async () => {

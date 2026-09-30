@@ -16,12 +16,12 @@ describe('chat end to end (mock Claude API)', () => {
   let webRequests = 0;
 
   beforeAll(async () => {
-    project = mkdtempSync(join(tmpdir(), 'cc-e2e-project-'));
+    project = mkdtempSync(join(tmpdir(), 'patch-e2e-project-'));
     writeFileSync(join(project, 'notes.txt'), 'The secret word is pineapple.\n');
     writeFileSync(join(project, 'AGENTS.md'), 'Always answer in lowercase.\n');
     claude = new MockClaude();
     const url = await claude.start();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: url });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: url });
     web = createServer((_request, response) => {
       webRequests++;
       response.setHeader('content-type', 'text/html');

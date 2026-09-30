@@ -16,14 +16,14 @@ describe('multiple open projects', () => {
   let betaId: string;
 
   beforeAll(async () => {
-    root = mkdtempSync(join(tmpdir(), 'cc-projects-'));
+    root = mkdtempSync(join(tmpdir(), 'patch-projects-'));
     alpha = join(root, 'Alpha');
     beta = join(root, 'Beta');
     for (const path of [alpha, beta]) mkdirSync(path);
     writeFileSync(join(alpha, 'notes.txt'), 'Only Alpha has apples.');
     writeFileSync(join(beta, 'notes.txt'), 'Only Beta has bananas.');
     claude = new MockClaude();
-    running = await launchApp({ CODECOMPANION_TEST_ANTHROPIC_URL: await claude.start() });
+    running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-projects-test'));
   });
 

@@ -29,7 +29,7 @@ export class ProjectStore {
   }
 
   close(path: string): void {
-    const real = this.real(path);
+    const real = this.storedPath(path);
     this.openProjects.delete(real);
     if (this.currentPath === real) this.currentPath = this.openProjects.keys().next().value ?? null;
   }
@@ -77,13 +77,13 @@ export class ProjectStore {
 
   // The project as it is now, or null. Read on every tool call, so a change applies to open chats at once.
   get(path: string): ProjectInfo | null {
-    const real = this.real(path);
+    const real = this.storedPath(path);
     const project = this.openProjects.get(real) ?? this.projects.find((candidate) => candidate.path === real);
     return project ? { ...project } : null;
   }
 
   private update(path: string, patch: Partial<ProjectSettings>): ProjectInfo {
-    const real = this.real(path);
+    const real = this.storedPath(path);
     const project = this.openProjects.get(real) ?? this.projects.find((candidate) => candidate.path === real);
     if (!project) throw new Error(`Unknown project: ${path}`);
     Object.assign(project, patch);
@@ -92,15 +92,18 @@ export class ProjectStore {
   }
 
   remove(path: string): void {
-    const real = this.real(path);
+    const real = this.storedPath(path);
     this.close(real);
     this.projects = this.projects.filter((project) => project.path !== real);
     this.persist();
   }
 
-  // Callers may pass the path in symlinked form (macOS /var vs /private/var); projects are stored by realpath.
-  private real(path: string): string {
+  // The path a project is stored under. Projects are stored by realpath, and callers may pass a linked form (macOS
+  // /var vs /private/var), so a path that is not stored as it is gets resolved. A stored path is used as it is: its
+  // folder may since have become a link elsewhere, and the project must still be reachable to close or remove it.
+  private storedPath(path: string): string {
     const absolute = resolve(path);
+    if (this.openProjects.has(absolute) || this.projects.some((project) => project.path === absolute)) return absolute;
     try {
       return realpathSync(absolute);
     } catch {

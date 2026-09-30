@@ -336,6 +336,24 @@ describe('ProjectStore', () => {
     expect(store.current()?.path).toBe(realpathSync(target));
   });
 
+  it('still closes and removes a project whose folder has since become a link elsewhere', () => {
+    const project = join(dir, 'project');
+    const elsewhere = join(dir, 'elsewhere');
+    mkdirSync(project);
+    mkdirSync(elsewhere);
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    const stored = store.open(project).path;
+    // The folder is replaced by a link to another folder, so resolving the stored path now leads somewhere else.
+    rmSync(project, { recursive: true });
+    symlinkSync(elsewhere, project, 'junction');
+
+    expect(store.get(stored)?.path).toBe(stored);
+    store.close(stored);
+    expect(store.opened()).toEqual([]);
+    store.remove(stored);
+    expect(store.list().some((candidate) => candidate.path === stored)).toBe(false);
+  });
+
   it('tracks open projects independently of recent order and closes without deleting history', () => {
     const one = join(dir, 'one');
     const two = join(dir, 'two');

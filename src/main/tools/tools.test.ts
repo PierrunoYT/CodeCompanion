@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -92,6 +93,40 @@ describe('file tools', () => {
   it('creates new files and folders without a prior read', async () => {
     await call(writeFileTool, { path: 'lib/new/util.ts', content: 'export {};\n' });
     expect(readFileSync(join(root, 'lib', 'new', 'util.ts'), 'utf8')).toBe('export {};\n');
+  });
+
+  it('keeps what is needed to undo an edit: the exact previous bytes and a fingerprint of the result', async () => {
+    const original = readFileSync(join(root, 'src', 'app.ts'));
+    await call(readFileTool, { path: 'src/app.ts' });
+    const result = await call(editFileTool, { path: 'src/app.ts', old_string: 'const a = 1;', new_string: 'const a = 10;' });
+
+    expect(result.undo).toEqual({
+      path: 'src/app.ts',
+      before: original,
+      afterHash: createHash('sha256').update(readFileSync(join(root, 'src', 'app.ts'))).digest('hex'),
+    });
+  });
+
+  it('marks a created file as one that did not exist, and keeps the previous content of an overwritten one', async () => {
+    const created = await call(writeFileTool, { path: 'lib/new.ts', content: 'export {};\n' });
+    expect(created.undo).toEqual({
+      path: 'lib/new.ts',
+      before: null,
+      afterHash: createHash('sha256').update('export {};\n').digest('hex'),
+    });
+
+    const original = readFileSync(join(root, 'src', 'app.ts'));
+    await call(readFileTool, { path: 'src/app.ts' });
+    const replaced = await call(writeFileTool, { path: 'src/app.ts', content: 'replaced\n' });
+    expect(replaced.undo?.before).toEqual(original);
+  });
+
+  it('keeps the exact bytes of a file that is not valid UTF-8', async () => {
+    const bytes = Buffer.from([0x63, 0x6f, 0x6e, 0xff, 0xfe, 0x0d, 0x0a, 0x73, 0x74]);
+    writeFileSync(join(root, 'legacy.txt'), bytes);
+    await call(readFileTool, { path: 'legacy.txt' });
+    const result = await call(writeFileTool, { path: 'legacy.txt', content: 'utf8 now\n' });
+    expect(result.undo?.before?.equals(bytes)).toBe(true);
   });
 
   it('previews writes as a diff', async () => {

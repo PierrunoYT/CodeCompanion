@@ -25,6 +25,7 @@ export class App {
   private readonly transcript = new TranscriptView({
     decide: (id, decision) => void api.invoke('chat:decide', id, decision),
     openFile: (path) => void api.invoke('files:open-in-editor', path).catch((error) => this.toast(error)),
+    undoEdit: (id, path) => void this.undoEdit(id, path),
     theme: () => this.settings.theme,
   });
   private readonly composer = new Composer({
@@ -396,6 +397,18 @@ export class App {
       indexStatus: () => api.invoke('index:status'),
       rebuildIndex: () => api.invoke('index:rebuild'),
     });
+  }
+
+  private async undoEdit(id: string, path: string | undefined): Promise<void> {
+    if (!confirm(`Undo this change to ${path ?? 'the file'}? The file goes back to how it was before the edit.`)) return;
+    try {
+      const result = await api.invoke('edit:undo', id);
+      this.toast(result.action === 'deleted' ? `Deleted ${result.path}` : `Restored ${result.path}`, 'success');
+      // Files changed outside a tool call, so the Git view has to be refreshed here.
+      this.panels.filesChanged();
+    } catch (error) {
+      this.toast(error);
+    }
   }
 
   private async compactChat(): Promise<void> {

@@ -1,5 +1,6 @@
 import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
+import type { UndoResult } from '@shared/ipc';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
 import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
@@ -10,6 +11,7 @@ import type { ChatStore } from './chat_store';
 import type { LlmService } from './llm';
 import type { ProjectStore } from './projects';
 import type { SettingsStore } from './settings';
+import type { EditBackups } from './tools/edit_backups';
 import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
 import { confineFileUrl, type BrowserController } from './tools/browser';
@@ -27,6 +29,8 @@ export interface ChatManagerDeps {
   onSnapshot: (snapshot: ChatSnapshot) => void;
   onHistoryChanged: () => void;
   onDroppedFields?: (error: DroppedFieldError) => void;
+  // Where backups of approved edits are kept. Without it, edits cannot be undone.
+  edits?: EditBackups;
 }
 
 const SAVE_DELAY_MS = 500;
@@ -95,6 +99,24 @@ export class ChatManager {
     if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
     if (!this.session || this.session.isEmpty) throw new Error('There is no chat to compact yet.');
     return this.session.compact();
+  }
+
+  // Puts back the file that an approved edit changed, or removes the file it created, from the edit's card. Only while
+  // the assistant is idle, so it cannot be working on the same file, and only if the file is still as the edit left it.
+  async undoEdit(toolId: string): Promise<UndoResult> {
+    this.requireIdle();
+    const session = this.session;
+    const edits = this.deps.edits;
+    if (!session || !edits) throw new Error('There is no edit to undo.');
+    const card = session.snapshot().transcript.find((item) => item.kind === 'tool' && item.id === toolId);
+    if (card?.kind !== 'tool' || card.undo !== 'available') throw new Error('This edit cannot be undone.');
+
+    const projectPath = session.snapshot().projectPath;
+    if (!projectPath) throw new Error('This chat has no project.');
+    const { absolute, ...result } = await edits.undo(session.id, toolId, new Workspace(projectPath));
+    session.editUndone(toolId, result, absolute);
+    this.save(session);
+    return result;
   }
 
   decide(approvalId: string, decision: ApprovalDecision): void {
@@ -249,6 +271,7 @@ export class ChatManager {
       },
       smallModel: () => this.deps.llm.smallModel(),
       onDroppedFields: this.deps.onDroppedFields,
+      onEditApplied: this.deps.edits ? (toolId, edit) => this.deps.edits!.record(session.id, toolId, edit) : undefined,
       onEvent: (event) => this.deps.emit(event, session.id),
       onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),
     });

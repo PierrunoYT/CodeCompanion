@@ -6,6 +6,8 @@ import { renderDiff, renderMarkdown } from '../markdown';
 export interface TranscriptActions {
   decide(id: string, decision: ApprovalDecision): void;
   openFile(path: string): void;
+  // Puts back the file an approved edit changed. The card is the edit's own tool card.
+  undoEdit(id: string, path: string | undefined): void;
   theme(): 'dark' | 'light';
 }
 
@@ -140,6 +142,26 @@ export class TranscriptView {
             icon('box-arrow-up-right'),
           )
         : null,
+      item.undo === 'available'
+        ? h(
+            'button',
+            {
+              class: 'btn btn-outline-secondary btn-sm py-0 ms-2 undo-button',
+              title: 'Put the file back the way it was before this edit',
+              'aria-label': `Undo ${title}`,
+              onclick: (event: Event) => {
+                // The button sits in the card's summary; do not also open or close the card.
+                event.preventDefault();
+                event.stopPropagation();
+                this.actions.undoEdit(item.id, item.path);
+              },
+            },
+            icon('arrow-counterclockwise'),
+            ' Undo',
+          )
+        : item.undo === 'undone'
+          ? h('span', { class: 'badge text-bg-secondary ms-2' }, 'Undone')
+          : null,
       h('span', { class: 'ms-auto' }, status[item.status]),
     );
 

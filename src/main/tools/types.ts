@@ -13,6 +13,18 @@ export interface ToolOutput {
   summary?: string;
   // Project-relative file the tool read or changed, so the UI can offer to open it.
   path?: string;
+  // Set by tools that change a file, so the change can be undone. Never shown to the model.
+  undo?: EditUndo;
+}
+
+// What is needed to put a file back the way it was before a tool changed it.
+export interface EditUndo {
+  // Project-relative path.
+  path: string;
+  // The exact bytes the file had before, or null when the tool created it.
+  before: Buffer | null;
+  // SHA-256 of the bytes the tool wrote. Undoing is only allowed while the file still has exactly these.
+  afterHash: string;
 }
 
 // Shown to the user before an approval-gated tool runs.

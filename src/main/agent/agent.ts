@@ -3,7 +3,7 @@ import type { ApprovalDecision, ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ToolCall, ToolResult, UserInput } from '../llm/types';
 import { toToolSpecs } from '../tools/registry';
-import { ToolError, type AgentTool, type ToolContext, type ToolPreview } from '../tools/types';
+import { ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolPreview } from '../tools/types';
 import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 
 // Safety net against a model that never stops calling tools.
@@ -34,6 +34,8 @@ export interface AgentOptions {
   emit: (event: ChatEvent) => void;
   // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
   onDroppedFields?: (error: DroppedFieldError) => void;
+  // Called with what is needed to undo an edit that was just made. Throwing means no backup was kept.
+  onEditApplied?: (toolId: string, edit: EditUndo) => void;
   // Test hooks for the retry backoff: how to wait, and the jitter (0 to 1).
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   random?: () => number;
@@ -66,8 +68,9 @@ export class Agent {
     return this.run(signal);
   }
 
-  async resume(signal: AbortSignal): Promise<boolean> {
-    this.options.conversation.addUserMessage({ text: RESUME_INSTRUCTION });
+  // `note` is anything the model must be told that happened while the task was stopped, e.g. an undone edit.
+  async resume(signal: AbortSignal, note = ''): Promise<boolean> {
+    this.options.conversation.addUserMessage({ text: note ? `${note}\n\n${RESUME_INSTRUCTION}` : RESUME_INSTRUCTION });
     return this.run(signal);
   }
 
@@ -162,6 +165,18 @@ export class Agent {
         });
         await (this.options.sleep ?? abortableSleep)(decision.delayMs, signal);
       }
+    }
+  }
+
+  // True when the backup of an approved edit was kept, which is what makes the card offer Undo. A backup that cannot
+  // be kept only means there is no Undo; the edit itself is already done and is reported as usual.
+  private keepUndo(toolId: string, edit: EditUndo): boolean {
+    if (!this.options.onEditApplied) return false;
+    try {
+      this.options.onEditApplied(toolId, edit);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -297,6 +312,7 @@ export class Agent {
         summary: output.summary ?? tool.name,
         path: output.path,
         output: tool.name === 'run_command' || tool.name === 'command_output' ? output.content : undefined,
+        undoable: output.undo && !output.isError ? this.keepUndo(eventId, output.undo) : undefined,
       });
       return { result: { id: call.id, content: output.content, isError: output.isError, images: output.images } };
     } catch (error) {

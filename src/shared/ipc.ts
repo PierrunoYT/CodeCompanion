@@ -33,6 +33,12 @@ export interface RendererErrorReport {
   stack?: string;
 }
 
+// What undoing an edit did: put the previous content back, or removed a file the edit had created.
+export interface UndoResult {
+  path: string;
+  action: 'restored' | 'deleted';
+}
+
 export type MenuCommand = 'open-project' | 'new-chat' | 'stop' | 'settings';
 
 export type ImageAttachment = NonNullable<UserMessage['images']>[number] & { name: string };
@@ -63,6 +69,9 @@ export interface InvokeApi {
   'chat:resume': () => void;
   // Replaces older turns, in what is sent to the model, by a summary. Settles when the summary is in place.
   'chat:compact': () => void;
+  // Puts back the file an approved edit changed (or removes the file it created), if the file is still as the edit left
+  // it. The id is the id of the tool card. Refuses while the assistant is working.
+  'edit:undo': (toolId: string) => UndoResult;
   'chat:new': () => ChatSnapshot;
   'chat:decide': (approvalId: string, decision: ApprovalDecision) => void;
   // Asks where to save, writes the current chat as Markdown and returns the path (null if cancelled).
@@ -128,6 +137,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'chat:stop': true,
   'chat:resume': true,
   'chat:compact': true,
+  'edit:undo': true,
   'chat:new': true,
   'chat:decide': true,
   'chat:export': true,

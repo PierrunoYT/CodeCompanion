@@ -61,6 +61,13 @@ describe('project chat retention', () => {
     expect(manager.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('not enough older history') });
   });
 
+  it('has no edit to undo without a chat, or when nothing keeps backups', async () => {
+    open('alpha');
+    await expect(manager.undoEdit('toolu_1')).rejects.toThrow(/no edit to undo/);
+    await manager.send({ text: 'A task' });
+    await expect(manager.undoEdit('toolu_1')).rejects.toThrow(/no edit to undo/);
+  });
+
   it('retains per-project sessions and starts a new chat only in the active project', async () => {
     open('alpha');
     await manager.send({ text: 'Alpha task' });

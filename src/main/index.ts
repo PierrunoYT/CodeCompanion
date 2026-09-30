@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
 import { ToolErrorLog } from './agent/tool_error_log';
+import { EditBackups } from './tools/edit_backups';
 import { appLog } from './app_log';
 import { ChatManager } from './chat_manager';
 import { ChatStore } from './chat_store';
@@ -66,6 +67,7 @@ function start(): void {
   const settings = createSettings();
   const projects = new ProjectStore(join(userData, 'projects.json'));
   const chats = new ChatStore(join(userData, 'chats'));
+  const editBackups = new EditBackups(join(userData, 'edit-backups'));
   const toolErrorLog = new ToolErrorLog(join(userData, 'logs', 'tool-input-errors.jsonl'));
   const llm = new LlmService(settings);
   const browser = new BrowserService(() => send(mainWindow, 'panel:show', 'browser'));
@@ -130,6 +132,7 @@ function start(): void {
     onSnapshot: (snapshot) => send(mainWindow, 'chat:snapshot', snapshot),
     onHistoryChanged: () => send(mainWindow, 'history:changed', chats.list()),
     onDroppedFields: (error) => toolErrorLog.record(error),
+    edits: editBackups,
   });
 
   const openProject = (path: string) => {
@@ -203,6 +206,7 @@ function start(): void {
   });
   // Awaited, unlike send and resume, so a setup problem (no summarizing model, nothing to compact) reaches the UI.
   handle('chat:compact', () => manager.compact());
+  handle('edit:undo', (toolId) => manager.undoEdit(typeof toolId === 'string' ? toolId : ''));
   handle('chat:new', () => manager.newChat());
   handle('chat:decide', (approvalId, decision) => manager.decide(approvalId, decision));
   handle('chat:export', () => {
@@ -220,11 +224,14 @@ function start(): void {
   });
   handle('history:delete', (id) => {
     chats.delete(id);
+    // The backups of a chat's edits go with the chat.
+    editBackups.deleteChat(id);
     return chats.list();
   });
   handle('history:search', (query) => chats.search(typeof query === 'string' ? query.slice(0, 200) : ''));
   handle('history:clear', () => {
     chats.deleteAll();
+    editBackups.deleteAll();
     return chats.list();
   });
 

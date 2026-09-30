@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { z } from 'zod';
-import { detectEol, fileSize, isBinaryFile, MAX_READ_BYTES, withLineNumbers } from './text_files';
+import { detectEol, fileSize, isBinaryFile, MAX_READ_BYTES, sha256, withLineNumbers } from './text_files';
 import { defineTool, ToolError, truncateOutput, type ToolContext } from './types';
 
 const DEFAULT_READ_LINES = 2000;
@@ -129,6 +129,8 @@ export const writeFileTool = defineTool({
     const file = context.workspace.resolve(path);
     const exists = existsSync(file);
     if (exists) requireRead(file, path, context);
+    // The exact bytes, so undoing restores the file as it was even if it was not valid UTF-8.
+    const previous = exists ? await readFile(file) : null;
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, content, 'utf8');
     context.readFiles.add(file);
@@ -138,6 +140,7 @@ export const writeFileTool = defineTool({
       content: `${exists ? 'Updated' : 'Created'} ${rel}.`,
       summary: `${exists ? 'Wrote' : 'Created'} ${rel}`,
       path: rel,
+      undo: { path: rel, before: previous, afterHash: sha256(content) },
     };
   },
 });
@@ -165,7 +168,8 @@ export const editFileTool = defineTool({
     const file = context.workspace.resolve(input.path);
     if (!existsSync(file)) throw new ToolError(`File not found: ${input.path}`);
     requireRead(file, input.path, context);
-    const before = await readFile(file, 'utf8');
+    const bytes = await readFile(file);
+    const before = bytes.toString('utf8');
     const after = applyEdit(before, input);
     await writeFile(file, after, 'utf8');
     const rel = context.workspace.relative(file);
@@ -173,6 +177,7 @@ export const editFileTool = defineTool({
       content: `Edited ${rel}.\n${unifiedDiff(rel, before, after)}`,
       summary: `Edited ${rel}`,
       path: rel,
+      undo: { path: rel, before: bytes, afterHash: sha256(after) },
     };
   },
 });

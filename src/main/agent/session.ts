@@ -9,9 +9,10 @@ import {
   type UsageTotals,
   type UserMessage,
 } from '@shared/chat';
+import type { UndoResult } from '@shared/ipc';
 import type { ApprovalMode } from '@shared/settings';
 import type { CompletionClient, Conversation, SerializedConversation } from '../llm/types';
-import type { AgentTool, ToolContext } from '../tools/types';
+import type { AgentTool, EditUndo, ToolContext } from '../tools/types';
 import { compactionPrompt } from '../llm/compaction';
 import { Agent, type DroppedFieldError } from './agent';
 
@@ -50,6 +51,8 @@ export interface ChatSessionOptions {
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
   smallModel: () => CompletionClient | null;
   onDroppedFields?: (error: DroppedFieldError) => void;
+  // Keeps what is needed to undo an approved edit. Throwing means the edit cannot be undone.
+  onEditApplied?: (toolId: string, edit: EditUndo) => void;
   onEvent: (event: ChatEvent) => void;
   // immediate is true when a task just finished, so the chat can be saved right away.
   onChange: (immediate: boolean) => void;
@@ -68,6 +71,8 @@ export class ChatSession {
   private resumable: boolean;
   private stopRequested = false;
   private updatedAt: string;
+  // Things that happened to the project outside the conversation, for the model's next message. Kept in memory only.
+  private readonly notes: string[] = [];
 
   constructor(private readonly options: ChatSessionOptions) {
     this.id = options.id ?? randomUUID();
@@ -87,6 +92,7 @@ export class ChatSession {
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
       emit: (event) => this.emit(event),
       onDroppedFields: options.onDroppedFields,
+      onEditApplied: options.onEditApplied,
     });
     if (options.usage) {
       const usage = { ...options.usage };
@@ -132,14 +138,37 @@ export class ChatSession {
     this.emit({ type: 'user', id: randomUUID(), text, imageCount: message.images?.length ?? 0 });
     if (isFirst) void this.generateTitle(text);
 
-    return this.run((signal) => this.agent.send({ text: text || '(see attached images)', images: message.images }, signal));
+    // What the user did to the project since the last message (undone edits) is told to the model with this one.
+    const note = this.takeNotes();
+    const modelText = `${note}${text || '(see attached images)'}`;
+    return this.run((signal) => this.agent.send({ text: modelText, images: message.images }, signal));
   }
 
   async resume(): Promise<void> {
     if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
     if (!this.resumable) throw new Error('There is no stopped run to resume.');
     this.setResumable(false);
-    return this.run((signal) => this.agent.resume(signal));
+    const note = this.takeNotes().trim();
+    return this.run((signal) => this.agent.resume(signal, note));
+  }
+
+  // The edit of a tool card was undone by the user (the file has already been put back). The model is told with the
+  // next message, and must read the file again before it edits it: what it last read is no longer what is on disk.
+  editUndone(toolId: string, result: UndoResult, absolutePath: string): void {
+    this.readFiles.delete(absolutePath);
+    this.notes.push(
+      result.action === 'deleted'
+        ? `The user undid your creation of ${result.path}: the file was deleted.`
+        : `The user undid your edit to ${result.path}: the file is back to how it was before that edit. Read it again before editing it.`,
+    );
+    this.emit({ type: 'tool-undone', id: toolId });
+  }
+
+  private takeNotes(): string {
+    if (this.notes.length === 0) return '';
+    const text = `[Note from the app: ${this.notes.join(' ')}]\n\n`;
+    this.notes.length = 0;
+    return text;
   }
 
   private async run(work: (signal: AbortSignal) => Promise<boolean>): Promise<void> {

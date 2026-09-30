@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ApprovalDecision, ChatEvent } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ImageData, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
-import { defineTool, ToolError, type AgentTool, type ToolContext, type ToolOutput } from '../tools/types';
+import { defineTool, ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolOutput } from '../tools/types';
 import { Agent, type DroppedFieldError } from './agent';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
@@ -93,6 +93,7 @@ function setup(
     mode = 'auto' as ApprovalMode,
     requestApproval = vi.fn(async (): Promise<ApprovalDecision> => ({ approved: true })),
     onDroppedFields = undefined as ((error: DroppedFieldError) => void) | undefined,
+    onEditApplied = undefined as ((toolId: string, edit: EditUndo) => void) | undefined,
     // Retries wait through this instead of real timers; the default returns at once.
     sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => {}),
   } = {},
@@ -108,6 +109,7 @@ function setup(
     toolContext: (signal, onProgress) => ({ signal, onProgress, readFiles: new Set() }) as unknown as ToolContext,
     emit: (event) => events.push(event),
     onDroppedFields,
+    onEditApplied,
     sleep,
     random: () => 0.5,
   });
@@ -304,6 +306,72 @@ describe('Agent: dropped-field reporting', () => {
 
     expect(reported[0]).toMatchObject({ missing: ['path', 'old_string', 'new_string'], received: [] });
     expect(conversation.results[0][0]).toMatchObject({ isError: true });
+  });
+});
+
+describe('Agent: undoable edits', () => {
+  const undo: EditUndo = { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'abc' };
+  const editing = (output: Partial<ToolOutput> = {}) =>
+    tool('edit_file', () => ({ content: 'Edited src/a.ts.', summary: 'Edited src/a.ts', path: 'src/a.ts', undo, ...output }), {
+      requiresApproval: true,
+    });
+  const run = async (edit: AgentTool, onEditApplied?: (toolId: string, edit: EditUndo) => void) => {
+    const setUp = setup([{ toolCalls: [call('t1', 'edit_file')] }, { text: 'done' }], { tools: [edit], onEditApplied });
+    await setUp.agent.send({ text: 'go' }, new AbortController().signal);
+    return setUp;
+  };
+
+  it('hands the backup of an approved edit over under the id of its tool card, and marks the card undoable', async () => {
+    const kept: Array<[string, EditUndo]> = [];
+    const { events } = await run(editing(), (toolId, edit) => kept.push([toolId, edit]));
+
+    expect(kept).toEqual([['t1', undo]]);
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: 't1', status: 'done', path: 'src/a.ts', undoable: true });
+  });
+
+  it('does not show the backup to the model', async () => {
+    const { conversation } = await run(editing(), () => {});
+    expect(JSON.stringify(conversation.results)).not.toContain('afterHash');
+    expect(conversation.results[0][0]).toEqual({ id: 't1', content: 'Edited src/a.ts.', isError: undefined, images: undefined });
+  });
+
+  it('reports the edit as done but not undoable when the backup could not be kept', async () => {
+    const { events, conversation } = await run(editing(), () => {
+      throw new Error('disk full');
+    });
+
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'done', undoable: false });
+    expect(conversation.results[0][0].isError).toBeUndefined();
+  });
+
+  it('offers no undo when nothing keeps backups, when the tool has none, or when the edit failed', async () => {
+    const noKeeper = await run(editing());
+    expect(eventsOf(noKeeper.events, 'tool-end')[0].undoable).toBe(false);
+
+    const kept = vi.fn();
+    const plain = await run(editing({ undo: undefined }), kept);
+    expect(eventsOf(plain.events, 'tool-end')[0].undoable).toBeUndefined();
+
+    const failed = await run(editing({ isError: true }), kept);
+    expect(eventsOf(failed.events, 'tool-end')[0]).toMatchObject({ status: 'error', undoable: undefined });
+    expect(kept).not.toHaveBeenCalled();
+  });
+
+  it('keeps no backup for an edit the user declined', async () => {
+    const kept = vi.fn();
+    const { events } = await (async () => {
+      const setUp = setup([{ toolCalls: [call('t1', 'edit_file')] }], {
+        tools: [editing()],
+        mode: 'ask',
+        requestApproval: vi.fn(async () => ({ approved: false })),
+        onEditApplied: kept,
+      });
+      await setUp.agent.send({ text: 'go' }, new AbortController().signal);
+      return setUp;
+    })();
+
+    expect(kept).not.toHaveBeenCalled();
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'declined' });
   });
 });
 

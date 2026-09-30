@@ -92,3 +92,32 @@ describe('applyChatEvent', () => {
     expect(run([{ type: 'busy', busy: true }, { type: 'title', title: 'x' }])).toEqual([]);
   });
 });
+
+describe('undoing an edit', () => {
+  const start: ChatEvent = { type: 'tool-start', id: 't1', name: 'edit_file', awaitingApproval: false };
+
+  it('marks a finished edit that has a backup as undoable, and as undone after the undo', () => {
+    const done = run([start, { type: 'tool-end', id: 't1', status: 'done', summary: 'Edited a.ts', path: 'a.ts', undoable: true }]);
+    expect(done[0]).toMatchObject({ kind: 'tool', status: 'done', undo: 'available' });
+
+    const undone = run([start, { type: 'tool-end', id: 't1', status: 'done', summary: 'Edited a.ts', undoable: true }, { type: 'tool-undone', id: 't1' }]);
+    expect(undone[0]).toMatchObject({ undo: 'undone' });
+  });
+
+  it('offers no undo without a backup, for a failed edit, or for a declined one', () => {
+    expect(run([start, { type: 'tool-end', id: 't1', status: 'done', summary: 's' }])[0]).not.toHaveProperty('undo');
+    expect(run([start, { type: 'tool-end', id: 't1', status: 'error', summary: 's', undoable: true }])[0]).not.toHaveProperty('undo');
+    expect(run([start, { type: 'tool-end', id: 't1', status: 'declined', summary: 's', undoable: true }])[0]).not.toHaveProperty('undo');
+  });
+
+  it('only marks an edit that could be undone, and leaves other items alone', () => {
+    const items = run([
+      start,
+      { type: 'tool-end', id: 't1', status: 'done', summary: 's' },
+      { type: 'user', id: 'u1', text: 'hi', imageCount: 0 },
+    ]);
+    expect(applyChatEvent(items, { type: 'tool-undone', id: 't1' })).toEqual(items);
+    expect(applyChatEvent(items, { type: 'tool-undone', id: 'u1' })).toEqual(items);
+    expect(applyChatEvent(items, { type: 'tool-undone', id: 'missing' })).toEqual(items);
+  });
+});

@@ -22,6 +22,8 @@ export type TranscriptItem =
       output?: string;
       // Project-relative file the tool read or changed.
       path?: string;
+      // For edits: whether a backup exists to undo them, and whether that was done.
+      undo?: 'available' | 'undone';
     }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'notice'; id: string; text: string };
@@ -63,7 +65,11 @@ export type ChatEvent =
       summary: string;
       output?: string;
       path?: string;
+      // A backup of the file was kept, so the edit can be undone.
+      undoable?: boolean;
     }
+  // The edit of this tool card was undone.
+  | { type: 'tool-undone'; id: string }
   | { type: 'error'; id: string; text: string }
   | { type: 'notice'; id: string; text: string }
   | { type: 'busy'; busy: boolean }
@@ -192,9 +198,12 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
               summary: event.summary,
               path: event.path,
               output: (event.output ?? item.output)?.slice(-MAX_TOOL_OUTPUT_IN_TRANSCRIPT),
+              ...(event.undoable && event.status === 'done' ? { undo: 'available' as const } : {}),
             }
           : item,
       );
+    case 'tool-undone':
+      return update(event.id, (item) => (item.kind === 'tool' && item.undo === 'available' ? { ...item, undo: 'undone' } : item));
     case 'error':
       return [...items, { kind: 'error', id: event.id, text: event.text }];
     case 'notice':

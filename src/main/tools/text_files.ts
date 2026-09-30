@@ -1,4 +1,10 @@
+import { createHash } from 'node:crypto';
 import { open, stat } from 'node:fs/promises';
+
+// Fingerprint of a file's bytes (text is hashed as UTF-8, which is how the file tools write it).
+export function sha256(data: string | Buffer): string {
+  return createHash('sha256').update(data).digest('hex');
+}
 
 export const MAX_READ_BYTES = 512 * 1024;
 

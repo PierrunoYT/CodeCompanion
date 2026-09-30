@@ -14,6 +14,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Works directly in your project: read, search, edit and create files, run commands
 - Every file change and command is shown first (diffs, command text) and waits for **Approve** or **Decline** — or switch to **Auto** mode
 - Decline with a note ("use pnpm instead") and the assistant adjusts
+- **Undo** on the card of any approved file edit puts the file back (or deletes a file the assistant created), as long as the file is still as the edit left it; the assistant is told and has to read the file again
 - Semantic code search over the project (needs an OpenAI key for embeddings, which can be added mid-chat); Settings shows whether the project is indexed (with progress while it builds) and can reindex it
 - Built-in browser the assistant uses to check web apps: console output and screenshots
 - Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
@@ -63,6 +64,7 @@ For development in Amp orbs, the repository includes setup and resume scripts to
 ## Privacy and security
 
 - The app talks only to the APIs you configure (Anthropic, OpenAI or your OpenAI-compatible endpoint, Google search) and to pages you or the assistant open. There is no telemetry and no update check. Crashes and errors are written to a log file in the app's data folder (`logs/app.log.jsonl`) for your own troubleshooting; it holds error messages and stack traces (which can mention file paths), not your chat history or API keys, and is never sent anywhere. **Help → Show Log Folder** opens it.
+- To make **Undo** possible, the previous version of every file the assistant edits is copied to the app's data folder (`edit-backups`, the latest 50 edits per chat, deleted with the chat). Those copies are not encrypted; delete the chat if a project contains secrets you do not want copied.
 - API keys are encrypted with the operating system's keychain (Electron `safeStorage`) and never reach the UI process.
 - The assistant's file access is confined to the open project folder. Commands run in your shell with your permissions — keep **Ask first** mode on unless you trust the task. In Settings, "Commands allowed without asking" lists commands (one per line, for example `npm test`) that skip the approval card in Ask first mode; a line also allows the command with arguments. Commands containing `;`, `&`, `|`, `>`, `<`, a backtick or `$(` are always asked about, and file edits always wait for you. Only allow commands you would run yourself: `npm run` would let the assistant run any script in `package.json`.
 - The UI runs sandboxed without Node.js access; model output is sanitized before display.

@@ -4,6 +4,7 @@ Tick a box (`- [x]`) when a task is done.
 
 ## Done
 
+- [x] Replace application, executable, installer and uninstaller branding with `assets/logo-icon.svg`, with reproducible native icon generation
 - [x] Rewrite the app in TypeScript with electron-vite
 - [x] Terminal, browser and Git panels
 - [x] Approval cards, Auto / Ask first mode

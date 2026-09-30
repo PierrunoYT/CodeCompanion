@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, session, shell, type WebContents } from 'electron';
+import { app, BrowserWindow, screen, session, shell, type WebContents } from 'electron';
 import { join } from 'node:path';
 import { appLog } from './app_log';
 
@@ -16,6 +16,7 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
     minWidth: 800,
     minHeight: 500,
     title: 'CodeCompanion',
+    icon: join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'build'), 'icon.png'),
     ...(quietTestRun ? { opacity: 0, skipTaskbar: true } : {}),
     webPreferences: {
       // A test window may sit behind others; it must not be slowed down for it.

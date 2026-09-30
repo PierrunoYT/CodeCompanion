@@ -1,5 +1,7 @@
 # CodeCompanion
 
+<img src="assets/logo-icon.svg" width="96" height="96" alt="CodeCompanion application icon" />
+
 A desktop AI coding assistant. Open a project folder, describe a task, and CodeCompanion reads the code, edits files, runs commands and checks its work, asking for your approval before it changes anything.
 
 This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x). See [CHANGELOG.md](CHANGELOG.md) for what changed.

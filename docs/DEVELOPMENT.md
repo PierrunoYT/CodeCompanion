@@ -33,6 +33,7 @@ Both lifecycle scripts must be executable. They become available to future proje
 |---|---|
 | `npm run dev` | Development mode |
 | `npm start` | Build and run the production build |
+| `npm run icons` | Regenerate native app and installer icons from `assets/logo-icon.svg` |
 | `npm run build` | Build main, preload and renderer into `out/` |
 | `npm run typecheck` | Type-check the Node side (`tsconfig.node.json`) and the renderer (`tsconfig.web.json`) |
 | `npm test` | Unit tests, then build + end-to-end tests |
@@ -54,6 +55,13 @@ Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/
 `pack` and `dist` first run `scripts/ensure-closed.mjs`. On Windows, electron-builder cannot replace `dist/win-unpacked` while an app started from it is running, so the script stops with "Close CodeCompanion first" instead of an `EBUSY` error. An installed copy (outside `dist/`) does not matter.
 
 Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
+
+### Application icons
+
+`assets/logo-icon.svg` is the source for the application branding. After editing it, run `npm run icons` and commit the regenerated `build/icon.ico`, `build/icon.icns`, and `build/icon.png`. The generator rasterizes each size directly from the vector using resvg; Windows ICOs include 16–256 px images, and macOS ICNS files include 16–1024 px images.
+
+The Windows executable, installer, and uninstaller use `build/icon.ico`; macOS uses `build/icon.icns`. The app window uses `build/icon.png`, copied into packaged resources by electron-builder, and the renderer favicon uses the source SVG. Toolbar action icons remain Bootstrap icons.
+
 
 ## Continuous integration
 

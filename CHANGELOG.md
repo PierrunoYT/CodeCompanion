@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Changed
+- Use `assets/logo-icon.svg` for the app window, renderer favicon, Windows executable, installer and uninstaller, and macOS application icon. Native icon assets can be regenerated with `npm run icons`.
+
 ### Fixed
 - A command is no longer started when Stop was pressed just before it could run; the stop used to be missed and the command ran to the end.
 

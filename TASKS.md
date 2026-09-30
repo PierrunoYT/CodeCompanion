@@ -2,8 +2,11 @@
 
 Tick a box (`- [x]`) when a task is done.
 
+The release checklists below record historical CodeCompanion work. Those releases have been removed; they are not available Patch releases. Patch's changelog starts with an unreleased baseline.
+
 ## Done
 
+- [x] Rewrite the changelog for Patch using Keep a Changelog, consolidating the removed releases into an unreleased baseline
 - [x] Update project documentation and repository links for the Patch name; preserve current runtime filenames and historical release names
 - [x] Replace application, executable, installer and uninstaller branding with `assets/logo-icon.svg`, with reproducible native icon generation
 - [x] Rewrite the app in TypeScript with electron-vite

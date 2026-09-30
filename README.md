@@ -4,7 +4,7 @@
 
 A desktop AI coding assistant. Open a project folder, describe a task, and Patch reads the code, edits files, runs commands and checks its work, asking for your approval before it changes anything.
 
-This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x). See [CHANGELOG.md](CHANGELOG.md) for what changed.
+This is a from-scratch TypeScript rewrite of CodeCompanion.AI (6.x), now named Patch. The previous CodeCompanion releases have been removed; [CHANGELOG.md](CHANGELOG.md) tracks the unreleased Patch baseline using Keep a Changelog.
 
 Repository: https://github.com/PierrunoYT/patch
 

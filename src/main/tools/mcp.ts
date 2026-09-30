@@ -177,7 +177,6 @@ export class McpHub {
   }
 }
 
-// Namespaced tool name the model sees: mcp_<server>_<tool>, sanitized to what the provider APIs accept.
 // Namespaced tool name the model sees: mcp_<server>_<tool>, sanitized to what the provider APIs accept. The suffix
 // that disambiguates a collision is budgeted inside the 64-character limit.
 function qualifiedToolName(server: string, tool: string, taken: Set<string>): string {

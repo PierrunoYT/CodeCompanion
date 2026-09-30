@@ -2,6 +2,10 @@ import { BrowserWindow, screen, session, shell, type WebContents } from 'electro
 import { join } from 'node:path';
 import { appLog } from './app_log';
 
+// Set by the end-to-end tests: the window is fully transparent, has no taskbar entry and never takes focus. It is still
+// shown, so the page renders and animation frames run as they do for a user.
+const quietTestRun = process.env.CODECOMPANION_E2E_QUIET === '1';
+
 export function createMainWindow(onBrowserAttached: (guest: WebContents) => void): BrowserWindow {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
@@ -12,7 +16,10 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
     minWidth: 800,
     minHeight: 500,
     title: 'CodeCompanion',
+    ...(quietTestRun ? { opacity: 0, skipTaskbar: true } : {}),
     webPreferences: {
+      // A test window may sit behind others; it must not be slowed down for it.
+      backgroundThrottling: !quietTestRun,
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -30,7 +37,7 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
     target.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     target.setPermissionCheckHandler(() => false);
   }
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => (quietTestRun ? window.showInactive() : window.show()));
 
   if (process.env.ELECTRON_RENDERER_URL) {
     window.loadURL(process.env.ELECTRON_RENDERER_URL);

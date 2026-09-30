@@ -20,7 +20,14 @@ export async function launchApp(env: Record<string, string> = {}): Promise<Runni
   const app = await electron.launch({
     args: [root],
     cwd: root,
-    env: { ...process.env, CODECOMPANION_USER_DATA: userData, ...env } as Record<string, string>,
+    env: {
+      ...process.env,
+      CODECOMPANION_USER_DATA: userData,
+      // Invisible windows that never take focus, so a test run does not flash windows over your work.
+      // Set E2E_SHOW_WINDOW=1 to watch the tests.
+      ...(process.env.E2E_SHOW_WINDOW ? {} : { CODECOMPANION_E2E_QUIET: '1' }),
+      ...env,
+    } as Record<string, string>,
   });
   const page = await app.firstWindow();
   const mainErrors: string[] = [];

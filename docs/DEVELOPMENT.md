@@ -42,6 +42,8 @@ Both lifecycle scripts must be executable. They become available to future proje
 
 Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screenshots of the main screens.
 
+The end-to-end tests start the real app, but its windows are invisible: `launchApp` sets `CODECOMPANION_E2E_QUIET=1`, which makes the window fully transparent, keeps it out of the taskbar and shows it without taking focus (`window.ts`). It also turns off Chromium's slowing of hidden and covered windows (`index.ts`), which otherwise made tests time out now and then when other windows covered the test window. Set `E2E_SHOW_WINDOW=1` to watch a run.
+
 To reproduce the cropped README panels without local paths or secrets: `npm run build`, then `E2E_DOC_SCREENSHOTS=docs/images xvfb-run -a npx vitest run --project e2e tests/e2e/documentation-visuals.test.ts`. The browser image combines its rendered toolbar with Electron's captured guest surface because Xvfb does not composite webviews into Playwright screenshots; the address field uses a documentation-only example URL. The same test measures text contrast for representative footer, approval and panel controls in both themes (including Decline hover/focus), requiring at least 4.5:1. It does not replace NVDA testing or a full accessibility audit.
 
 Project-store tests use a fixed clock to cover equal-timestamp opens and reopening existing folders; newest-open ordering must survive reload without synthesizing future timestamps.

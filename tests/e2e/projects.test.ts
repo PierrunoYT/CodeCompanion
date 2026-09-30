@@ -34,12 +34,17 @@ describe('multiple open projects', () => {
   });
 
   async function waitFor(check: (chat: ChatSnapshot) => boolean): Promise<ChatSnapshot> {
+    let current: ChatSnapshot | undefined;
     for (let i = 0; i < 100; i++) {
-      const current = await running.page.evaluate(() => window.api.invoke('chat:snapshot'));
+      current = await running.page.evaluate(() => window.api.invoke('chat:snapshot'));
       if (check(current)) return current;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    throw new Error('Timed out waiting for project chat');
+    // Say what the chat looked like, so a failure can be told apart from a slow run.
+    const state = current?.transcript.map((item) => `${item.kind}${'text' in item ? `: ${item.text.slice(0, 80)}` : ''}${'status' in item ? ` (${item.status})` : ''}`);
+    throw new Error(
+      `Timed out waiting for project chat. busy=${current?.busy}, requests=${claude.agentRequests.length}, transcript=${JSON.stringify(state)}, main stderr=${running.mainErrors.join('').slice(-500)}`,
+    );
   }
 
   async function readNotes(answer: string): Promise<ChatSnapshot> {

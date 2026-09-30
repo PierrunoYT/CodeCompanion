@@ -47,6 +47,15 @@ app.on('child-process-gone', (_event, details) => {
   }
 });
 
+// End-to-end tests run in an invisible window (see window.ts). Chromium would treat it as hidden or covered and slow
+// its timers and rendering, which makes tests time out, so that is switched off for test runs only.
+if (process.env.CODECOMPANION_E2E_QUIET === '1') {
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-background-timer-throttling');
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+}
+
 let mainWindow: BrowserWindow | null = null;
 
 function createSettings(): SettingsStore {

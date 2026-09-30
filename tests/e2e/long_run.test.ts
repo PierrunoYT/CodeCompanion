@@ -68,7 +68,10 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
     );
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Do the three steps' }));
 
-    await waitFor((chat) => chat.transcript.filter((item) => item.kind === 'tool').at(-1)?.status === 'running');
+    await waitFor((chat) => {
+      const cards = chat.transcript.filter((item) => item.kind === 'tool');
+      return cards.length === 3 && cards[2].status === 'running';
+    });
     await running.page.getByRole('button', { name: /Stop/ }).click();
     const stopped = await waitFor((chat) => !chat.busy && chat.resumable);
 

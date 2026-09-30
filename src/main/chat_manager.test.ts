@@ -156,4 +156,57 @@ describe('project chat retention', () => {
     open('beta');
     expect(manager.snapshot()).toEqual(beta);
   });
+
+  it('refuses to send, resume, compact or switch while an undo is putting a file back, and saves its note', async () => {
+    open('alpha');
+    const alphaPath = join(root, 'alpha');
+    const id = '11111111-2222-4333-8444-555555555555';
+    chats.save({
+      version: 1, id, title: 'Edit', projectPath: alphaPath, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      system: '', usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, readFiles: [],
+      conversation: { provider: 'anthropic', model: 'test', messages: [] },
+      transcript: [
+        { kind: 'user', id: 'u1', text: 'Edit it', imageCount: 0 },
+        { kind: 'tool', id: 'card-1', name: 'edit_file', status: 'done', path: 'notes.txt', undo: 'available' },
+      ],
+    });
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => (finish = resolve));
+    const edits = { undo: vi.fn(async () => (await gate, { path: 'notes.txt', action: 'restored' as const, absolute: join(alphaPath, 'notes.txt') })) };
+    manager.dispose();
+    const llm = new LlmService(settings);
+    const conversation = (): Conversation => ({
+      provider: 'anthropic', model: 'test', addUserMessage() {}, addToolResults() {},
+      async runTurn() {
+        return { text: 'Done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0 } };
+      },
+      serialize: () => ({ provider: 'anthropic', model: 'test', messages: [] }),
+      planCompaction: () => null,
+      applyCompaction() {},
+    });
+    vi.spyOn(llm, 'createConversation').mockImplementation(conversation);
+    vi.spyOn(llm, 'restoreConversation').mockImplementation(conversation);
+    manager = new ChatManager({
+      projects, chats, settings, llm, browser: () => null, codeSearch: () => null,
+      emit() {}, onSnapshot() {}, onHistoryChanged() {}, edits: edits as never,
+    });
+    manager.projectChanged();
+    manager.open(id);
+
+    const undoing = manager.undoEdit('card-1');
+    expect(manager.busy).toBe(true);
+    expect(() => manager.send({ text: 'Now' })).toThrow(/still working/);
+    expect(() => manager.resume()).toThrow();
+    expect(() => manager.compact()).toThrow(/still working/);
+    expect(() => manager.newChat()).toThrow();
+    await expect(manager.undoEdit('card-1')).rejects.toThrow();
+
+    finish();
+    await undoing;
+    expect(manager.busy).toBe(false);
+    expect(edits.undo).toHaveBeenCalledTimes(1);
+    expect(chats.load(id)?.pendingNotes).toEqual([expect.stringContaining('The user undid your edit to notes.txt')]);
+    await manager.send({ text: 'Now' });
+    expect(chats.load(id)?.pendingNotes).toEqual([]);
+  });
 });

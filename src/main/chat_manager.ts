@@ -71,8 +71,10 @@ export class ChatManager {
     );
   }
 
+  // True while the assistant works, and while an undo is putting a file back: until its note for the model is queued
+  // and saved, nothing else may start, or the model would only hear about the undo one message late.
   get busy(): boolean {
-    return this.session?.busy ?? false;
+    return this.undoing || (this.session?.busy ?? false);
   }
 
   // Setup problems (no project, missing API key, already busy) throw immediately; the returned promise settles when
@@ -108,6 +110,8 @@ export class ChatManager {
 
   // Puts back the file that an approved edit changed, or removes the file it created, from the edit's card. Only while
   // the assistant is idle, so it cannot be working on the same file, and only if the file is still as the edit left it.
+  private undoing = false;
+
   async undoEdit(toolId: string): Promise<UndoResult> {
     this.requireIdle();
     const session = this.session;
@@ -118,10 +122,15 @@ export class ChatManager {
 
     const projectPath = session.snapshot().projectPath;
     if (!projectPath) throw new Error('This chat has no project.');
-    const { absolute, ...result } = await edits.undo(session.id, toolId, new Workspace(projectPath));
-    session.editUndone(toolId, result, absolute);
-    this.save(session);
-    return result;
+    this.undoing = true;
+    try {
+      const { absolute, ...result } = await edits.undo(session.id, toolId, new Workspace(projectPath));
+      session.editUndone(toolId, result, absolute);
+      this.save(session);
+      return result;
+    } finally {
+      this.undoing = false;
+    }
   }
 
   decide(approvalId: string, decision: ApprovalDecision): void {

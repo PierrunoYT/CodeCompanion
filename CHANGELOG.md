@@ -5,6 +5,8 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 ## [Unreleased]
 
 ### Fixed
+- Undo can no longer overlap a message sent at the same moment: sending, resuming, compacting and switching chats wait until the undo has finished and the model's note about it is queued, so the model hears about the undo with the very next message.
+- The note telling the model about an undone edit is saved with the chat, so it is still sent after a restart of the app.
 - Tool cards, approvals and edit backups now use ids made by the app, not the provider's tool-call ids. A server that reuses ids across turns (some OpenAI-compatible ones) can no longer make Undo on an earlier card act on a later edit.
 - Windows: the terminal panel uses node-pty's bundled ConPTY, which has no console-list helper process, so closing a project tab right after opening it can no longer crash that helper (`AttachConsole failed`) and stop the app from quitting.
 - Keep Anthropic pause/compaction continuation responses out of saved history until the turn succeeds, so failed or cancelled continuations leave no partial model history behind on retry.

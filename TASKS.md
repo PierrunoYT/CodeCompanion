@@ -80,10 +80,9 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - **Windows teardown:** `TerminalService` now selects `useConptyDll` on Windows, with spawn-option and rapid restart unit tests. The worker reported 9 terminal tests, 435 unit tests and typecheck passing before later edits. Verified natively on Windows: the terminal, project and panel e2e files pass five runs in a row with the bundled ConPTY. The hang itself never reproduced locally, so keep an eye on the next Windows CI runs.
 - **Performance:** `docs/PERFORMANCE.md` records three-run Linux orb comparisons. No renderer optimization was retained: candidates did not improve frame percentiles or broke scroll-follow. The original Windows/high-refresh regression remains open.
 - **App-owned tool IDs:** done; `tests/e2e/undo.test.ts` reuses provider ids across turns as a regression.
-- **Pending Undo notes:** `SavedChat`/`ChatSessionOptions.pendingNotes`, copy-on-load/save, manager restoration, and session tests are partially written. Review and verify save/reopen, once-only send/resume delivery and compatibility with older chats.
-- **Undo/send locking:** not started. `ChatManager.undoEdit` still awaits the file restore without reserving the session; sends, switches and other conflicting operations need to stay blocked until the undo notice is queued and saved.
-- **Checkpoint verification:** typecheck and all 438 unit tests pass. `xvfb-run -a npm test` builds successfully; 73 Electron tests pass and 3 fail in `tests/e2e/undo.test.ts`. Its first failure is the obsolete `toolu_edit` card-ID lookup (line 64); later tests fail with the state left by that interrupted test. The repeated-provider-ID Undo regression remains to be completed.
-- **Before completing:** review the cancelled workers' partial changes, finish the Undo E2E updates and locking, rerun the full suite, update affected docs/changelog, and commit each coherent change separately. Do not mark the remaining boxes complete from this checkpoint alone.
+- **Pending Undo notes:** done; saved with the chat (`pendingNotes`), tested in `src/main/agent/agent.test.ts` and `src/main/chat_manager.test.ts`.
+- **Undo/send locking:** done; `ChatManager.busy` includes a running undo.
+- **Checkpoint verification:** typecheck, all unit tests and the full end-to-end suite pass on Windows (the `long_run` test now waits for the third card before stopping).
 
 ### Remaining work
 
@@ -92,8 +91,8 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - [ ] Streaming in a 5,000-item chat costs 14–21 ms per frame. Cause found: the 7 ms before the scroll fix was a chat that was not following the bottom, so the streamed answer was off screen; following costs layout across the 5,000 `content-visibility` siblings (`docs/PERFORMANCE.md`, "Windows bisection"). Next: try grouping older items into a few chunks
 - [x] Fix the end-to-end teardown hang on Windows CI (2 of 5 runs around the 0.2.0 release, always after `projects.test.ts` with all tests passed). The harness's 20 s report shows `node-pty`'s `conpty_console_list_agent.js` crashing with `AttachConsole failed`: closing two project tabs quickly kills a terminal whose console is not ready yet, and the app then does not quit. The forked agents also print inspector output (Playwright starts the app with the inspector on, and forks inherit it), which may be why it only hangs under test; not reproducible locally (30 rapid open/close rounds quit in ~0.1 s). Options: `node-pty`'s `useConptyDll` (no agent process), or not killing a terminal that is still starting
 - [x] Key edit backups and tool cards by an id of the app's own instead of the provider's tool-call id, which some OpenAI-compatible servers reuse across turns
-- [ ] Lock Undo against a message sent at the same moment (today the model is then told about the undo one message later)
-- [ ] Save the pending "you undid an edit" note with the chat, so it survives a restart
+- [x] Lock Undo against a message sent at the same moment (today the model is then told about the undo one message later)
+- [x] Save the pending "you undid an edit" note with the chat, so it survives a restart
 - [x] On the Anthropic path, keep the first part of a turn that was paused or compacted server-side out of the history until the turn completes, so a retry cannot leave it behind
 - [x] Redact more token formats in the local log (custom-endpoint keys such as `gsk_…` or `xai-…`)
 

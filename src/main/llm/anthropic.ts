@@ -150,12 +150,17 @@ export class AnthropicConversation implements Conversation {
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {
     const text: string[] = [];
+    // Continuations belong to this attempt until the entire turn succeeds. They must be sent back to
+    // Claude, but must not leak into saved history if a later request fails or is aborted.
+    const pending: MessageParam[] = [];
     const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
     let jsonRetries = 0;
     let continuations = 0;
 
     while (true) {
-      const stream = this.client.beta.messages.stream(this.buildParams(request), { signal: request.signal });
+      const params = this.buildParams(request);
+      params.messages = [...params.messages, ...pending];
+      const stream = this.client.beta.messages.stream(params, { signal: request.signal });
       stream.on('text', (delta) => request.callbacks.onText(delta));
       stream.on('thinking', (delta) => request.callbacks.onThinking?.(delta));
 
@@ -175,7 +180,7 @@ export class AnthropicConversation implements Conversation {
       usage.outputTokens += message.usage.output_tokens;
       usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
       usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
-      this.messages.push({ role: 'assistant', content: message.content as ContentBlockParam[] });
+      pending.push({ role: 'assistant', content: message.content as ContentBlockParam[] });
 
       for (const block of message.content) {
         if (block.type === 'text') text.push(block.text);
@@ -190,6 +195,7 @@ export class AnthropicConversation implements Conversation {
         .filter((block): block is Anthropic.Beta.BetaToolUseBlock => block.type === 'tool_use')
         .map((block) => ({ id: block.id, name: block.name, input: block.input }));
 
+      this.messages.push(...pending);
       return {
         text: text.join('\n\n'),
         toolCalls,

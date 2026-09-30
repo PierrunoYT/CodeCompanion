@@ -21,6 +21,7 @@ Repository: https://github.com/PierrunoYT/CodeCompanion
 - Web search (Google Custom Search) and page fetching
 - Long chats are handled by server-side compaction (current Claude models), and **Compact chat** (header button) summarizes the older turns on demand for any model; the status bar shows how large the prompt is and the button turns yellow when it is getting big. The full history stays in the saved chat
 - Rate limits (429), server errors (5xx) and dropped connections are retried automatically, up to 4 times, waiting about 2 to 16 seconds or as long as the provider asks (up to a minute); each retry is shown in the chat and **Stop** works during the wait
+- Failed or stopped Claude continuations after a server-side pause or compaction leave saved model history unchanged; retries start from the history before that attempt
 - Stop a running task and use **Resume** to continue it, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions

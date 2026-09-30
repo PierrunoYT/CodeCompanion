@@ -4,6 +4,9 @@ All notable changes to this fork. Based on CodeCompanion.AI 6.1.1.
 
 ## [Unreleased]
 
+### Fixed
+- Keep Anthropic pause/compaction continuation responses out of saved history until the turn succeeds, so failed or cancelled continuations leave no partial model history behind on retry.
+
 ### Security
 - Redact standalone Groq (`gsk_…`) and xAI (`xai-…`) API keys from local error messages and stack traces, including errors from custom endpoints.
 

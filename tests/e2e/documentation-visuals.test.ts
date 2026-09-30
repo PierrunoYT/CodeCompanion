@@ -120,6 +120,9 @@ describe('documentation visuals and text contrast', () => {
   });
 
   it('meets WCAG AA text contrast in light and dark themes', async () => {
+    // A fresh chat: the browser test above leaves a card with the temp project's local path, which must not end up in
+    // the README's approval image.
+    await running.page.evaluate(() => window.api.invoke('chat:new'));
     claude.script(
       {
         blocks: [{ type: 'tool_use', id: 'toolu_read', name: 'read_file', input: { path: 'README.md' } }],
@@ -184,6 +187,16 @@ describe('documentation visuals and text contrast', () => {
           .locator('.tool-card.awaiting')
           .screenshot({ path: join(process.env.E2E_SCREENSHOTS, `approval-${theme}.png`) });
       }
+    }
+
+    // The README's approval image: the chat pane in the dark theme (the loop ends on it) with the card waiting, and
+    // no hover or focus ring left over from the contrast checks above.
+    if (captureDir) {
+      await running.page.mouse.move(0, 0);
+      await running.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      // Let the buttons' hover and focus transitions finish.
+      await running.page.waitForTimeout(400);
+      await running.page.locator('.chat-pane').screenshot({ path: join(captureDir, 'approval.png') });
     }
   });
 });

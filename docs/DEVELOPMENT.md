@@ -64,6 +64,8 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 Packaging also sets Electron's fuses (`build.electronFuses`): no run-as-Node, no `NODE_OPTIONS` or `--inspect`, code only from `app.asar`, asar integrity validation, and encrypted cookies (see `docs/ARCHITECTURE.md` → Security model). They only change the packaged binary: `npm run dev` and the end-to-end tests run the development Electron, so debugging and Playwright are unaffected. To check a build, run `npx @electron/fuses read --app dist/win-unpacked/Patch.exe`. Because of asar integrity, a packaged app can't be patched by editing `resources/app.asar`; rebuild it instead.
 
+The macOS build runs with the hardened runtime and the entitlements in `build/entitlements.mac.plist`: `allow-jit` (V8) and, until it is confirmed unnecessary on a Mac, `allow-unsigned-executable-memory` (#28). `allow-dyld-environment-variables` is deliberately not granted: it would let `DYLD_INSERT_LIBRARIES` inject a library into the signed app.
+
 ### Application icons
 
 `assets/logo-icon.svg` is the source for the application branding; `assets/logo.svg` is the horizontal wordmark lockup. The header logo in `src/renderer/src/styles.css` (`.brand-mark`) inlines the same mark paths as a data URI, so update it too when the mark changes. After editing it, run `npm run icons` and commit the regenerated `build/icon.ico`, `build/icon.icns`, and `build/icon.png`. The generator rasterizes each size directly from the vector using resvg; Windows ICOs include 16–256 px images, and macOS ICNS files include 16–1024 px images.

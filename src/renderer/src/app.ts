@@ -15,6 +15,7 @@ import { h, icon, setChildren } from './dom';
 import { Composer } from './views/composer';
 import { openHistoryDialog, openProjectSettingsDialog, openSettingsDialog } from './views/dialogs';
 import { Panels } from './views/panels';
+import { Sidebar } from './views/sidebar';
 import { TranscriptView } from './views/transcript';
 
 const api = window.api;
@@ -44,17 +45,53 @@ export class App {
     notice: (message) => this.toast(message),
   });
 
+  private readonly sidebar = new Sidebar({
+    list: () => api.invoke('history:list'),
+    search: (query) => api.invoke('history:search', query),
+    open: (id) => void api.invoke('history:open', id).catch((error) => this.toast(error)),
+    newChat: () => void this.newChat(),
+  });
   private readonly projectButton = h('button', {
     class: 'btn btn-sm btn-ghost project-button',
     onclick: () => this.toggleProjectMenu(),
   });
   private readonly projectMenu = h('div', { class: 'dropdown-menu project-menu' });
-  private readonly modelLabel = h('span', { class: 'status-item' });
+  private readonly modelSelect = h('select', {
+    class: 'form-select form-select-sm model-select',
+    'aria-label': 'Model',
+    onchange: () => void this.chooseModel(),
+  }) as HTMLSelectElement;
+  private readonly askButton = h(
+    'button',
+    { class: 'mode-option', onclick: () => void this.setMode('ask') },
+    icon('shield-check'),
+    ' Ask first',
+  );
+  private readonly autoButton = h(
+    'button',
+    { class: 'mode-option', onclick: () => void this.setMode('auto') },
+    icon('lightning-charge'),
+    ' Auto',
+  );
+  private readonly planSwitch = h('input', {
+    type: 'checkbox',
+    role: 'switch',
+    class: 'form-check-input',
+    id: 'plan-mode-switch',
+    onchange: () => void this.setPlanMode(),
+  }) as HTMLInputElement;
+  private readonly branchLabel = h('span', { class: 'status-item', hidden: true });
   private readonly agentLabel = h('span', { class: 'status-item' });
-  private readonly modeButton = h('button', { class: 'btn btn-sm mode-button', onclick: () => this.toggleMode() });
-  private readonly titleLabel = h('span', { class: 'chat-title text-truncate' });
-  private readonly contextLabel = h('span', { class: 'status-item ms-auto', hidden: true });
+  private readonly contextMeter = h('span', { class: 'context-meter', 'aria-hidden': 'true' }, h('span'));
+  private readonly contextText = h('span');
+  private readonly contextLabel = h(
+    'span',
+    { class: 'status-item context-item ms-auto', hidden: true },
+    this.contextText,
+    this.contextMeter,
+  );
   private readonly usageLabel = h('span', { class: 'status-item' });
+  private branchGeneration = 0;
   private readonly chatScroll = h('div', { class: 'chat-scroll' });
   private readonly welcome = h('div', { class: 'welcome' });
   private readonly toastArea = h('div', { class: 'toast-area' });
@@ -84,6 +121,11 @@ export class App {
     { class: 'btn btn-sm btn-ghost', title: 'Show or hide the side panel', onclick: () => this.togglePanel() },
     icon('layout-sidebar-reverse'),
   );
+  private readonly sidebarButton = h(
+    'button',
+    { class: 'btn btn-sm btn-ghost', title: 'Show or hide the chat list', onclick: () => this.toggleSidebar() },
+    icon('layout-sidebar'),
+  );
 
   async start(root: HTMLElement): Promise<void> {
     [this.settings, this.project, this.chat] = await Promise.all([
@@ -96,7 +138,10 @@ export class App {
     this.applyTheme();
     this.renderAll();
     void this.renderProjects();
+    void this.sidebar.refresh();
+    void this.renderBranch();
 
+    api.on('history:changed', (chats) => this.sidebar.update(chats));
     api.on('settings:changed', (settings) => {
       this.settings = settings;
       this.applyTheme();
@@ -110,6 +155,7 @@ export class App {
       }
       this.project = project;
       this.panels.projectChanged();
+      void this.renderBranch();
       this.renderHeader();
       void this.renderWelcome();
       void this.renderProjects();
@@ -138,6 +184,7 @@ export class App {
       this.panels.show(name);
     });
     this.setPanelVisible(readPreference('panelVisible') !== 'false');
+    this.setSidebarVisible(readPreference('sidebarVisible') !== 'false');
     this.panels.show('terminal');
     document.addEventListener('click', (event) => {
       if (!this.projectMenu.contains(event.target as Node) && !this.projectButton.contains(event.target as Node)) {
@@ -158,20 +205,38 @@ export class App {
       h(
         'header',
         { class: 'app-header' },
-        h('span', { class: 'brand-mark', role: 'img', 'aria-label': 'Patch' }),
+        h(
+          'span',
+          { class: 'brand' },
+          h('span', { class: 'brand-mark', role: 'img', 'aria-label': 'Patch' }),
+          h('span', { class: 'brand-name', 'aria-hidden': 'true' }, 'Patch'),
+        ),
+        h('span', { class: 'header-divider', 'aria-hidden': 'true' }),
         h('div', { class: 'project-picker' }, this.projectButton, this.projectMenu),
-        this.titleLabel,
+        this.projectTabs,
+        h(
+          'div',
+          { class: 'header-controls' },
+          this.modelSelect,
+          h(
+            'div',
+            { class: 'mode-toggle', role: 'group', 'aria-label': 'Approval mode' },
+            this.askButton,
+            this.autoButton,
+          ),
+          h(
+            'div',
+            {
+              class: 'form-check form-switch plan-switch',
+              title: 'Plan mode: before multi-step changes, the assistant shows its plan for approval',
+            },
+            this.planSwitch,
+            h('label', { class: 'form-check-label', for: 'plan-mode-switch' }, 'Plan'),
+          ),
+        ),
         h(
           'div',
           { class: 'header-actions' },
-          this.modeButton,
-          h('span', { class: 'header-divider', 'aria-hidden': 'true' }),
-          h(
-            'button',
-            { class: 'btn btn-sm btn-ghost', title: 'New chat (Ctrl+N)', onclick: () => void this.newChat() },
-            icon('plus-lg'),
-            ' New chat',
-          ),
           this.compactButton,
           this.exportButton,
           h(
@@ -179,6 +244,8 @@ export class App {
             { class: 'btn btn-sm btn-ghost', title: 'Chat history', onclick: () => void this.openHistory() },
             icon('clock-history'),
           ),
+          h('span', { class: 'header-divider', 'aria-hidden': 'true' }),
+          this.sidebarButton,
           this.panelButton,
           h(
             'button',
@@ -186,11 +253,11 @@ export class App {
             icon('gear'),
           ),
         ),
-        this.projectTabs,
       ),
       h(
         'main',
         { class: 'app-main' },
+        this.sidebar.element,
         h(
           'section',
           { class: 'chat-pane' },
@@ -199,7 +266,7 @@ export class App {
         ),
         this.panelHost,
       ),
-      h('footer', { class: 'app-footer' }, this.modelLabel, this.agentLabel, this.contextLabel, this.usageLabel),
+      h('footer', { class: 'app-footer' }, this.branchLabel, this.agentLabel, this.contextLabel, this.usageLabel),
       this.toastArea,
     );
   }
@@ -219,7 +286,10 @@ export class App {
     let transcript = this.chat.transcript;
     for (const event of events) {
       transcript = applyChatEvent(transcript, event);
-      if (event.type === 'busy') this.chat.busy = event.busy;
+      if (event.type === 'busy') {
+        this.chat.busy = event.busy;
+        if (!event.busy) void this.renderBranch();
+      }
       if (event.type === 'resumable') this.chat.resumable = event.resumable;
       if (event.type === 'usage') this.chat.usage = event.totals;
       if (event.type === 'title') this.chat.title = event.title;
@@ -232,16 +302,15 @@ export class App {
   }
 
   private renderHeader(): void {
+    // With a project open, its tab shows the name; the button keeps it for screen readers and as the menu's label.
     this.projectButton.replaceChildren(
-      icon('folder2'),
-      ' ',
-      this.project?.name ?? 'Open project',
+      icon(this.project ? 'folder2-open' : 'folder2'),
+      h('span', { class: this.project ? 'visually-hidden' : '' }, ` ${this.project?.name ?? 'Open project'}`),
       ' ',
       icon('chevron-down', 'small'),
     );
-    this.projectButton.title = this.project?.path ?? 'Open a project folder';
-
-    this.titleLabel.textContent = this.chat.transcript.length > 0 ? this.chat.title : '';
+    this.projectButton.title = this.project ? `Projects (${this.project.path})` : 'Open a project folder';
+    this.sidebar.setActive(this.chat.id);
     this.exportButton.disabled = this.chat.transcript.length === 0;
 
     // How full the context is: the size of the last request's prompt. Nudge towards compacting once it is large.
@@ -255,24 +324,43 @@ export class App {
     this.contextLabel.hidden = contextTokens === undefined;
     // Whichever of the two comes first on the right pushes them there.
     this.usageLabel.classList.toggle('ms-auto', this.contextLabel.hidden);
-    this.contextLabel.textContent =
+    this.contextText.textContent =
       contextTokens === undefined
         ? ''
         : `Context: ${format(contextTokens)}${nearLimit ? ' · consider compacting' : ''}`;
+    // The bar fills up towards the size at which compacting is suggested.
+    const fill = Math.min(1, (contextTokens ?? 0) / COMPACT_SUGGESTED_TOKENS);
+    (this.contextMeter.firstElementChild as HTMLElement).style.width = `${Math.round(fill * 100)}%`;
+    this.contextLabel.title = `Size of the latest prompt; compacting is suggested from ${format(COMPACT_SUGGESTED_TOKENS)} tokens.`;
     this.contextLabel.classList.toggle('text-warning-emphasis', nearLimit);
+    this.contextLabel.classList.toggle('near-limit', nearLimit);
 
     const auto = this.settings.approvalMode === 'auto';
-    this.modeButton.className = `btn btn-sm mode-button ${auto ? 'btn-warning' : 'btn-outline-secondary'}`;
-    this.modeButton.setAttribute('aria-pressed', String(auto));
-    this.modeButton.replaceChildren(icon(auto ? 'lightning-charge' : 'shield-check'), auto ? ' Auto' : ' Ask first');
-    this.modeButton.title = auto
-      ? 'Edits and commands run without asking. Click to require approval.'
-      : 'Edits and commands wait for your approval. Click to run them automatically.';
+    this.askButton.classList.toggle('active', !auto);
+    this.askButton.setAttribute('aria-pressed', String(!auto));
+    this.askButton.title = 'Edits and commands wait for your approval.';
+    this.autoButton.classList.toggle('active', auto);
+    this.autoButton.setAttribute('aria-pressed', String(auto));
+    this.autoButton.title = 'Edits and commands run without asking. MCP tools and plans still ask.';
+    this.planSwitch.checked = this.settings.planMode;
 
-    const model = this.chat.transcript.length > 0 ? this.chat.model : this.settings.model;
-    const label = MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model;
+    // A chat keeps its model; the picker sets the model for new chats, so it is locked once the chat has started.
+    const started = this.chat.transcript.length > 0;
+    const model = started ? this.chat.model : this.settings.model;
+    const options = MODEL_OPTIONS.some((option) => option.id === model)
+      ? MODEL_OPTIONS
+      : [...MODEL_OPTIONS, { id: model, label: model }];
+    // Rebuilt only when the model changes: the header is rendered on every streamed frame, and a rebuilt list would
+    // close the picker while it is open.
+    if (this.modelSelect.value !== model || this.modelSelect.options.length !== options.length) {
+      this.modelSelect.replaceChildren(...options.map((option) => h('option', { value: option.id }, option.label)));
+      this.modelSelect.value = model;
+    }
+    this.modelSelect.disabled = started || this.chat.busy;
+    this.modelSelect.title = started
+      ? 'A chat keeps its model. Start a new chat to use another one.'
+      : 'Model for this chat';
     this.composer.setImagesBlocked(acceptsImages(model) ? null : imagesNotSupportedMessage(model));
-    this.modelLabel.replaceChildren(icon('cpu'), ` ${label}`, this.settings.approvalMode === 'ask' ? '' : ' · auto');
 
     const agentFile = this.chat.agentFile;
     this.agentLabel.hidden = !agentFile;
@@ -489,14 +577,46 @@ export class App {
           ),
         ),
       ),
+      h(
+        'button',
+        { class: 'project-tab-add', title: 'Open another project…', onclick: () => void this.chooseProject() },
+        icon('plus-lg'),
+      ),
     );
   }
 
-  private async toggleMode(): Promise<void> {
+  private async setMode(mode: 'ask' | 'auto'): Promise<void> {
+    if (mode === this.settings.approvalMode) return;
     // Switching to Auto asks for confirmation in the main process; cancelling it rejects and leaves the mode as it was.
-    await api
-      .invoke('settings:update', { approvalMode: this.settings.approvalMode === 'ask' ? 'auto' : 'ask' })
-      .catch((error) => this.toast(error));
+    await api.invoke('settings:update', { approvalMode: mode }).catch((error) => this.toast(error));
+  }
+
+  private async setPlanMode(): Promise<void> {
+    const planMode = this.planSwitch.checked;
+    await api.invoke('settings:update', { planMode }).catch((error) => {
+      this.planSwitch.checked = !planMode;
+      this.toast(error);
+    });
+  }
+
+  private async chooseModel(): Promise<void> {
+    const model = this.modelSelect.value;
+    await api.invoke('settings:update', { model }).catch((error) => {
+      this.modelSelect.value = this.settings.model;
+      this.toast(error);
+    });
+  }
+
+  // The current branch in the status bar; refreshed when the project changes and after each run.
+  private async renderBranch(): Promise<void> {
+    const generation = ++this.branchGeneration;
+    // Without a project the main process would reject the call (and log an error), so do not ask.
+    const status = this.project ? await api.invoke('git:status').catch(() => null) : null;
+    if (generation !== this.branchGeneration) return;
+    const branch = status?.isRepo ? (status.branch ?? 'detached') : null;
+    this.branchLabel.hidden = branch === null;
+    this.branchLabel.title = branch && status?.files.length ? `${status.files.length} changed file(s)` : '';
+    this.branchLabel.replaceChildren(...(branch ? [icon('git'), ` ${branch}${status?.files.length ? ' *' : ''}`] : []));
   }
 
   private openSettings(): void {
@@ -572,6 +692,16 @@ export class App {
 
   private togglePanel(): void {
     this.setPanelVisible(this.panelHost.hidden);
+  }
+
+  private toggleSidebar(): void {
+    this.setSidebarVisible(this.sidebar.element.hidden);
+  }
+
+  private setSidebarVisible(visible: boolean): void {
+    this.sidebar.element.hidden = !visible;
+    this.sidebarButton.classList.toggle('active', visible);
+    writePreference('sidebarVisible', String(visible));
   }
 
   private setPanelVisible(visible: boolean): void {

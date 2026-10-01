@@ -45,12 +45,18 @@ export class Composer {
     });
     this.sendButton = h(
       'button',
-      { class: 'btn btn-primary composer-send', title: 'Send', onclick: () => void this.submit() },
-      icon('send'),
+      { class: 'btn btn-sm btn-primary composer-send', title: 'Send (Enter)', onclick: () => void this.submit() },
+      'Send ',
+      icon('arrow-up'),
     );
     this.stopButton = h(
       'button',
-      { class: 'btn btn-sm btn-danger', title: 'Stop (Ctrl+.)', hidden: true, onclick: () => this.actions.stop() },
+      {
+        class: 'btn btn-sm btn-outline-danger',
+        title: 'Stop (Ctrl+.)',
+        hidden: true,
+        onclick: () => this.actions.stop(),
+      },
       icon('stop-fill'),
       ' Stop',
     );

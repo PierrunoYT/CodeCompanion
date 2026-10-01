@@ -8,7 +8,9 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are encrypted when system encryption is available; Settings warns about plaintext storage if encryption is unavailable or migration fails. Existing plaintext keys are migrated when encryption becomes available. Stored keys are never shown again; type a new one to replace it, or press **Remove**.
 3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under _Other model id…_ that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
 
-Each chat keeps the model it started with. Changing the model in Settings applies to new chats.
+Each chat keeps the model it started with. The model picker in the header (or **Settings → Model**) chooses the model for a new chat; once the chat has started, the picker shows its model and is locked until you start a new chat.
+
+The window has the chat list on the left (hide it with the sidebar button in the header), the chat in the middle and the side panel on the right. The status bar at the bottom shows the project's Git branch (with `*` when there are uncommitted changes), whether `AGENTS.md` is loaded, how full the context is, and token totals with the estimated cost.
 
 ### Tell it about your project
 
@@ -65,7 +67,7 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 
 ### Ask first or Auto
 
-**Settings → Approvals**, or the **Ask first** / **Auto** button in the header, chooses between:
+**Settings → Approvals**, or the **Ask first** / **Auto** switch in the header, chooses between:
 
 - **Ask before edits and commands** (default): as above.
 - **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do. The first switch to Auto after starting the app shows a confirmation dialog.
@@ -76,7 +78,7 @@ Even in Auto mode, a fetch or browser redirect to another host is blocked; the a
 
 ### Plan mode
 
-**Settings → Plan mode** ("Propose a plan before multi-step changes") asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
+**Settings → Plan mode** ("Propose a plan before multi-step changes"), or the **Plan** switch in the header, asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
 
 - **Approve** lets the work begin. The assistant then carries the plan out, and later edits and commands follow the usual approval rules (they still ask in Ask mode, and run directly in Auto mode).
 - **Decline with a note** sends the note back, and the assistant revises the plan instead of starting.
@@ -164,7 +166,8 @@ Rate limits (429), server errors (5xx) and dropped connections are retried autom
 
 ## Chats and projects
 
-- **New chat**: `Ctrl+N`. Chats are saved automatically.
+- **New chat**: `Ctrl+N`, or **New chat** above the chat list. Chats are saved automatically.
+- **Chat list** (left): saved chats grouped by day (Today, Yesterday, Previous 7 days, Older), each with its project, when it was last saved and its estimated cost. The open chat is marked. **Filter chats…** narrows the list by title and project, and then by message text, like the history search.
 - **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Deleting removes the chat for good, also when it is open or in another project's tab, together with its edit backups; late title responses cannot restore it. Wait until a running task is stopped or an Undo finishes before deleting that chat. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
 - **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
 
@@ -205,8 +208,8 @@ The project menu (the folder button at the top) has **Project settings…** for 
 The panel button in the header shows or hides the side panel with three tabs:
 
 - **Terminal**: a normal shell in the project folder, separate from the commands the assistant runs.
+- **Git**: changed files with diffs, a commit message and **Commit all** below them (with the current branch), per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet. Patch commits but does not push.
 - **Browser**: where the assistant checks web apps, and where you can look at them yourself. Type an address such as `http://localhost:3000` in the address bar.
-- **Git**: changed files with diffs, **Commit all** with a message, per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet.
 
 Before a repository's first commit, the diff includes staged additions and any later working-tree changes. Discarding a renamed file restores its original committed path and removes the renamed destination, including edits to it; review the diff before confirming.
 

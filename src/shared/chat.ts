@@ -174,6 +174,22 @@ export function outputNotice(omittedChars: number): string {
   return `Output too long to show in full: the first ${count(omittedChars)} characters are not shown, only the last ${count(TRANSCRIPT_LIMITS.outputChars)}.`;
 }
 
+// Lines added and removed in a unified diff (file header lines excluded), shown next to an edit's title.
+export function countDiffLines(diff: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  // `---`/`+++` are file headers only before a hunk; inside one they are a removed `--` or added `++` line.
+  let inHunk = false;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('diff ')) inHunk = false;
+    else if (line.startsWith('@@')) inHunk = true;
+    else if (!inHunk) continue;
+    else if (line.startsWith('+')) added++;
+    else if (line.startsWith('-')) removed++;
+  }
+  return { added, removed };
+}
+
 export function diffNotice(omittedLines: number, awaitingApproval: boolean): string {
   const shown = `Diff too long to show in full: ${count(omittedLines)} more lines are not shown.`;
   return awaitingApproval

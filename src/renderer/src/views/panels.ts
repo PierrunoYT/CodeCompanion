@@ -28,8 +28,8 @@ export class Panels {
   ) {
     const tabs: Array<[PanelName, string, string]> = [
       ['terminal', 'Terminal', 'terminal'],
-      ['browser', 'Browser', 'window'],
       ['git', 'Git', 'git'],
+      ['browser', 'Browser', 'window'],
     ];
     for (const [name, label, iconName] of tabs) {
       this.tabBar.appendChild(
@@ -248,6 +248,14 @@ class GitPanel implements Panel {
     'aria-label': 'Commit message',
   });
   private readonly header = h('div', { class: 'git-header' });
+  private readonly commitButton = h(
+    'button',
+    { class: 'btn btn-sm btn-primary', onclick: () => void this.commit() },
+    icon('check2'),
+    ' Commit all',
+  );
+  private readonly branch = h('div', { class: 'git-branch' });
+  private readonly footer = h('div', { class: 'git-commit-box' }, this.message, this.commitButton, this.branch);
   private selected: string | null = null;
   private status: GitStatus | null = null;
 
@@ -256,7 +264,7 @@ class GitPanel implements Panel {
     private readonly onError: (error: unknown) => void,
   ) {
     this.message.addEventListener('keydown', (event) => event.key === 'Enter' && void this.commit());
-    this.element.append(this.header, h('div', { class: 'git-split' }, this.fileList, this.diffView));
+    this.element.append(this.header, h('div', { class: 'git-split' }, this.fileList, this.diffView), this.footer);
   }
 
   shown(): void {
@@ -274,9 +282,11 @@ class GitPanel implements Panel {
       setChildren(this.header, h('div', { class: 'text-body-secondary p-3' }, 'Open a project to see its changes.'));
       this.fileList.replaceChildren();
       this.diffView.replaceChildren();
+      this.footer.hidden = true;
       return;
     }
     const status = this.status;
+    this.footer.hidden = !status.isRepo;
     if (!status.isRepo) {
       setChildren(
         this.header,
@@ -300,21 +310,17 @@ class GitPanel implements Panel {
       this.header,
       h(
         'div',
-        { class: 'git-commit-row' },
-        h('span', { class: 'badge text-bg-secondary' }, icon('git'), ` ${status.branch ?? 'detached'}`),
-        this.message,
+        { class: 'git-section-title' },
+        h('span', {}, `Changed files (${status.files.length})`),
         h(
           'button',
-          { class: 'btn btn-sm btn-primary', disabled: status.files.length === 0, onclick: () => void this.commit() },
-          'Commit all',
-        ),
-        h(
-          'button',
-          { class: 'btn btn-sm btn-outline-secondary', title: 'Refresh', onclick: () => void this.refresh() },
+          { class: 'btn btn-sm btn-ghost ms-auto', title: 'Refresh', onclick: () => void this.refresh() },
           icon('arrow-clockwise'),
         ),
       ),
     );
+    this.commitButton.disabled = status.files.length === 0;
+    this.branch.replaceChildren(icon('git'), ` ${status.branch ?? 'detached'}`);
 
     if (this.selected && !status.files.some((file) => file.path === this.selected)) this.selected = null;
     setChildren(

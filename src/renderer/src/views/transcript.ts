@@ -1,6 +1,7 @@
 import { markAnnounced, newAnnouncements } from '@shared/announce';
 import {
   commandNotice,
+  countDiffLines,
   diffNotice,
   outputNotice,
   planNotice,
@@ -59,6 +60,18 @@ const TOOL_ICONS: Record<string, string> = {
   fetch_url: 'globe',
   browser: 'window',
 };
+
+// Lines added and removed, shown next to an edit's title.
+function diffStats(diff: string): HTMLElement {
+  const { added, removed } = countDiffLines(diff);
+  return h(
+    'span',
+    { class: 'diff-stats', title: `${added} line(s) added, ${removed} removed` },
+    h('span', { class: 'diff-added' }, `+${added}`),
+    ' ',
+    h('span', { class: 'diff-removed' }, `−${removed}`),
+  );
+}
 
 // The transcript's items are grouped in containers of this many, each skipped for layout while off screen
 // (`content-visibility: auto`). Following the bottom of a long chat while an answer streams then lays out a few dozen
@@ -257,7 +270,7 @@ export class TranscriptView {
   private renderTool(item: Extract<TranscriptItem, { kind: 'tool' }>): HTMLElement {
     const title = item.summary ?? item.preview?.title ?? item.name.replace(/_/g, ' ');
     const status: Record<typeof item.status, HTMLElement> = {
-      'awaiting-approval': h('span', { class: 'badge text-bg-warning' }, 'Needs approval'),
+      'awaiting-approval': h('span', { class: 'status-pill' }, 'Needs approval'),
       running: h('span', {
         class: 'spinner-border spinner-border-sm text-secondary',
         role: 'img',
@@ -273,6 +286,8 @@ export class TranscriptView {
       { class: 'tool-header' },
       icon(TOOL_ICONS[item.name] ?? 'tools'),
       h('span', { class: 'tool-title' }, title),
+      // Not for a diff shown only in part, whose counts would be too low.
+      item.preview?.diff && !item.preview.diffOmittedLines ? diffStats(item.preview.diff) : null,
       item.path && item.status !== 'awaiting-approval'
         ? h(
             'button',

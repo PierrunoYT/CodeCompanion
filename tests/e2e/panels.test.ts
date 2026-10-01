@@ -60,17 +60,17 @@ describe('side panels', () => {
     await expect(tabs.count()).resolves.toBe(3);
     await running.page.getByRole('tab', { name: 'Terminal' }).focus();
     await running.page.keyboard.press('ArrowRight');
+    await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('aria-selected')).resolves.toBe('true');
+    await running.page.keyboard.press('End');
     await expect(running.page.getByRole('tab', { name: 'Browser' }).getAttribute('aria-selected')).resolves.toBe(
       'true',
     );
-    await running.page.keyboard.press('End');
-    await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('aria-selected')).resolves.toBe('true');
     await running.page.keyboard.press('Home');
     await expect(running.page.getByRole('tab', { name: 'Terminal' }).getAttribute('aria-selected')).resolves.toBe(
       'true',
     );
     // Only the selected tab is in the Tab order.
-    await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('tabindex')).resolves.toBe('-1');
+    await expect(running.page.getByRole('tab', { name: 'Browser' }).getAttribute('tabindex')).resolves.toBe('-1');
     await expect(running.page.getByRole('tabpanel').count()).resolves.toBeGreaterThan(0);
   });
 

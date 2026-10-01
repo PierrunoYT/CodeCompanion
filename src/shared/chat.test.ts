@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyChatEvent,
+  countDiffLines,
   diffNotice,
   filterChats,
   limitPreview,
@@ -218,6 +219,23 @@ describe('size limits for tool cards', () => {
     const preview = { title: 'Edit a', diff: '-a\n+b' };
     expect(limitPreview(preview)).toBe(preview);
     expect(limitPreview(undefined)).toBeUndefined();
+  });
+
+  it('counts added and removed diff lines, not the file headers', () => {
+    const diff = [
+      '===================================================================',
+      '--- a/notes.txt',
+      '+++ b/notes.txt',
+      '@@ -1,3 +1,3 @@',
+      ' keep',
+      '-old',
+      '--- a removed line that starts with two dashes',
+      '+new',
+      '+++ an added line that starts with two pluses',
+      '+another',
+    ].join('\n');
+    expect(countDiffLines(diff)).toEqual({ added: 3, removed: 2 });
+    expect(countDiffLines('')).toEqual({ added: 0, removed: 0 });
   });
 
   it('warns before approval that the hidden part is applied too', () => {

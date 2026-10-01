@@ -21,7 +21,8 @@ Patch is an Electron app written in TypeScript and built with electron-vite. All
 └───────────────▲──────────────────────────┘   │ no preload             │
 ┌───────────────┴── renderer (no Node) ────┐   └─────────────────────────┘
 │ app.ts, views/ (transcript, composer,     │
-│ dialogs, panels), markdown.ts (DOMPurify) │
+│ sidebar, dialogs, panels), markdown.ts    │
+│ (DOMPurify)                               │
 └──────────────────────────────────────────┘
 ```
 

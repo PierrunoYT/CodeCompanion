@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,6 +48,22 @@ describe('ChatStore', () => {
 
     store.delete(idB);
     expect(new ChatStore(join(dir, 'chats')).list().map((item) => item.id)).toEqual([idA]);
+  });
+
+  it('writes only the chat file for a checkpoint of a chat that is already listed', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    const index = join(dir, 'chats', 'index.json');
+    // A new chat is indexed even by a checkpoint, so a crash before the first full save cannot orphan it.
+    expect(store.save(chat(idA, '2026-01-01T00:00:00Z'), true)).toBe(true);
+    const listed = readFileSync(index, 'utf8');
+
+    const later = { ...chat(idA, '2026-03-01T00:00:00Z'), title: 'Later' };
+    expect(store.save(later, true)).toBe(false);
+    expect(readFileSync(index, 'utf8')).toBe(listed);
+    expect(store.load(idA)?.title).toBe('Later');
+
+    expect(store.save(later)).toBe(true);
+    expect(store.list()[0]?.title).toBe('Later');
   });
 
   it('searches titles, projects and message text, and explains message matches', () => {

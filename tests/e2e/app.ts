@@ -9,6 +9,8 @@ export interface RunningApp {
   page: Page;
   userData: string;
   errors: string[];
+  // Ends the app abruptly (SIGKILL), as a crash or power loss would: no quit handlers run and nothing more is saved.
+  kill(): Promise<void>;
   // Output the main process wrote to stderr (e.g. errors from IPC handlers).
   mainErrors: string[];
   close(): Promise<void>;
@@ -77,13 +79,25 @@ export async function launchApp(
     dialog.showMessageBox = answer as typeof dialog.showMessageBox;
   });
 
+  let killed = false;
   return {
     app,
     page,
     userData,
     errors,
     mainErrors,
+    async kill() {
+      const child = app.process();
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+      killed = true;
+      child.kill('SIGKILL');
+      await exited;
+    },
     async close() {
+      if (killed) {
+        if (!options.userData) rmSync(userData, { recursive: true, force: true });
+        return;
+      }
       // A hang here would otherwise surface as an opaque 60-second hook timeout. After 20 seconds the app is killed, so
       // no processes are left behind, and the test fails with what the main process printed.
       const pid = app.process().pid;

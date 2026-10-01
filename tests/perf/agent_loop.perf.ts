@@ -238,7 +238,7 @@ describe('agent loop: the app’s own work per turn, tool call and save', () => 
       const mb = round(JSON.stringify(chat, null, 2).length / 1e6);
       const label = `${turns * 5} items + ${screenshots} screenshots (${mb} MB)`;
       const stringifyMs = await median(15, () => void JSON.stringify(chat, null, 2), 3);
-      const saveMs = await median(15, () => store.save(chat), 3);
+      const saveMs = await median(15, () => void store.save(chat), 3);
       record(`checkpoint: JSON.stringify only, ${label}`, stringifyMs, 1, 'save');
       record(`checkpoint: ChatStore.save (stringify + write + index), ${label}`, saveMs, 1, 'save');
     });

@@ -328,7 +328,7 @@ export class ChatManager {
       onDroppedFields: this.deps.onDroppedFields,
       onEditApplied: this.deps.edits ? (toolId, edit) => this.deps.edits!.record(session.id, toolId, edit) : undefined,
       onEvent: (event) => this.deps.emit(event, session.id),
-      onChange: (immediate) => (immediate ? this.save(session) : this.scheduleSave(session)),
+      onChange: (immediate, checkpoint) => (immediate ? this.save(session, checkpoint) : this.scheduleSave(session)),
     });
     this.liveSessions.add(session);
     return session;
@@ -368,12 +368,11 @@ export class ChatManager {
     );
   }
 
-  private save(session: ChatSession): void {
+  private save(session: ChatSession, checkpoint = false): void {
     clearTimeout(this.saveTimers.get(session));
     this.saveTimers.delete(session);
     if (!this.liveSessions.has(session) || session.isEmpty) return;
-    this.deps.chats.save(session.serialize());
-    this.deps.onHistoryChanged();
+    if (this.deps.chats.save(session.serialize(), checkpoint)) this.deps.onHistoryChanged();
   }
 
   // Called before chats are deleted from the history: an open or parked session of a deleted chat is dropped without

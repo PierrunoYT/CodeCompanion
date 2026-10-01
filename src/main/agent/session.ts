@@ -59,7 +59,8 @@ export interface ChatSessionOptions {
   onEditApplied?: (toolId: string, edit: EditUndo) => void;
   onEvent: (event: ChatEvent) => void;
   // immediate is true when a task just finished, so the chat can be saved right away.
-  onChange: (immediate: boolean) => void;
+  // checkpoint is true for a crash-resume checkpoint after a tool batch: only the chat file needs writing.
+  onChange: (immediate: boolean, checkpoint?: boolean) => void;
 }
 
 // One chat: its model conversation, transcript, pending approvals and the files read in it.
@@ -102,7 +103,7 @@ export class ChatSession {
       isPreApproved: options.isPreApproved,
       requestApproval: (id, signal) => this.waitForApproval(id, signal),
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
-      onCheckpoint: () => this.options.onChange(true),
+      onCheckpoint: () => this.options.onChange(true, true),
       emit: (event) => this.emit(event),
       onDroppedFields: options.onDroppedFields,
       onEditApplied: options.onEditApplied,

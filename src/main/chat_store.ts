@@ -23,11 +23,20 @@ export class ChatStore {
     return [...this.index].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  save(chat: SavedChat): void {
+  // A `checkpoint` save is a crash-resume checkpoint: it writes only the chat file, which is all a resume needs, and
+  // leaves the index to the next full save. A chat missing from the index is still indexed, so it is never orphaned.
+  // Returns whether the index was written, i.e. whether the chat list changed.
+  save(chat: SavedChat, checkpoint = false): boolean {
     writeJson(this.chatFile(chat.id), chat);
+    if (checkpoint && this.index.some((item) => item.id === chat.id)) {
+      // The cached search text is keyed to the index timestamp, which a checkpoint leaves unchanged.
+      this.textCache.delete(chat.id);
+      return false;
+    }
     const summary = summarize(chat);
     this.index = [summary, ...this.index.filter((item) => item.id !== chat.id)];
     writeJson(this.indexFile, this.index);
+    return true;
   }
 
   // Chats whose title, project or messages contain every word of the query, newest first. Message text is read from

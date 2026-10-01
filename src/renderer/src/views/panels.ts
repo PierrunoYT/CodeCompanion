@@ -13,7 +13,7 @@ interface Panel {
   projectChanged(): void;
 }
 
-// Right-hand side of the window: Terminal, Browser and Git tabs. Each tab is built the first time it is shown.
+// Right-hand side of the window: Terminal, Git and Browser tabs. Each tab is built the first time it is shown.
 export class Panels {
   readonly element = h('div', { class: 'panels' });
   private readonly tabBar = h('div', { class: 'panel-tabs', role: 'tablist' });

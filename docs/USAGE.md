@@ -14,7 +14,7 @@ The window has the chat list on the left (hide it with the sidebar button in the
 
 ### Tell it about your project
 
-- **Project instructions**: the project menu (the folder button at the top) → _Project settings…_. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
+- **Project instructions**: the project menu (the folder button at the top) → _Project settings…_, or **Add project instructions** on a new chat's start screen. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
 - **`AGENTS.md`** (or `CLAUDE.md`) in the project root is added to every chat automatically. The status bar shows "AGENTS.md loaded".
 
 Both are prompt text, not enforced rules: the assistant can still get them wrong, which is why approvals exist.
@@ -192,7 +192,7 @@ The download button in the chat header (_Export chat_) asks where to save and wr
 Besides the API keys, approvals and allow-lists described above, **Settings** has:
 
 - **Model**, and **Other model id…** for a model that is not in the list. A chat keeps the model it started with.
-- **Effort**: how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
+- **Effort** (low, medium, high by default, xhigh, max): how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
 - **Plan mode**: see [Plan mode](#plan-mode) above.
 - **MCP servers**: see [MCP servers](#mcp-servers) above.
 - **Theme**: dark or light.
@@ -208,7 +208,7 @@ The project menu (the folder button at the top) has **Project settings…** for 
 The panel button in the header shows or hides the side panel with three tabs:
 
 - **Terminal**: a normal shell in the project folder, separate from the commands the assistant runs.
-- **Git**: changed files with diffs, a commit message and **Commit all** below them (with the current branch), per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet. Patch commits but does not push.
+- **Git**: changed files with diffs, a commit message below them (press `Enter` or **Commit all** to commit, with the current branch shown underneath), per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet. Patch commits but does not push.
 - **Browser**: where the assistant checks web apps, and where you can look at them yourself. Type an address such as `http://localhost:3000` in the address bar.
 
 Before a repository's first commit, the diff includes staged additions and any later working-tree changes. Discarding a renamed file restores its original committed path and removes the renamed destination, including edits to it; review the diff before confirming.

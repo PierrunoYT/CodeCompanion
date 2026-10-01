@@ -47,7 +47,7 @@ Machine: Intel Core Ultra 9 285K (24 threads), 47 GB RAM, Windows 11, Electron 4
 ### What was slow, and what changed
 
 1. **Layout of the whole chat on every streamed frame.** The transcript is a flex column, and the message being streamed changes on every frame, so Chromium re-laid out the whole list each time.
-   - _Fix:_ `.transcript > *` now has `content-visibility: auto` with `contain-intrinsic-size: auto 80px`. Items off screen are skipped for layout and paint, but stay in the DOM and the accessibility tree.
+   - _Fix:_ `.transcript > *` (since then `.transcript-chunk > *`, see the chunked transcript below) got `content-visibility: auto` with `contain-intrinsic-size: auto 80px`. Items off screen are skipped for layout and paint, but stay in the DOM and the accessibility tree.
 2. **Style recalculation of the whole chat on every frame.** This showed up once layout was cheap. Each frame, the streaming message's element was swapped for a new one, which invalidated the styles of its siblings (Bootstrap uses sibling and `:last-child` selectors).
    - _Fix:_ `TranscriptView` now updates a changed item's element in place (`morph`: same element, new attributes and children).
 3. **Every finished tool card built its diff up front,** even though the card is collapsed. The diffs were most of the DOM (diff2html lays out a table row per line).
@@ -215,7 +215,7 @@ Same machine as above. The numbers were stable across three runs.
 
 ### Crash-resume checkpoints (2026-09-30)
 
-A crash-resume checkpoint writes the whole chat synchronously after every tool-result batch: pretty-printed JSON, including base64 screenshots, plus the chat index and a `history:changed` broadcast. Quick read-only batches, and batches that return browser screenshots, block the main process once per batch, and the stall grows with the chat. Checkpointing only batches that need approval or change state, or skipping the index rewrite and the broadcast until the run finishes, is tracked in [#17](https://github.com/PierrunoYT/patch/issues/17). Measured in [The agent loop](#the-agent-loop-2026-10-01) below.
+A crash-resume checkpoint writes the whole chat synchronously after every tool-result batch: pretty-printed JSON, including base64 screenshots. Until #17 it also rewrote the chat index and sent a `history:changed` broadcast; checkpoints now skip both (see "Checkpoints skip the index" below). Quick read-only batches, and batches that return browser screenshots, block the main process once per batch, and the stall grows with the chat. Checkpointing only batches that need approval or change state, or skipping the index rewrite and the broadcast until the run finishes, is tracked in [#17](https://github.com/PierrunoYT/patch/issues/17). Measured in [The agent loop](#the-agent-loop-2026-10-01) below.
 
 ## The agent loop (2026-10-01)
 

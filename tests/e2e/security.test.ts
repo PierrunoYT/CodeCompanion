@@ -45,6 +45,44 @@ describe('window security', () => {
     expect(running.page.url()).toBe(before);
   });
 
+  it('confirms dangerous setting changes in the main process', async () => {
+    const { app, page } = running;
+    const confirmations = () =>
+      app.evaluate(() => (globalThis as unknown as { __patchConfirmations: string[] }).__patchConfirmations.slice());
+    const setResponse = (response: number) =>
+      app.evaluate((_electron, value) => {
+        (globalThis as unknown as { __patchConfirmResponse: number }).__patchConfirmResponse = value;
+      }, response);
+    const update = (patch: object) =>
+      page.evaluate(
+        (value) =>
+          window.api.invoke('settings:update', value).then(
+            (view) => ({ ok: true, approvalMode: view.approvalMode, editorCommand: view.editorCommand }),
+            (error: Error) => ({ ok: false, error: error.message }),
+          ),
+        patch,
+      );
+
+    // Cancelling the native dialog leaves the setting unchanged.
+    await setResponse(1);
+    expect(await update({ editorCommand: 'calc' })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled'),
+    });
+    expect((await page.evaluate(() => window.api.invoke('settings:get'))).editorCommand).toBe('code');
+    await setResponse(0);
+
+    const before = (await confirmations()).length;
+    expect(await update({ approvalMode: 'auto' })).toMatchObject({ ok: true, approvalMode: 'auto' });
+    expect(await update({ approvalMode: 'ask' })).toMatchObject({ ok: true, approvalMode: 'ask' });
+    // Auto mode is confirmed once per session; ordinary settings never ask.
+    expect(await update({ approvalMode: 'auto', theme: 'light' })).toMatchObject({ ok: true, approvalMode: 'auto' });
+    const asked = (await confirmations()).slice(before);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('Auto mode');
+    await update({ approvalMode: 'ask', theme: 'dark' });
+  });
+
   it('runs without renderer errors', () => {
     expect(running.errors).toEqual([]);
   });

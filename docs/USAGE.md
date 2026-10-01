@@ -68,7 +68,9 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 **Settings → Approvals**, or the **Ask first** / **Auto** button in the header, chooses between:
 
 - **Ask before edits and commands** (default): as above.
-- **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do.
+- **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do. The first switch to Auto after starting the app shows a confirmation dialog.
+
+Changing the **Editor command**, or adding or changing an MCP server that runs a program (its command, arguments, folder or a new `env` value), also asks for confirmation before it is saved. Cancel leaves the settings as they were.
 
 Even in Auto mode, a fetch or browser redirect to another host is blocked; the assistant has to ask for the new address as a separate step.
 

@@ -493,7 +493,10 @@ export class App {
   }
 
   private async toggleMode(): Promise<void> {
-    await api.invoke('settings:update', { approvalMode: this.settings.approvalMode === 'ask' ? 'auto' : 'ask' });
+    // Switching to Auto asks for confirmation in the main process; cancelling it rejects and leaves the mode as it was.
+    await api
+      .invoke('settings:update', { approvalMode: this.settings.approvalMode === 'ask' ? 'auto' : 'ask' })
+      .catch((error) => this.toast(error));
   }
 
   private openSettings(): void {

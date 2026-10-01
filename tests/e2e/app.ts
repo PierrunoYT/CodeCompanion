@@ -58,6 +58,21 @@ export async function launchApp(
     if (message.type() === 'error') errors.push(message.text());
   });
   await page.waitForLoadState('domcontentloaded');
+  // Native confirmations (e.g. switching to Auto mode) would block a test: answer them in the main process instead.
+  // Each one is recorded; a test sets __patchConfirmResponse to 1 to press Cancel.
+  await app.evaluate(({ dialog }) => {
+    const state = globalThis as unknown as { __patchConfirmations: string[]; __patchConfirmResponse: number };
+    state.__patchConfirmations = [];
+    state.__patchConfirmResponse = 0;
+    const answer = async (...args: unknown[]) => {
+      const options = args.find((arg) => typeof arg === 'object' && arg !== null && 'message' in arg) as {
+        detail?: string;
+      };
+      state.__patchConfirmations.push(options?.detail ?? '');
+      return { response: state.__patchConfirmResponse, checkboxChecked: false };
+    };
+    dialog.showMessageBox = answer as typeof dialog.showMessageBox;
+  });
 
   return {
     app,

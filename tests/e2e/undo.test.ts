@@ -116,8 +116,10 @@ describe('undo an approved edit (mock Claude API)', () => {
     expect(cardsOf(await snapshot(), 'edit_file').at(-1)).toMatchObject({ undo: 'available' });
     writeFileSync(notes(), 'The secret word is kiwi.\n');
     await running.page.getByLabel('Undo Edited notes.txt').click();
-    await toast('Restored notes.txt');
-    expect(readFileSync(notes(), 'utf8')).toBe('The secret word is pineapple.\n');
+    // The first test's "Restored notes.txt" toast can still be showing, so wait for the undo itself.
+    await expect.poll(() => readFileSync(notes(), 'utf8')).toBe('The secret word is pineapple.\n');
+    await expect.poll(async () => cardsOf(await snapshot(), 'edit_file').at(-1)?.undo).toBe('undone');
+    await expect.poll(async () => (await snapshot()).busy).toBe(false);
   });
 
   it('deletes a file the assistant created', async () => {

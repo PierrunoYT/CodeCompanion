@@ -23,6 +23,7 @@
     "test:e2e": "npm run build && vitest run --project e2e",
     "perf": "npm run build && vitest run --project perf",
     "bench:agent": "npm run build && vitest run --project bench",
+    "mutate": "node scripts/mutation-test.mjs",
     "pack": "node scripts/ensure-closed.mjs && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && npm run build && electron-builder --dir --publish never",
     "dist": "node scripts/ensure-closed.mjs && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && npm run build && electron-builder --publish never"
   },
@@ -44,6 +45,14 @@
       "node_modules/node-pty/**"
     ],
     "npmRebuild": false,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true
+    },
     "mac": {
       "icon": "build/icon.icns",
       "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/**",
@@ -106,7 +115,7 @@
     "bootstrap-icons": "^1.13.1",
     "diff2html": "^3.4.56",
     "dompurify": "^3.4.16",
-    "electron": "^44.4.5",
+    "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^10.11.0",

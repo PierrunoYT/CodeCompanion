@@ -45,6 +45,110 @@ describe('window security', () => {
     expect(running.page.url()).toBe(before);
   });
 
+  it.each(['', 'other', 'persist:other'])('rejects a webview using partition "%s"', async (partition) => {
+    const isolated = await launchApp();
+    try {
+      await isolated.app.evaluate(({ BrowserWindow }) => {
+        // This state is installed and consumed only inside the test's main process.
+        const state = globalThis as unknown as {
+          __partitionAttempt: { partition: string; blocked: boolean } | null;
+        };
+        state.__partitionAttempt = null;
+        BrowserWindow.getAllWindows()[0]!.webContents.once('will-attach-webview', (event, _preferences, params) => {
+          state.__partitionAttempt = { partition: params.partition ?? '', blocked: event.defaultPrevented };
+        });
+      });
+      await isolated.page.evaluate((value) => {
+        const guest = document.createElement('webview');
+        if (value) guest.setAttribute('partition', value);
+        guest.setAttribute('src', 'about:blank');
+        document.body.append(guest);
+      }, partition);
+      await expect
+        .poll(() =>
+          isolated.app.evaluate(() => {
+            // The attachment observer above owns this test-only main-process state.
+            const state = globalThis as unknown as { __partitionAttempt: unknown };
+            return state.__partitionAttempt;
+          }),
+        )
+        .toEqual({ partition, blocked: true });
+      expect(
+        await isolated.app.evaluate(({ webContents, session }) =>
+          webContents
+            .getAllWebContents()
+            .filter(
+              (contents) =>
+                contents.getType() === 'webview' && contents.session !== session.fromPartition('persist:browser'),
+            )
+            .map((contents) => contents.getURL()),
+        ),
+      ).toEqual([]);
+    } finally {
+      await isolated.close();
+    }
+  });
+
+  it('keeps the browser panel in its isolated session', async () => {
+    const isolated = await launchApp();
+    try {
+      await isolated.page.getByRole('tab', { name: 'Browser' }).click();
+      await expect
+        .poll(() =>
+          isolated.app.evaluate(({ webContents, session }) =>
+            webContents
+              .getAllWebContents()
+              .filter((contents) => contents.getType() === 'webview')
+              .map((contents) => ({
+                url: contents.getURL(),
+                isolated: contents.session === session.fromPartition('persist:browser'),
+              })),
+          ),
+        )
+        .toEqual([{ url: 'about:blank', isolated: true }]);
+    } finally {
+      await isolated.close();
+    }
+  });
+
+  it('confirms dangerous setting changes in the main process', async () => {
+    const { app, page } = running;
+    const confirmations = () =>
+      app.evaluate(() => (globalThis as unknown as { __patchConfirmations: string[] }).__patchConfirmations.slice());
+    const setResponse = (response: number) =>
+      app.evaluate((_electron, value) => {
+        (globalThis as unknown as { __patchConfirmResponse: number }).__patchConfirmResponse = value;
+      }, response);
+    const update = (patch: object) =>
+      page.evaluate(
+        (value) =>
+          window.api.invoke('settings:update', value).then(
+            (view) => ({ ok: true, approvalMode: view.approvalMode, editorCommand: view.editorCommand }),
+            (error: Error) => ({ ok: false, error: error.message }),
+          ),
+        patch,
+      );
+
+    // Cancelling the native dialog leaves the setting unchanged.
+    await setResponse(1);
+    expect(await update({ editorCommand: 'calc' })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled'),
+    });
+    expect((await page.evaluate(() => window.api.invoke('settings:get'))).editorCommand).toBe('code');
+    await setResponse(0);
+
+    const before = (await confirmations()).length;
+    expect(await update({ approvalMode: 'auto' })).toMatchObject({ ok: true, approvalMode: 'auto' });
+    expect(await update({ approvalMode: 'ask' })).toMatchObject({ ok: true, approvalMode: 'ask' });
+    // Auto mode is confirmed once per session; ordinary settings never ask.
+    expect(await update({ approvalMode: 'auto', theme: 'light' })).toMatchObject({ ok: true, approvalMode: 'auto' });
+    const asked = (await confirmations()).slice(before);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('Auto mode');
+    await update({ approvalMode: 'ask', theme: 'dark' });
+  });
+
   it('runs without renderer errors', () => {
     expect(running.errors).toEqual([]);
   });

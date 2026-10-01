@@ -200,7 +200,7 @@ export function stripAnsi(text: string): string {
 
 export const runCommandTool = defineTool({
   name: 'run_command',
-  description: `Run a shell command (${shellName()}) in the project root and return its output and exit code. Each call starts a fresh shell: use paths instead of cd. Set background to true for servers and watchers that do not exit, then read their output with command_output.`,
+  description: `Run a shell command (${shellName()}) in the project root and return its output and exit code. Each call starts a fresh shell: use paths instead of cd. Set background to true for servers and watchers that do not exit, then read their output with command_output. Do not use it to change files (no sed, perl, PowerShell replace scripts or redirects into project files): use edit_file and write_file, which show a diff and can be undone.`,
   schema: z.object({
     command: z.string().min(1),
     background: z.boolean().optional().describe('Start without waiting for it to finish (servers, watchers).'),

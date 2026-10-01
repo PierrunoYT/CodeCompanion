@@ -58,6 +58,24 @@ export async function launchApp(
     if (message.type() === 'error') errors.push(message.text());
   });
   await page.waitForLoadState('domcontentloaded');
+  // Answer only Patch's native settings confirmation; browser confirms must remain under Playwright's control.
+  // Each one is recorded; a test sets __patchConfirmResponse to 1 to press Cancel.
+  await app.evaluate(({ dialog }) => {
+    const state = globalThis as unknown as { __patchConfirmations: string[]; __patchConfirmResponse: number };
+    state.__patchConfirmations = [];
+    state.__patchConfirmResponse = 0;
+    const showMessageBox = dialog.showMessageBox;
+    const answer = async (...args: unknown[]) => {
+      const options = args.find((arg) => typeof arg === 'object' && arg !== null && 'message' in arg) as {
+        detail?: string;
+        title?: string;
+      };
+      if (options?.title !== 'Confirm settings') return Reflect.apply(showMessageBox, dialog, args);
+      state.__patchConfirmations.push(options?.detail ?? '');
+      return { response: state.__patchConfirmResponse, checkboxChecked: false };
+    };
+    dialog.showMessageBox = answer as typeof dialog.showMessageBox;
+  });
 
   return {
     app,

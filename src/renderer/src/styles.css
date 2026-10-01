@@ -452,9 +452,19 @@ body {
 /* A long chat has hundreds of thousands of nodes. Items off screen are skipped for layout and paint, so the item being
    streamed at the bottom does not make the browser lay out the whole chat on every frame. They stay in the DOM and in
    the accessibility tree; `auto` remembers each item's size once it has been shown, so scrolling stays steady. */
-.transcript > * {
+.transcript-chunk > * {
   content-visibility: auto;
   contain-intrinsic-size: auto 80px;
+}
+
+/* Items are grouped in chunks of 50 (CHUNK_SIZE in views/transcript.ts), each skipped as a whole while off screen, so
+   a frame at the bottom of a long chat lays out a few dozen chunks rather than thousands of items. */
+.transcript-chunk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 6000px;
 }
 
 .message {

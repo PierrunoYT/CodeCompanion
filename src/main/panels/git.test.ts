@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { simpleGit } from 'simple-git';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GitService } from './git';
+import { filterNames, GitService, hardenedConfig } from './git';
 
 const tempFolderInsideRepo = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: tmpdir() }).status === 0;
 
@@ -199,5 +199,77 @@ describe('GitService', () => {
     const status = await service.discard('a.txt');
     expect(status.files).toEqual([]);
     expect(readFileSync(join(root, 'a.txt'), 'utf8')).toBe('one\n');
+  });
+});
+
+// A repository from an untrusted source can name commands in its own .git/config. Opening the Git panel, viewing a
+// diff or discarding a file must not run any of them (issue #24). Each "command" here only creates a marker file.
+describe('GitService with a hostile repository config', () => {
+  const marker = (name: string) => join(root, `MARKER_${name}`);
+  const markerCommand = (name: string) =>
+    process.platform === 'win32'
+      ? `cmd /c type nul > "${marker(name)}" & exit 1`
+      : `sh -c 'touch "${marker(name)}"; exit 1'`;
+  // Plain git: simple-git (rightly) refuses to write these settings.
+  const config = (key: string, value: string) => {
+    expect(spawnSync('git', ['config', key, value], { cwd: root }).status).toBe(0);
+  };
+
+  it('does not run core.fsmonitor when reading the status', async () => {
+    await initRepo();
+    writeFileSync(join(root, 'a.txt'), 'two\n');
+    await config('core.fsmonitor', markerCommand('fsmonitor'));
+
+    const status = await service.status();
+    expect(status.files).toEqual([{ path: 'a.txt', status: 'modified' }]);
+    expect(existsSync(marker('fsmonitor'))).toBe(false);
+  });
+
+  it('does not run textconv or external diff drivers', async () => {
+    await initRepo();
+    writeFileSync(join(root, '.gitattributes'), '*.txt diff=evil\n');
+    await config('diff.evil.textconv', markerCommand('textconv'));
+    await config('diff.external', markerCommand('external'));
+    writeFileSync(join(root, 'a.txt'), 'two\n');
+
+    const diff = await service.diff('a.txt');
+    expect(diff).toContain('+two');
+    expect(existsSync(marker('textconv'))).toBe(false);
+    expect(existsSync(marker('external'))).toBe(false);
+  });
+
+  it('does not run clean or smudge filters defined by the repository', async () => {
+    await initRepo();
+    writeFileSync(join(root, '.gitattributes'), '*.txt filter=evil\n');
+    await config('filter.evil.clean', markerCommand('clean'));
+    await config('filter.evil.smudge', markerCommand('smudge'));
+    writeFileSync(join(root, 'a.txt'), 'two\n');
+
+    expect((await service.status()).files).toContainEqual({ path: 'a.txt', status: 'modified' });
+    expect(await service.diff('a.txt')).toContain('+two');
+    await service.discard('a.txt');
+    expect(readFileSync(join(root, 'a.txt'), 'utf8')).toBe('one\n');
+    expect(existsSync(marker('clean'))).toBe(false);
+    expect(existsSync(marker('smudge'))).toBe(false);
+  });
+});
+
+describe('filterNames and hardenedConfig', () => {
+  it('finds each filter driver once, including names with dots', () => {
+    expect(filterNames('filter.lfs.clean\nfilter.lfs.smudge\r\nfilter.my.tool.process\n\n')).toEqual([
+      'lfs',
+      'my.tool',
+    ]);
+    expect(filterNames('')).toEqual([]);
+  });
+
+  it('disables fsmonitor and neutralizes each named filter', () => {
+    expect(hardenedConfig(['evil'])).toEqual([
+      'core.fsmonitor=false',
+      'filter.evil.clean=',
+      'filter.evil.smudge=',
+      'filter.evil.process=',
+      'filter.evil.required=false',
+    ]);
   });
 });

@@ -1,13 +1,26 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import type { EventChannel, EventMap, InvokeApi, InvokeChannel } from '@shared/ipc';
 import { appLog } from './app_log';
+import { isAppPageUrl } from './renderer_url';
 
 type Handler<K extends InvokeChannel> = (
   ...args: Parameters<InvokeApi[K]>
 ) => ReturnType<InvokeApi[K]> | Promise<Awaited<ReturnType<InvokeApi[K]>>>;
 
+// Only the app page's top frame may call the handlers. Today it is the only frame with the preload (pages in the
+// browser panel get none), so this guards against a future iframe, second window or wrongly loaded page.
+function fromAppPage(event: IpcMainInvokeEvent): boolean {
+  const frame = event.senderFrame;
+  return frame !== null && frame.parent === null && isAppPageUrl(frame.url, app.isPackaged, process.env);
+}
+
 export function handle<K extends InvokeChannel>(channel: K, handler: Handler<K>): void {
-  ipcMain.handle(channel, async (_event, ...args) => {
+  ipcMain.handle(channel, async (event, ...args) => {
+    if (!fromAppPage(event)) {
+      // The frame's URL is not logged: it is whatever page made the call.
+      appLog.warn('ipc', 'Blocked a call from a frame that is not the app page.', { channel });
+      throw new Error('Blocked IPC call from a frame that is not the app page.');
+    }
     try {
       return await handler(...(args as Parameters<InvokeApi[K]>));
     } catch (error) {

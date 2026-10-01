@@ -75,6 +75,9 @@ export class ChatSession {
   private titleController: AbortController | null = null;
   private disposed = false;
   private resumable: boolean;
+  // True from the start of a send or resume until it ends. Saved as resumable, so a chat whose app crashed mid-run
+  // (during a model request, or before the tool calls of the last answer were saved) offers Resume when reopened.
+  private running = false;
   private stopRequested = false;
   private updatedAt: string;
   // Things that happened to the project outside the conversation, for the model's next message.
@@ -88,8 +91,8 @@ export class ChatSession {
     this.transcript = options.transcript ? closeStaleRows(options.transcript) : [];
     this.readFiles = new Set(options.readFiles ?? []);
     this.notes = [...(options.pendingNotes ?? [])];
-    // A chat whose saved history ends in unanswered tool calls was interrupted by a crash; it resumes like a
-    // user-stopped run.
+    // A chat saved mid-run (see `running`), or whose saved history ends in unanswered tool calls, was interrupted by a
+    // crash; it resumes like a user-stopped run.
     this.resumable = (options.resumable ?? false) || options.conversation.hasPendingToolCalls();
     this.agent = new Agent({
       conversation: options.conversation,
@@ -204,6 +207,7 @@ export class ChatSession {
     const controller = new AbortController();
     this.controller = controller;
     this.stopRequested = false;
+    this.running = true;
     let interrupted = false;
     this.emit({ type: 'busy', busy: true });
     try {
@@ -219,6 +223,7 @@ export class ChatSession {
       // A stop that arrives as the run finishes on its own leaves nothing to resume.
       const stopped = this.stopRequested && interrupted;
       this.controller = null;
+      this.running = false;
       this.rejectPendingApprovals();
       if (stopped) this.setResumable(true);
       this.emit({ type: 'busy', busy: false });
@@ -305,7 +310,7 @@ export class ChatSession {
       readFiles: [...this.readFiles],
       pendingNotes: [...this.notes],
       agentFile: this.options.agentFile,
-      resumable: this.resumable,
+      resumable: this.resumable || this.running,
       officialPricing: this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
     };
   }

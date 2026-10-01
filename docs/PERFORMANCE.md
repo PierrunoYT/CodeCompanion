@@ -4,7 +4,7 @@
 
 **Question:** does the chat UI need a virtualized or paginated message list for long chats?
 
-**Answer:** not at this point. Three targeted changes roughly halved opening time and improved long-chat rendering, but the initial claim that a 5,000-item chat streamed as smoothly as an empty chat was based on an off-screen answer. The later [Windows bisection](#windows-bisection-2026-09-30) measured 14–21 ms median frames while actually following the answer, versus the earlier 7 ms off-screen result. Remaining costs include layout across the long transcript and rendering the growing answer.
+**Answer:** not at this point. Three targeted changes roughly halved opening time and improved long-chat rendering, but the initial claim that a 5,000-item chat streamed as smoothly as an empty chat was based on an off-screen answer. The later [Windows bisection](#windows-bisection-2026-09-30) measured 14–21 ms median frames while actually following the answer, versus the earlier 7 ms off-screen result. [Grouping the items into chunks](#chunked-transcript-2026-10-01) removed that cost: a 5,000-item chat now streams at the empty chat's 7 ms median frame while following the answer, which the benchmark now checks. What remains is rendering the growing answer, which is the same in an empty chat.
 
 ### How it is measured
 
@@ -20,6 +20,7 @@
 - **Streaming:** a 20,000-character answer (prose, lists, code blocks) streamed by the mock API as 400 deltas, 5 ms apart. The chat is streamed into twice: once empty, once after the long chat has been opened. Measured while it arrives:
   - `requestAnimationFrame` intervals (p50, p95, worst)
   - Chromium's script, layout and style-recalculation time, from the DevTools protocol's `Performance.getMetrics`
+  - `maxBottomGapPx`, the view's largest distance from the bottom, sampled every 250 ms. Above 80 px the view was not following the answer, and the frame times measure an answer off screen that Chromium skips
 - **Window:** the invisible e2e test window, with background throttling off.
 
 Machine: Intel Core Ultra 9 285K (24 threads), 47 GB RAM, Windows 11, Electron 44.4.5, 144 Hz display (a 7 ms frame is a full frame rate). Treat the numbers as relative; they vary by machine.
@@ -135,8 +136,31 @@ it. The 7 ms was the benchmark measuring a chat that was not following. With the
 see), the streamed item is on screen and is laid out on every frame. The extra 0.6 s of layout over the empty chat
 (0.5 s) is the price of 5,000 `content-visibility: auto` siblings around it; none of the small pieces accounts for it.
 
-Ruled out: the focus check, the `ResizeObserver` and flex layout (a small gain, not kept). Not tried: grouping older
-items into a few `content-visibility` chunks, so fewer elements take part in each layout.
+Ruled out: the focus check, the `ResizeObserver` and flex layout (a small gain, not kept). Grouping the items into
+`content-visibility` chunks, measured next, fixed it.
+
+#### Chunked transcript (2026-10-01)
+
+`TranscriptView` now places items in `.transcript-chunk` containers of 50 (`CHUNK_SIZE`). Each chunk is a flex column
+with `content-visibility: auto` and `contain-intrinsic-size: auto 6000px`, and the items inside keep their own
+`content-visibility: auto`. A frame at the bottom of a 5,000-item chat lays out 100 chunks, almost all skipped, plus
+the 50 items of the last chunk, instead of 5,000 siblings. An item's chunk is fixed by its position, so a streamed
+update still changes one element in place.
+
+Windows machine above, 1,000 turns (5,000 items), same build apart from the change. Three runs with chunks, two
+without. In every run of both variants the view stayed 1 px from the bottom (`maxBottomGapPx`), so both measure a
+followed, visible answer:
+
+| 5,000-item chat while streaming | Frame p50 / p95 | Frames drawn | Layout      | Script      |
+| ------------------------------- | --------------- | ------------ | ----------- | ----------- |
+| Empty chat (reference)          | 7 / 21 ms       | 672–683      | 0.65–0.67 s | 2.26–2.29 s |
+| Without chunks                  | 21 / 35 ms      | 300–322      | 1.26–1.28 s | 2.08 s      |
+| With chunks                     | 7 / 21–28 ms    | 521–652      | 0.63–0.68 s | 2.91–3.19 s |
+
+Layout during the stream is back to the empty chat's, and twice as many frames are drawn. Script time is higher
+because more frames means more renders of the growing answer's Markdown (see "Not changed, and why" below); per frame
+it is lower. Opening is unchanged (1.14–1.27 s). `tests/e2e/transcript_view.test.ts` checks that 200 items land in
+four chunks in order, and that opening at the end, following a new approval card and Undo focus still work.
 
 ### Not changed, and why
 
@@ -332,3 +356,16 @@ Small suite, Claude Sonnet 5.5, 2 runs per task, on the machine above:
 - **Cost grows with exploration, not codebase size.** `settings-cap` and `ipc-channel` read the most (about 120–160k cached tokens over 20+ tool calls), but still cost about $0.10–0.12 because almost all of it is cache reads.
 - **Not counted:** the cost column is the Anthropic API only. When an OpenAI key is saved, `search_code` embeds the project for semantic search, which adds a few cents per large run.
 - **Reading the numbers:** 12 tasks, two runs each, on one model. The benchmark is a regression check for the app (tools, prompts, the agent loop) rather than a measure of model ability. Rerun it after changing the system prompt, tool descriptions or the loop, and compare solved counts, tool calls and cost. Harder, longer tasks (multi-step features, flaky or concurrency bugs, larger refactors) and other models (Opus 5.5, GPT-6) are not covered yet.
+
+### Edits through the shell (#45, 2026-10-01)
+
+In both runs of `rename-constant` above, the model renamed the constant with a PowerShell loop through `run_command` instead of `edit_file`. Such a change gets no diff preview, no per-file approval and no Undo. The system prompt and `run_command`'s description now say to change files only with `edit_file` and `write_file` (with `replace_all` for one string in many files), never with shell commands. The benchmark records tool calls by name (`toolsByName`) and flags runs that changed project files without the edit tools (`editedWithoutEditTools`).
+
+Rerun of both rename tasks, Claude Sonnet 5.5, 2 runs each:
+
+| Task              | Before                                                | After                                                                         |
+| ----------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `rename-constant` | PowerShell loop in 2 of 2 runs; 29–31 s; $0.032–0.033 | `edit_file` in 2 of 2 runs (4–6 calls), no shell edits; 38–44 s; $0.071–0.075 |
+| `rename` (small)  | `edit_file`; 15–17 s; $0.036–0.037                    | `edit_file` (4–6 calls), no shell edits; 13–15 s; $0.032–0.034                |
+
+All four runs were solved. Editing file by file costs more round trips, so the larger rename costs about twice as much; every change is now previewable and can be undone. The `rename-constant` runs had 1–3 failed `edit_file` calls each, recovered within the run; their reason will show once failed tool cards carry it (#47). The small `rename` task's one failed call (#43) is the model's own check, `grep -rn getUserName …`, which exits 1 when nothing is left to find.

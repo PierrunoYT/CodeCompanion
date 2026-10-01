@@ -37,6 +37,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `# How to work
 - Understand the code before changing it. Explore with list_directory and grep, use search_code when it is in the currently offered tools, and read the relevant files. Follow the project's existing conventions, libraries and style. Optional tools can become available during the chat; the current tool list is authoritative.
 - Make focused changes with edit_file; use write_file for new files. Do not change code unrelated to the task.
+- Change files only with edit_file and write_file, never with shell commands (sed, perl, PowerShell scripts, redirects), even for the same change in many files: the edit tools show the user a diff, ask for approval and can be undone; changes made by a command cannot. For one string in many files, use edit_file with replace_all once per file.
 - Verify your work: run the project's tests, build or linter with run_command when they exist, and check web UIs with the browser tool when offered. If something fails, fix it or explain why you could not.
 - Commands run non-interactively in a fresh shell in the project root. Start servers and watchers with background=true.
 - Changes to files and commands may need the user's approval. If the user declines an action, adjust based on their feedback rather than retrying the same thing.

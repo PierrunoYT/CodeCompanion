@@ -66,6 +66,18 @@ describe('Workspace', () => {
     expect(context.workspace.resolve('src/app.ts')).toBe(join(context.workspace.root, 'src', 'app.ts'));
   });
 
+  it("rejects the project's parent folder itself", () => {
+    expect(() => context.workspace.resolve('..')).toThrow(/outside the project/);
+    expect(() => context.workspace.resolve('src/../..')).toThrow(/outside the project/);
+  });
+
+  // On Windows, path.relative between two drives is an absolute path, not one starting with "..".
+  it.runIf(process.platform === 'win32')('rejects a path on another drive', () => {
+    const drive = context.workspace.root[0]!.toUpperCase();
+    const other = drive === 'Q' ? 'R' : 'Q';
+    expect(() => context.workspace.resolve(`${other}:\\outside.txt`)).toThrow(/outside the project/);
+  });
+
   it('follows a folder link for a file that does not exist yet, so nothing is written outside the project', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'cc-outside-'));
     try {

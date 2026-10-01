@@ -26,7 +26,7 @@ import type { ChatSnapshot } from '../../src/shared/chat';
 import { estimateCost } from '../../src/shared/models';
 import { delay, launchApp } from '../e2e/app';
 import { cleanupLargeBase, LARGE_TASKS, removeLargeProject } from './large_tasks';
-import { hashes, type Task } from './task';
+import { changedFiles, hashes, type Task } from './task';
 
 const PROFILE = process.env.PATCH_BENCH_PROFILE;
 const SELFTEST = process.env.PATCH_BENCH_SELFTEST === '1';
@@ -273,6 +273,11 @@ interface Result {
   toolErrors: number;
   // Name and card summary of each failed tool call, e.g. a test run that fails before the fix.
   failedTools: string[];
+  // Tool calls by tool name, e.g. { read_file: 4, edit_file: 2 }.
+  toolsByName: Record<string, number>;
+  // Project files changed although no edit_file or write_file call was made: the model edited through run_command,
+  // which skips the diff preview and Undo (issue #45).
+  editedWithoutEditTools: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -328,6 +333,8 @@ async function runTask(task: Task, rep: number): Promise<Result> {
     const seconds = (Date.now() - started) / 1000;
     const assistants = chat.transcript.filter((item) => item.kind === 'assistant');
     const tools = chat.transcript.filter((item) => item.kind === 'tool');
+    const toolsByName: Record<string, number> = {};
+    for (const item of tools) if (item.kind === 'tool') toolsByName[item.name] = (toolsByName[item.name] ?? 0) + 1;
     const answer = assistants.map((item) => (item.kind === 'assistant' ? item.text : '')).join('\n');
     const errors = chat.transcript.filter((item) => item.kind === 'error');
     const verdict =
@@ -347,6 +354,9 @@ async function runTask(task: Task, rep: number): Promise<Result> {
       failedTools: tools.flatMap((item) =>
         item.kind === 'tool' && item.status === 'error' ? [`${item.name}: ${item.summary ?? ''}`.slice(0, 120)] : [],
       ),
+      toolsByName,
+      editedWithoutEditTools:
+        !(toolsByName.edit_file || toolsByName.write_file) && changedFiles(project, before).length > 0,
       inputTokens: chat.usage.inputTokens,
       outputTokens: chat.usage.outputTokens,
       cacheReadTokens: chat.usage.cacheReadTokens,
@@ -365,6 +375,8 @@ async function runTask(task: Task, rep: number): Promise<Result> {
       toolCalls: 0,
       toolErrors: 0,
       failedTools: [],
+      toolsByName: {},
+      editedWithoutEditTools: false,
       inputTokens: 0,
       outputTokens: 0,
       cacheReadTokens: 0,

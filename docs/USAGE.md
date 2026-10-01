@@ -68,7 +68,9 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 **Settings → Approvals**, or the **Ask first** / **Auto** button in the header, chooses between:
 
 - **Ask before edits and commands** (default): as above.
-- **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do.
+- **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do. The first switch to Auto after starting the app shows a confirmation dialog.
+
+Changing the **Editor command**, or adding or changing an MCP server that runs a program (its command, arguments, folder or a new `env` value), also asks for confirmation before it is saved. Cancel leaves the settings as they were.
 
 Even in Auto mode, a fetch or browser redirect to another host is blocked; the assistant has to ask for the new address as a separate step.
 
@@ -151,6 +153,7 @@ For broad questions ("find every caller of this function", "summarize how settin
 - **Stop** (the red button, or `Ctrl+.`) aborts the current request, running foreground commands and background commands belonging to the active project, including commands still starting. Other projects' background jobs and the interactive terminal are unaffected. It also cancels a wait before a retry.
 - The composer then shows **Resume**. Resume continues the task from the conversation so far without you retyping the request. The assistant is told that an interrupted action may have partly happened, so it checks the current state before repeating anything with side effects.
 - The Resume state is saved with the chat, so it is still there after you close the app and reopen the chat from the history.
+- If the app crashes or is killed while a task runs, the chat shows **Resume** when you reopen it, whether the crash happened while the model was answering or while an action ran.
 - Sending a new message instead of resuming drops the Resume option.
 
 Resume continues from the conversation, not from an exact checkpoint. Look at the diff and Git panel after resuming a run that was stopped mid-command.

@@ -51,6 +51,10 @@ describe('isCommandAllowed', () => {
     'npm test {Remove-Item src}',
     'npm test $env:USERPROFILE',
     'npm test ${HOME}',
+    // After a real argument the allowed prefix matches, so only the operator check stops these.
+    'npm test -- --watch; rm -rf .',
+    'npm test ; rm -rf .',
+    'npm test -- --x | tee out.txt',
   ])('never allows shell operators: %s', (command) => {
     expect(isCommandAllowed(command, allowed)).toBe(false);
   });

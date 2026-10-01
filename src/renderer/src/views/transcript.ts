@@ -60,6 +60,11 @@ const TOOL_ICONS: Record<string, string> = {
   browser: 'window',
 };
 
+// The transcript's items are grouped in containers of this many, each skipped for layout while off screen
+// (`content-visibility: auto`). Following the bottom of a long chat while an answer streams then lays out a few dozen
+// containers instead of thousands of items (docs/PERFORMANCE.md).
+const CHUNK_SIZE = 50;
+
 // Renders the transcript, re-creating only items whose object changed (the reducer returns new objects only for
 // updated items), and keeps the view scrolled to the bottom while the user has not scrolled up.
 export class TranscriptView {
@@ -75,6 +80,8 @@ export class TranscriptView {
   private readonly announced = new Set<string>();
   private primed = false;
   private readonly nodes = new Map<string, { item: TranscriptItem; node: HTMLElement }>();
+  // Items are placed in containers of CHUNK_SIZE items each (see CHUNK_SIZE).
+  private readonly chunks: HTMLElement[] = [];
   // <details> the user opened, so re-rendering a card does not collapse it.
   private readonly expanded = new Set<string>();
 
@@ -92,8 +99,12 @@ export class TranscriptView {
     let previous: HTMLElement | null = null;
     // Whether items were added or moved, as opposed to only updated in place (a streamed answer).
     let inserted = false;
-    for (const item of items) {
+    const chunkCount = Math.ceil(items.length / CHUNK_SIZE);
+    while (this.chunks.length > chunkCount) this.chunks.pop()!.remove();
+    for (const [index, item] of items.entries()) {
       seen.add(item.id);
+      const chunk = this.chunk(Math.floor(index / CHUNK_SIZE));
+      if (index % CHUNK_SIZE === 0) previous = null;
       let entry = this.nodes.get(item.id);
       if (!entry || entry.item !== item) {
         const node = this.renderItem(item);
@@ -107,9 +118,9 @@ export class TranscriptView {
         entry = { item, node: entry && entry.node.tagName === node.tagName ? entry.node : node };
         this.nodes.set(item.id, entry);
       }
-      const expectedNext: ChildNode | null = previous ? previous.nextSibling : this.element.firstChild;
+      const expectedNext: ChildNode | null = previous ? previous.nextSibling : chunk.firstChild;
       if (expectedNext !== entry.node) {
-        this.element.insertBefore(entry.node, expectedNext);
+        chunk.insertBefore(entry.node, expectedNext);
         inserted = true;
       }
       previous = entry.node;
@@ -188,8 +199,19 @@ export class TranscriptView {
     this.primed = false;
     this.announcer.replaceChildren();
     this.nodes.clear();
+    this.chunks.length = 0;
     this.expanded.clear();
     this.element.replaceChildren();
+  }
+
+  // The container for items [index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE), created when first needed.
+  private chunk(index: number): HTMLElement {
+    while (this.chunks.length <= index) {
+      const chunk = h('div', { class: 'transcript-chunk' });
+      this.element.appendChild(chunk);
+      this.chunks.push(chunk);
+    }
+    return this.chunks[index]!;
   }
 
   private renderItem(item: TranscriptItem): HTMLElement {

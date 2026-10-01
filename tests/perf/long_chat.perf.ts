@@ -43,6 +43,9 @@ interface Result {
   longTaskMs: number;
   // CPU time the main process used while the answer streamed (Electron's own process metrics).
   mainCpuMs: number | null;
+  // Largest distance of the view from the bottom, sampled every 250 ms while the answer streams. Above 80 px the view
+  // is not following the answer, and the frame times measure an answer off screen that the browser skips.
+  maxBottomGapPx: number | null;
   metrics: Record<string, number>;
 }
 
@@ -117,8 +120,13 @@ describe('long chat performance', () => {
   async function stream(label: string, items: number, openMs: number | null): Promise<void> {
     claude.script({ slow: { text: ANSWER, chunks: 400, intervalMs: 5 } });
     await running.page.evaluate(() => {
-      const state = { frames: [] as number[], long: [] as number[], stop: false };
+      const state = { frames: [] as number[], long: [] as number[], gaps: [] as number[], stop: false };
       (window as any).__perf = state;
+      const scroller = document.querySelector<HTMLElement>('.chat-scroll-wrap')!;
+      const sampleGap = setInterval(() => {
+        if (state.stop) clearInterval(sampleGap);
+        else state.gaps.push(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight);
+      }, 250);
       new PerformanceObserver((list) => list.getEntries().forEach((entry) => state.long.push(entry.duration))).observe({
         type: 'longtask',
       });
@@ -146,7 +154,7 @@ describe('long chat performance', () => {
     const perf = await running.page.evaluate(() => {
       const state = (window as any).__perf;
       state.stop = true;
-      return { frames: state.frames as number[], long: state.long as number[] };
+      return { frames: state.frames as number[], long: state.long as number[], gaps: state.gaps as number[] };
     });
     const sorted = [...perf.frames].sort((a, b) => a - b);
     const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]! * 10) / 10;
@@ -162,6 +170,7 @@ describe('long chat performance', () => {
       longTasks: perf.long.length,
       longTaskMs: Math.round(perf.long.reduce((sum, value) => sum + value, 0)),
       mainCpuMs: cpuBefore === null || cpuAfter === null ? null : Math.round((cpuAfter - cpuBefore) * 1000),
+      maxBottomGapPx: perf.gaps.length > 0 ? Math.round(Math.max(...perf.gaps)) : null,
       metrics: diffMetrics(before, after),
     });
   }
@@ -195,6 +204,7 @@ describe('long chat performance', () => {
       longTasks: 0,
       longTaskMs: 0,
       mainCpuMs: null,
+      maxBottomGapPx: null,
       metrics: openMetrics,
     });
     await stream('long chat', TURNS * 5, openMs);

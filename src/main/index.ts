@@ -16,6 +16,7 @@ import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { RendererErrorReporter } from './renderer_errors';
 import { SettingsStore } from './settings';
+import { changesToConfirm } from './settings_confirm';
 import { McpHub } from './tools/mcp';
 import { Workspace } from './tools/workspace';
 import type { IndexStatus } from '@shared/ipc';
@@ -176,7 +177,30 @@ function start(): void {
   handle('log:renderer-error', (report) => rendererErrors.report(report));
 
   handle('settings:get', () => settings.view());
-  handle('settings:update', (patch) => settings.update(patch));
+  // Switching to Auto mode is confirmed once per app session; MCP and editor commands every time they change.
+  let autoConfirmed = false;
+  handle('settings:update', async (patch) => {
+    const changes = changesToConfirm(settings.get(), patch, autoConfirmed);
+    if (changes.length > 0) {
+      const options: Electron.MessageBoxOptions = {
+        type: 'warning',
+        title: 'Confirm settings',
+        message: 'Apply these settings?',
+        detail: changes.map((change) => `• ${change}`).join('\n'),
+        buttons: ['Apply', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      };
+      const { response } = await (mainWindow
+        ? dialog.showMessageBox(mainWindow, options)
+        : dialog.showMessageBox(options));
+      if (response !== 0) throw new Error('Settings not changed: the change was cancelled.');
+    }
+    const view = settings.update(patch);
+    if (patch.approvalMode === 'auto') autoConfirmed = true;
+    return view;
+  });
   handle('settings:set-secret', (name, value) => {
     if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
     return settings.setSecret(name, value);
@@ -308,7 +332,20 @@ function start(): void {
   });
 }
 
-app.whenReady().then(start);
+// One instance per profile. Two would each keep settings, projects and the chat index in memory and overwrite each
+// other's files on save. The lock is tied to the userData folder set above, so different profiles (PATCH_USER_DATA)
+// can still run side by side. A second start on the same profile brings the running window forward instead.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+  app.whenReady().then(start);
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

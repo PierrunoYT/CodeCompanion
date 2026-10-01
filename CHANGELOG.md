@@ -69,6 +69,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Security
 
+- Releases include `SHA256SUMS.txt` and the installer's SHA-256 in the release notes, so a download can be verified, and the release workflow signs the installer once a code-signing certificate is configured (#26).
 - IPC handlers only answer calls from the app page's top frame (the built page, or the dev server during development), so no other frame or page can use them (#30).
 - A packaged app ignores `ELECTRON_RENDERER_URL`, which `npm run dev` uses to load the page from the dev server. Before, setting it when starting Patch loaded any page with the app's full IPC access (#27).
 - The packaged app sets Electron's fuses: it ignores `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` flags, loads its code only from `app.asar`, validates the archive's integrity (a modified archive stops the app), and encrypts browser-panel cookies on disk (#25).

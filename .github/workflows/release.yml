@@ -38,8 +38,18 @@ jobs:
       - run: npm run test:unit
       - run: npm run test:e2e
 
-      # Build the NSIS installer without publishing; the release is created below.
+      # Build the NSIS installer without publishing; the release is created below. electron-builder signs the
+      # installer and the app when a code-signing certificate is configured as repository secrets
+      # (WIN_CSC_LINK: base64 of the .pfx, or a URL; WIN_CSC_KEY_PASSWORD), and builds them unsigned otherwise.
       - run: npx electron-builder --win --publish never
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      # A checksum file, attached to the release, so a download can be verified.
+      - name: Write the checksums
+        shell: bash
+        run: (cd dist && sha256sum Patch-Installer.exe > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       # Release notes: this version's section of CHANGELOG.md plus a link to the full file at this tag.
       - name: Write the release notes
@@ -57,11 +67,20 @@ jobs:
           {
             echo
             echo "---"
+            echo "SHA-256 of \`Patch-Installer.exe\`: \`$(cut -d' ' -f1 dist/SHA256SUMS.txt)\` (also in \`SHA256SUMS.txt\`)."
+            if [ -n "$WIN_CSC_LINK" ]; then
+              echo "The installer and the app are code-signed."
+            else
+              echo "The installer is not code-signed yet, so Windows SmartScreen may warn before running it; compare the checksum above."
+            fi
+            echo
             echo "Full changelog: https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md"
           } >> release-notes.md
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
 
       - name: Create the GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "dist/Patch-Installer.exe" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        run: gh release create "$GITHUB_REF_NAME" "dist/Patch-Installer.exe" "dist/SHA256SUMS.txt" --title "$GITHUB_REF_NAME" --notes-file release-notes.md

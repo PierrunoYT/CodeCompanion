@@ -32,6 +32,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Changed
 
+- The assistant changes files only with its edit tools, not with shell commands, so every change shows a diff, can be approved and can be undone. Before, it sometimes rewrote several files with a PowerShell or `sed` command (#45).
 - Redesign the interface around the Patch brand: charcoal surfaces and the mint logo color in both themes, a logo mark and quiet icon buttons in the header, project tabs, a single rounded composer box with the send button inside, card-style tool calls, segmented panel tabs, a centered welcome screen with tip cards, and restyled dialogs, code blocks and scrollbars. Text still meets WCAG AA contrast in both themes.
 - Use Patch throughout the application, documentation and tooling, including the `patch` package and installer ID, default `Patch` profile directory, and `PATCH_*` environment variables. Repository and contribution links use `PierrunoYT/patch`. Previous environment-variable names are no longer recognized; profiles are not migrated automatically. Set `PATCH_USER_DATA` to an existing profile folder to reuse it. Installations with a different application ID are not upgraded in place.
 - New Patch logo: a mint prompt chevron and square cursor on charcoal (`assets/logo-icon.svg`), with a horizontal wordmark lockup in `assets/logo.svg`. The header, welcome screen, favicon and all native icons use it.

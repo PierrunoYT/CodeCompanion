@@ -332,3 +332,16 @@ Small suite, Claude Sonnet 5.5, 2 runs per task, on the machine above:
 - **Cost grows with exploration, not codebase size.** `settings-cap` and `ipc-channel` read the most (about 120–160k cached tokens over 20+ tool calls), but still cost about $0.10–0.12 because almost all of it is cache reads.
 - **Not counted:** the cost column is the Anthropic API only. When an OpenAI key is saved, `search_code` embeds the project for semantic search, which adds a few cents per large run.
 - **Reading the numbers:** 12 tasks, two runs each, on one model. The benchmark is a regression check for the app (tools, prompts, the agent loop) rather than a measure of model ability. Rerun it after changing the system prompt, tool descriptions or the loop, and compare solved counts, tool calls and cost. Harder, longer tasks (multi-step features, flaky or concurrency bugs, larger refactors) and other models (Opus 5.5, GPT-6) are not covered yet.
+
+### Edits through the shell (#45, 2026-10-01)
+
+In both runs of `rename-constant` above, the model renamed the constant with a PowerShell loop through `run_command` instead of `edit_file`. Such a change gets no diff preview, no per-file approval and no Undo. The system prompt and `run_command`'s description now say to change files only with `edit_file` and `write_file` (with `replace_all` for one string in many files), never with shell commands. The benchmark records tool calls by name (`toolsByName`) and flags runs that changed project files without the edit tools (`editedWithoutEditTools`).
+
+Rerun of both rename tasks, Claude Sonnet 5.5, 2 runs each:
+
+| Task              | Before                                                | After                                                                         |
+| ----------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `rename-constant` | PowerShell loop in 2 of 2 runs; 29–31 s; $0.032–0.033 | `edit_file` in 2 of 2 runs (4–6 calls), no shell edits; 38–44 s; $0.071–0.075 |
+| `rename` (small)  | `edit_file`; 15–17 s; $0.036–0.037                    | `edit_file` (4–6 calls), no shell edits; 13–15 s; $0.032–0.034                |
+
+All four runs were solved. Editing file by file costs more round trips, so the larger rename costs about twice as much; every change is now previewable and can be undone. The `rename-constant` runs had 1–3 failed `edit_file` calls each, recovered within the run; their reason will show once failed tool cards carry it (#47). The small `rename` task's one failed call (#43) is the model's own check, `grep -rn getUserName …`, which exits 1 when nothing is left to find.

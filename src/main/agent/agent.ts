@@ -90,6 +90,9 @@ export class Agent {
 
   private async run(signal: AbortSignal): Promise<boolean> {
     const { conversation, emit } = this.options;
+    // Save right away, with the new user message and the run marked as in progress: a crash during the first model
+    // request then still offers Resume.
+    this.options.onCheckpoint?.();
 
     const maxTurns = this.options.maxTurns ?? MAX_TURNS;
     for (let turn = 0; turn < maxTurns; turn++) {

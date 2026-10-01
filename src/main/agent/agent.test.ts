@@ -133,7 +133,9 @@ function setup(
   conversation.pending = pending;
   const events: ChatEvent[] = [];
   const saves: boolean[] = [];
-  const session = new ChatSession({
+  // What an immediate save would write: how many user messages the conversation holds, and the resumable flag.
+  const immediateSaves: Array<{ users: number; resumable: boolean | undefined }> = [];
+  const session: ChatSession = new ChatSession({
     projectPath: '/project',
     conversation,
     officialPricing,
@@ -159,7 +161,11 @@ function setup(
     smallModel,
     onEditApplied,
     onEvent: (event) => events.push(event),
-    onChange: (immediate) => saves.push(immediate),
+    onChange: (immediate) => {
+      saves.push(immediate);
+      if (immediate)
+        immediateSaves.push({ users: conversation.users.length, resumable: session.serialize().resumable });
+    },
   });
   const nextApproval = () =>
     new Promise<string>((resolve) => {
@@ -172,7 +178,7 @@ function setup(
       };
       check();
     });
-  return { conversation, session, events, saves, nextApproval };
+  return { conversation, session, events, saves, immediateSaves, nextApproval };
 }
 
 describe('agent loop', () => {
@@ -977,8 +983,49 @@ describe('crash recovery', () => {
       { text: 'done' },
     ]);
     await session.send({ text: 'go' });
-    // Two checkpoints (one per tool batch) plus the immediate save when the run finishes.
-    expect(saves.filter((immediate) => immediate)).toHaveLength(3);
+    // One checkpoint when the run starts, one per tool batch, plus the immediate save when the run finishes.
+    expect(saves.filter((immediate) => immediate)).toHaveLength(4);
+  });
+
+  it('saves the new user message before the first model request', async () => {
+    const { session, immediateSaves } = setup([{ text: 'done' }]);
+    await session.send({ text: 'go' });
+    // The first immediate save already holds the message the run is about, and marks the run as resumable.
+    expect(immediateSaves[0]).toEqual({ users: 1, resumable: true });
+  });
+
+  it('offers Resume for a chat saved while a model request was running', async () => {
+    let saved: ReturnType<ChatSession['serialize']> | undefined;
+    const first = setup([
+      async () => {
+        // What the app would have on disk if it crashed now.
+        saved = first.session.serialize();
+        return { text: 'finished' };
+      },
+    ]);
+    await first.session.send({ text: 'long task' });
+    expect(saved?.resumable).toBe(true);
+    // Once the run ends, the flag is cleared again.
+    expect(first.session.serialize().resumable).toBe(false);
+
+    const reopened = setup([{ text: 'continued after the crash' }], {
+      resumable: saved?.resumable,
+      transcript: saved?.transcript,
+    });
+    expect(reopened.session.snapshot().resumable).toBe(true);
+    await reopened.session.resume();
+    expect(reopened.session.snapshot().resumable).toBe(false);
+    expect(reopened.conversation.turns).toBe(1);
+  });
+
+  it('does not offer Resume after a run that failed with an error', async () => {
+    const { session } = setup([
+      async () => {
+        throw new Error('bad request');
+      },
+    ]);
+    await session.send({ text: 'go' });
+    expect(session.serialize().resumable).toBe(false);
   });
 
   it('treats a conversation with unanswered tool calls as resumable', async () => {

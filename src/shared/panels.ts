@@ -5,10 +5,64 @@ export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'untr
 export interface GitFile {
   path: string;
   status: GitFileStatus;
+  // Lines added and removed against the last commit; missing for binary or very large files.
+  added?: number;
+  removed?: number;
 }
 
 export interface GitStatus {
   isRepo: boolean;
   branch: string | null;
   files: GitFile[];
+  // The upstream branch (e.g. origin/main) and how far the local branch is ahead of and behind it.
+  tracking: string | null;
+  ahead: number;
+  behind: number;
+  // Whether the branch can be pushed: it has an upstream, or the repository has a remote named origin.
+  canPush: boolean;
+}
+
+// Counts per path from `git diff --numstat` output ("added<TAB>removed<TAB>path"; "-" for binary files).
+export function parseNumstat(output: string): Map<string, { added: number; removed: number }> {
+  const counts = new Map<string, { added: number; removed: number }>();
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line);
+    if (!match || match[1] === '-' || match[2] === '-') continue;
+    const previous = counts.get(match[3]!) ?? { added: 0, removed: 0 };
+    counts.set(match[3]!, { added: previous.added + Number(match[1]), removed: previous.removed + Number(match[2]) });
+  }
+  return counts;
+}
+
+// The hunks of a unified diff, each with the file it belongs to, for stepping through them one at a time.
+export interface DiffHunk {
+  file: string;
+  header: string;
+  lines: string[];
+}
+
+export function diffHunks(diff: string): DiffHunk[] {
+  const hunks: DiffHunk[] = [];
+  let file = '';
+  let current: DiffHunk | null = null;
+  for (const line of diff.split(/\r?\n/)) {
+    if (line.startsWith('diff ') || line.startsWith('Index: ') || line.startsWith('====')) {
+      current = null;
+      continue;
+    }
+    if (!current && line.startsWith('+++ ')) {
+      file = line.slice(4).replace(/^b\//, '').split('\t')[0]!;
+      continue;
+    }
+    if (!current && line.startsWith('--- ')) continue;
+    if (line.startsWith('@@')) {
+      current = { file, header: line, lines: [] };
+      hunks.push(current);
+      continue;
+    }
+    if (current && line !== '\\ No newline at end of file') current.lines.push(line);
+  }
+  // A trailing newline leaves an empty last line in each hunk.
+  for (const hunk of hunks) while (hunk.lines.at(-1) === '') hunk.lines.pop();
+  return hunks;
 }

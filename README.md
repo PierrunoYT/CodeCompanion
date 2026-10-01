@@ -22,7 +22,8 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 - **Undo** on the card of any approved file edit puts the file back (or deletes a file the assistant created), as long as the file is still as the edit left it; the assistant is told and has to read the file again
 - Semantic code search over the project (needs an OpenAI key for embeddings, which can be added mid-chat); Settings shows whether the project is indexed (with progress while it builds) and can reindex it
 - Built-in browser the assistant uses to check web apps: console output and screenshots
-- Interactive terminal and a Git panel (diffs, commit, discard) next to the chat
+- Interactive terminal and a Git panel next to the chat: changed files with line counts, a hunk-by-hunk diff preview, discard (one file or all), AI-written commit messages (**Generate**), and **Commit & Push**
+- Mention project files with `@` in the message box; tool calls in the chat show how long they took
 - Web search (Google Custom Search) and page fetching
 - Model Context Protocol (MCP) servers: add them in Settings (stdio programs or Streamable HTTP endpoints) and their tools are offered to the assistant; every MCP tool call asks for approval, also in Auto mode
 - A read-only research subagent (`task` tool) for broad questions such as "find every caller", so the main chat's context stays small; its progress shows while it works
@@ -33,9 +34,9 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 - Stop a running task, including its project's background commands, and use **Resume** to continue it after cancellation settles, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them. A task cut off by a crash, whether during a model request or while tools were running, can be resumed the same way
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically, listed by day in a sidebar, and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
-- `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
+- `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md"
 - Image attachments (attach or paste) for models that accept images; the paperclip and paste are disabled for a Claude model id the app does not know to accept images (entered under _Other model id…_)
-- Token totals and estimated cost for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar, and each chat's estimated cost in the chat history; custom endpoints have no official-price estimate
+- Token totals and estimated cost for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar (with how full the model's context window is), and each chat's estimated cost in the chat list and history; custom endpoints have no official-price estimate
 
 ## Getting started
 

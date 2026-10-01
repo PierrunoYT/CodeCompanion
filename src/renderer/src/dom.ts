@@ -48,6 +48,12 @@ export function icon(name: string, extraClass = ''): HTMLElement {
   return h('i', { class: `bi bi-${name} ${extraClass}`.trim(), 'aria-hidden': 'true' });
 }
 
+// A Material Symbols icon (bundled font; the name is a ligature such as "terminal" or "fork_right"). Hidden from
+// assistive technology, so it never becomes part of a control's accessible name.
+export function sym(name: string, extraClass = ''): HTMLElement {
+  return h('span', { class: `sym ${extraClass}`.trim(), 'aria-hidden': 'true', translate: 'no' }, name);
+}
+
 // For HTML that has already been sanitized (rendered markdown and diffs).
 export function trustedHtml(tag: keyof HTMLElementTagNameMap, className: string, html: string): HTMLElement {
   const element = document.createElement(tag);

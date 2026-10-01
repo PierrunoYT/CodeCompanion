@@ -34,6 +34,8 @@ export type TranscriptItem =
       path?: string;
       // For edits: whether a backup exists to undo them, and whether that was done.
       undo?: 'available' | 'undone';
+      // How long the tool ran (after approval), in milliseconds. Missing in chats saved by older versions.
+      durationMs?: number;
     }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'notice'; id: string; text: string };
@@ -75,6 +77,8 @@ export type ChatEvent =
       summary: string;
       output?: string;
       path?: string;
+      // How long the tool ran; missing when it never ran (declined, stopped, invalid input).
+      durationMs?: number;
       // A backup of the file was kept, so the edit can be undone.
       undoable?: boolean;
     }
@@ -117,6 +121,8 @@ export interface ChatSummary {
   // Estimated cost in dollars so far, at official list prices. null when the model or endpoint has no known price;
   // missing only in indexes written by older versions (rebuilt on start).
   cost?: number | null;
+  // Tokens used so far (input, output, cache reads and writes). Missing in indexes written by older versions.
+  tokens?: number;
   // Only in search results: an excerpt of a message that matched, when the title and project did not.
   snippet?: string;
 }
@@ -303,6 +309,7 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
               status: event.status,
               summary: event.summary,
               path: event.path,
+              ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
               // A final output replaces what streamed, so what was left out is counted from it alone.
               ...(event.output !== undefined ? { outputOmittedChars: undefined, ...limitOutput(event.output) } : {}),
               ...(event.undoable && event.status === 'done' ? { undo: 'available' as const } : {}),

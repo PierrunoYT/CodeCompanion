@@ -7,15 +7,18 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 1. **File → Open Project…** (`Ctrl+O`) and pick a folder. The assistant can only read and change files inside it.
 2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are encrypted when system encryption is available; Settings warns about plaintext storage if encryption is unavailable or migration fails. Existing plaintext keys are migrated when encryption becomes available. Stored keys are never shown again; type a new one to replace it, or press **Remove**.
 3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under _Other model id…_ that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
+4. Type `@` to mention a project file: pick it from the list (arrow keys and `Enter`, or click) and it becomes a chip under the message. Mentioned files are sent as `@path` at the start of the message, so the assistant knows which files you mean; it still reads them with its tools. The composer shows a rough token count of the message.
 
 Each chat keeps the model it started with. The model picker in the header (or **Settings → Model**) chooses the model for a new chat; once the chat has started, the picker shows its model and is locked until you start a new chat.
 
-The window has the chat list on the left (hide it with the sidebar button in the header), the chat in the middle and the side panel on the right. The status bar at the bottom shows the project's Git branch (with `*` when there are uncommitted changes), whether `AGENTS.md` is loaded, how full the context is, and token totals with the estimated cost.
+The window has the chat list (**Sessions**) on the left, the chat in the middle and the side panel on the right. The header holds the open projects as tabs (`+` opens another), the model picker, the **Ask** / **Auto-Approve** switch, the **Plan Mode** switch and, on the right: Compact chat, Export chat, Send feedback (opens a new GitHub issue in your browser; nothing is sent by the app), Chat history, the side panel button, the project menu and Settings. The status bar at the bottom shows `Git: <branch>` (with `*` when there are uncommitted changes), whether `AGENTS.md` is loaded, the chat's model (**Engine**), how full the context is against the model's context window (e.g. `48k / 1M`; `—` until the first request and after compacting), the code index (**Index: 100% (Ready)** when built, **off** without an OpenAI key), the chat's token total and its estimated cost.
+
+In the chat, each tool call is a row with the tool's name, its target and its result ("2 lines", "exit 0"), how long it ran, and Undo and Open-in-editor buttons where they apply; click a row to see its diff or output.
 
 ### Tell it about your project
 
-- **Project instructions**: the project menu (the folder button at the top) → _Project settings…_, or **Add project instructions** on a new chat's start screen. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
-- **`AGENTS.md`** (or `CLAUDE.md`) in the project root is added to every chat automatically. The status bar shows "AGENTS.md loaded".
+- **Project instructions**: the project menu (the sliders button in the header) → _Project settings…_, or **Add project instructions** on a new chat's start screen. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
+- **`AGENTS.md`** (or `CLAUDE.md`) in the project root is added to every chat automatically. The status bar and the foot of the chat list show "AGENTS.md".
 
 Both are prompt text, not enforced rules: the assistant can still get them wrong, which is why approvals exist.
 
@@ -67,7 +70,7 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 
 ### Ask first or Auto
 
-**Settings → Approvals**, or the **Ask first** / **Auto** switch in the header, chooses between:
+**Settings → Approvals**, or the **Ask** / **Auto-Approve** switch in the header, chooses between:
 
 - **Ask before edits and commands** (default): as above.
 - **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do. The first switch to Auto after starting the app shows a confirmation dialog.
@@ -78,7 +81,7 @@ Even in Auto mode, a fetch or browser redirect to another host is blocked; the a
 
 ### Plan mode
 
-**Settings → Plan mode** ("Propose a plan before multi-step changes"), or the **Plan** switch in the header, asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
+**Settings → Plan mode** ("Propose a plan before multi-step changes"), or the **Plan Mode** switch in the header, asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
 
 - **Approve** lets the work begin. The assistant then carries the plan out, and later edits and commands follow the usual approval rules (they still ask in Ask mode, and run directly in Auto mode).
 - **Decline with a note** sends the note back, and the assistant revises the plan instead of starting.
@@ -166,14 +169,14 @@ Rate limits (429), server errors (5xx) and dropped connections are retried autom
 
 ## Chats and projects
 
-- **New chat**: `Ctrl+N`, or **New chat** above the chat list. Chats are saved automatically.
-- **Chat list** (left): saved chats grouped by day (Today, Yesterday, Previous 7 days, Older), each with its project, when it was last saved and its estimated cost. The open chat is marked. **Filter chats…** narrows the list by title and project, and then by message text, like the history search.
-- **Chat history** (clock icon): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Deleting removes the chat for good, also when it is open or in another project's tab, together with its edit backups; late title responses cannot restore it. Wait until a running task is stopped or an Undo finishes before deleting that chat. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
+- **New chat**: `Ctrl+N`, or **New Chat** at the foot of the chat list. Chats are saved automatically.
+- **Chat list** (**Sessions**, left): the tokens and estimated cost of all saved chats at the top, then the chats grouped by day (Today, Yesterday, Previous 7 days, Older), each with its project, when it was last saved and its estimated cost. The open chat is marked. **Filter chats…** narrows the list by title and project, and then by message text, like the history search. The foot shows whether `AGENTS.md` is loaded and the code index's state.
+- **Chat history** (the header button next to the side panel button): search by title, project or message text (every word must match, and matching messages show an excerpt), open, delete one chat or clear all. Deleting removes the chat for good, also when it is open or in another project's tab, together with its edit backups; late title responses cannot restore it. Wait until a running task is stopped or an Undo finishes before deleting that chat. Each chat shows its estimated cost so far ("≈ $0.42"), as of its last save; chats on a custom endpoint or a model without a known price show none.
 - **Several projects**: opening another project adds a tab. Each tab has its own chat and its own unsent draft. Stop the current task before switching; only one task runs at a time. Closing a tab keeps its saved chats.
 
 ### Compact a long chat
 
-Every request re-sends the conversation, so a long chat gets slower and costs more, and eventually no longer fits in the model's context window. The status bar shows **Context: 96k**, the size of the last prompt. From 150k it says "consider compacting" and the **Compact chat** button in the header (arrows icon) turns yellow.
+Every request re-sends the conversation, so a long chat gets slower and costs more, and eventually no longer fits in the model's context window. The status bar shows **Context: 96k / 1M**, the size of the last prompt against the model's context window (custom model ids show no window). From 150k it says "consider compacting" and the **Compact chat** button in the header (the first icon on the right) turns yellow.
 
 Press it to have the older turns summarized. Standard provider chats use a small model (Claude Haiku 4.5 or GPT-6 Luna, according to the chat's provider and available keys). A custom OpenAI-compatible chat uses its own pinned model on that endpoint for the summary, which requires JSON-schema structured-output support. From then on the summary is sent in place of older turns, followed by the most recent part of the chat (roughly the last 10k tokens) exactly as it was.
 
@@ -201,14 +204,14 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 - **Google search engine id**: with a Google API key, turns on web search.
 - **Maximum files to index for code search**, and the current project's index status with a **Reindex** button.
 
-The project menu (the folder button at the top) has **Project settings…** for the open project (its instructions and its own allow-lists, see above). **Remove from recent** is on each recent project's row on the welcome screen, shown when no project is open.
+The project menu (the sliders button in the header) has **Open folder…**, the recent projects and **Project settings…** for the open project (its instructions and its own allow-lists, see above). **Remove from recent** is on each recent project's row on the welcome screen, shown when no project is open.
 
 ## Side panel
 
-The panel button in the header shows or hides the side panel with three tabs:
+The panel button in the header (terminal icon) shows or hides the side panel; drag its left edge to make it wider (or use the arrow keys on it). It has three tabs, and a footer with the Git sync state and the app version:
 
 - **Terminal**: a normal shell in the project folder, separate from the commands the assistant runs.
-- **Git**: changed files with diffs, a commit message below them (press `Enter` or **Commit all** to commit, with the current branch shown underneath), per-file discard (which deletes new files, so it asks first), and **Initialize repository** for folders that are not repositories yet. Patch commits but does not push.
+- **Git** (with the number of changed files on the tab): **Changed files**, each with its status letter (M, A, D, R, U for new, C for conflicted), the lines added and removed, and a discard button (which deletes new files, so it asks first); **Discard All** reverts everything after asking. **Diff preview** shows one hunk at a time of all changes, or of the file you click, with arrows to step through the hunks. **Generate** writes a commit message for the changes with the small model (Claude Haiku 4.5 or GPT-6 Luna, preferring the provider of the model in Settings; the diff, cut at 30,000 characters, is sent to that provider). **Commit & Push** commits everything and pushes the branch to its upstream, or to `origin` (setting it as the upstream) when it has none; without a remote the button is **Commit all**, and with nothing to commit but unpushed commits it is **Push**. `Ctrl+Enter` in the message does the same. Pushing uses your own git setup (credential helper, SSH keys) and runs pre-push hooks; the app cannot type a password, so a push that needs one fails with git's message, and the commit stays. **Initialize repository** is shown for folders that are not repositories yet.
 - **Browser**: where the assistant checks web apps, and where you can look at them yourself. Type an address such as `http://localhost:3000` in the address bar.
 
 Before a repository's first commit, the diff includes staged additions and any later working-tree changes. Discarding a renamed file restores its original committed path and removes the renamed destination, including edits to it; review the diff before confirming.

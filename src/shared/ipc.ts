@@ -93,6 +93,8 @@ export interface InvokeApi {
 
   'files:pick-images': () => ImageAttachment[];
   'files:open-in-editor': (path: string) => void;
+  // Project-relative paths of the project's files (ignore rules applied, capped), for @-mentions in the composer.
+  'files:list': () => string[];
 
   'terminal:start': (cols: number, rows: number) => void;
   'terminal:write': (data: string) => void;
@@ -102,7 +104,12 @@ export interface InvokeApi {
   'git:diff': (path: string | null) => string;
   'git:commit': (message: string) => GitStatus;
   'git:discard': (path: string) => GitStatus;
+  'git:discard-all': () => GitStatus;
   'git:init': () => GitStatus;
+  // Pushes the current branch to its upstream, or to origin (setting the upstream) when it has none.
+  'git:push': () => GitStatus;
+  // A commit message for the uncommitted changes, written by the small model.
+  'git:suggest-message': () => string;
 }
 
 export interface EventMap {
@@ -157,6 +164,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'history:search': true,
   'files:pick-images': true,
   'files:open-in-editor': true,
+  'files:list': true,
   'terminal:start': true,
   'terminal:write': true,
   'terminal:resize': true,
@@ -164,7 +172,10 @@ const INVOKE: Record<InvokeChannel, true> = {
   'git:diff': true,
   'git:commit': true,
   'git:discard': true,
+  'git:discard-all': true,
   'git:init': true,
+  'git:push': true,
+  'git:suggest-message': true,
 };
 
 const EVENTS: Record<EventChannel, true> = {

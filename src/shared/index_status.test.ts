@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeIndexStatus } from './index_status';
+import { describeIndexStatus, indexStatusLabel } from './index_status';
 import type { IndexStatus } from './ipc';
 
 const status = (overrides: Partial<IndexStatus>): IndexStatus => ({
@@ -33,5 +33,21 @@ describe('describeIndexStatus', () => {
   it('shows the finished index or that there is none', () => {
     expect(describeIndexStatus(status({ indexed: true, files: 12, chunks: 90 }))).toBe('Indexed: 12 files, 90 chunks');
     expect(describeIndexStatus(status({}))).toBe('Not indexed yet');
+  });
+});
+
+describe('indexStatusLabel', () => {
+  it('gives the status bar and chat list labels', () => {
+    expect(indexStatusLabel(status({ indexed: true }))).toEqual({
+      bar: 'Index: 100% (Ready)',
+      short: 'Indexed',
+      ready: true,
+    });
+    expect(indexStatusLabel(status({ indexing: true, progress: { embedded: 1, total: 3 } })).bar).toBe(
+      'Index: 33% (Indexing)',
+    );
+    expect(indexStatusLabel(status({ indexing: true })).bar).toBe('Index: 0% (Indexing)');
+    expect(indexStatusLabel(status({})).bar).toBe('Index: 0% (Not built)');
+    expect(indexStatusLabel(status({ available: false })).short).toBe('Search off');
   });
 });

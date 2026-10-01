@@ -4,12 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { simpleGit } from 'simple-git';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { GitFile } from '@shared/panels';
 import { filterNames, GitService, hardenedConfig } from './git';
 
 const tempFolderInsideRepo = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: tmpdir() }).status === 0;
 
 let root: string;
 let service: GitService;
+
+// Path and status only, for tests about which files are listed rather than their line counts.
+const kinds = (files: GitFile[]) => files.map(({ path, status }) => ({ path, status }));
 
 async function initRepo(initialCommit = true): Promise<void> {
   const git = simpleGit({ baseDir: root });
@@ -39,7 +43,15 @@ describe('GitService', () => {
   // Git finds a repository in any parent folder, so this cannot hold when the temp folder is inside one (for example
   // a home folder under version control).
   it.skipIf(tempFolderInsideRepo)('reports a folder that is not a repository', async () => {
-    expect(await service.status()).toEqual({ isRepo: false, branch: null, files: [] });
+    expect(await service.status()).toEqual({
+      isRepo: false,
+      branch: null,
+      files: [],
+      tracking: null,
+      ahead: 0,
+      behind: 0,
+      canPush: false,
+    });
     expect(await service.diff(null)).toBe('');
   });
 
@@ -56,9 +68,53 @@ describe('GitService', () => {
     const status = await service.status();
     expect(status.isRepo).toBe(true);
     expect(status.files).toEqual([
-      { path: 'a.txt', status: 'modified' },
-      { path: 'b.txt', status: 'untracked' },
+      { path: 'a.txt', status: 'modified', added: 1, removed: 1 },
+      { path: 'b.txt', status: 'untracked', added: 1, removed: 0 },
     ]);
+    expect(status).toMatchObject({ tracking: null, ahead: 0, behind: 0, canPush: false });
+  });
+
+  it('counts the lines of new files, but not of binary ones', async () => {
+    await initRepo();
+    writeFileSync(join(root, 'three.txt'), 'a\nb\nc');
+    writeFileSync(join(root, 'image.bin'), Buffer.from([0, 1, 2, 0]));
+    const files = (await service.status()).files;
+    expect(files.find((file) => file.path === 'three.txt')).toMatchObject({ added: 3, removed: 0 });
+    expect(files.find((file) => file.path === 'image.bin')).toEqual({ path: 'image.bin', status: 'untracked' });
+  });
+
+  it('discards every change at once', async () => {
+    await initRepo();
+    writeFileSync(join(root, 'a.txt'), 'two\n');
+    writeFileSync(join(root, 'b.txt'), 'new\n');
+    const status = await service.discardAll();
+    expect(status.files).toEqual([]);
+    expect(readFileSync(join(root, 'a.txt'), 'utf8')).toBe('one\n');
+    expect(existsSync(join(root, 'b.txt'))).toBe(false);
+  });
+
+  it('pushes to origin and sets it as the upstream, then pushes there again', async () => {
+    await initRepo();
+    const remote = mkdtempSync(join(tmpdir(), 'cc-git-remote-'));
+    try {
+      await simpleGit({ baseDir: remote }).init(true);
+      await simpleGit({ baseDir: root }).addRemote('origin', remote);
+      expect((await service.status()).canPush).toBe(true);
+      const first = await service.push();
+      expect(first.tracking).toMatch(/^origin\//);
+      writeFileSync(join(root, 'a.txt'), 'two\n');
+      await service.commit('second');
+      expect((await service.status()).ahead).toBe(1);
+      expect((await service.push()).ahead).toBe(0);
+      expect(await simpleGit({ baseDir: remote }).raw(['log', '--format=%s'])).toContain('second');
+    } finally {
+      rmSync(remote, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to push without a remote', async () => {
+    await initRepo();
+    await expect(service.push()).rejects.toThrow('no remote named origin');
   });
 
   it('shows tracked changes and untracked files in the diff', async () => {
@@ -115,7 +171,7 @@ describe('GitService', () => {
     const status = await service.discard('file[1].txt');
     expect(readFileSync(join(root, 'file[1].txt'), 'utf8')).toBe('literal baseline\n');
     expect(readFileSync(join(root, 'file1.txt'), 'utf8')).toBe('neighbor edit\n');
-    expect(status.files).toEqual([{ path: 'file1.txt', status: 'modified' }]);
+    expect(kinds(status.files)).toEqual([{ path: 'file1.txt', status: 'modified' }]);
   });
 
   it('commits all changes and rejects an empty message', async () => {
@@ -172,7 +228,7 @@ describe('GitService', () => {
       await git.add('unrelated.txt');
       writeFileSync(join(root, 'untracked.txt'), 'keep untracked\n');
 
-      expect((await service.status()).files).toContainEqual({ path: 'renamed[1].txt', status: 'renamed' });
+      expect(kinds((await service.status()).files)).toContainEqual({ path: 'renamed[1].txt', status: 'renamed' });
       const diff = await service.diff('renamed[1].txt');
       expect(diff).toContain('rename from a.txt');
       expect(diff).toContain('rename to renamed[1].txt');
@@ -185,7 +241,7 @@ describe('GitService', () => {
       expect(await git.show([':a.txt'])).toBe(baseline);
       expect(await git.raw(['ls-files', '--', ':(literal)renamed[1].txt'])).toBe('');
       expect(await git.diff(['--'])).toBe('');
-      expect(status.files).toEqual([
+      expect(kinds(status.files)).toEqual([
         { path: 'unrelated.txt', status: 'added' },
         { path: 'untracked.txt', status: 'untracked' },
       ]);
@@ -221,7 +277,7 @@ describe('GitService with a hostile repository config', () => {
     await config('core.fsmonitor', markerCommand('fsmonitor'));
 
     const status = await service.status();
-    expect(status.files).toEqual([{ path: 'a.txt', status: 'modified' }]);
+    expect(kinds(status.files)).toEqual([{ path: 'a.txt', status: 'modified' }]);
     expect(existsSync(marker('fsmonitor'))).toBe(false);
   });
 
@@ -245,7 +301,7 @@ describe('GitService with a hostile repository config', () => {
     await config('filter.evil.smudge', markerCommand('smudge'));
     writeFileSync(join(root, 'a.txt'), 'two\n');
 
-    expect((await service.status()).files).toContainEqual({ path: 'a.txt', status: 'modified' });
+    expect(kinds((await service.status()).files)).toContainEqual({ path: 'a.txt', status: 'modified' });
     expect(await service.diff('a.txt')).toContain('+two');
     await service.discard('a.txt');
     expect(readFileSync(join(root, 'a.txt'), 'utf8')).toBe('one\n');

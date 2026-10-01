@@ -1,6 +1,7 @@
 import { filterChats, type ChatSummary } from '@shared/chat';
 import { formatCost } from '@shared/models';
-import { h, icon } from '../dom';
+import { h, sym } from '../dom';
+import { formatTokens } from '../format';
 
 export interface SidebarActions {
   list(): Promise<ChatSummary[]>;
@@ -9,17 +10,19 @@ export interface SidebarActions {
   newChat(): void;
 }
 
-// The saved chats, newest first, grouped by day, next to the chat. The full history dialog (search, delete, clear)
-// stays behind the header's history button.
+// The saved chats ("Sessions"), newest first, grouped by day, next to the chat. The full history dialog (delete,
+// clear) stays behind the header's history button.
 export class Sidebar {
   readonly element: HTMLElement;
   private readonly list = h('nav', { class: 'sidebar-list', 'aria-label': 'Recent chats' });
+  private readonly totals = h('p', { class: 'sidebar-totals' });
   private readonly filter = h('input', {
     type: 'search',
-    class: 'form-control form-control-sm',
-    placeholder: 'Filter chats…',
+    placeholder: 'Filter chats...',
     'aria-label': 'Filter chats',
   }) as HTMLInputElement;
+  private readonly agentFile = h('span', { class: 'sidebar-status-item', hidden: true });
+  private readonly indexStatus = h('span', { class: 'sidebar-status-item', hidden: true });
   private chats: ChatSummary[] = [];
   // Result of the message search for the current filter; until it arrives, titles and projects are filtered here.
   private found: ChatSummary[] | null = null;
@@ -33,22 +36,37 @@ export class Sidebar {
       this.render();
       this.scheduleSearch();
     });
+    const shortcut = navigator.platform.toLowerCase().startsWith('mac') ? '⌘N' : 'Ctrl+N';
     this.element = h(
       'aside',
       { class: 'sidebar' },
       h(
         'div',
-        { class: 'sidebar-top' },
-        h('span', { class: 'sidebar-heading' }, 'Chats'),
+        { class: 'sidebar-main' },
+        h(
+          'div',
+          { class: 'sidebar-header' },
+          h('div', {}, h('h2', { class: 'sidebar-heading' }, 'Sessions'), this.totals),
+          h(
+            'span',
+            { class: 'sidebar-saved', title: 'Chats are saved automatically on this computer.' },
+            sym('cloud_done'),
+          ),
+        ),
+        h('div', { class: 'sidebar-filter' }, sym('search'), this.filter),
+        this.list,
+      ),
+      h(
+        'div',
+        { class: 'sidebar-bottom' },
         h(
           'button',
-          { class: 'btn btn-sm btn-ghost ms-auto', title: 'New chat (Ctrl+N)', onclick: () => this.actions.newChat() },
-          icon('plus-lg'),
-          ' New chat',
+          { class: 'sidebar-new', title: `New chat (${shortcut})`, onclick: () => this.actions.newChat() },
+          h('span', { class: 'sidebar-new-label' }, sym('add'), h('span', {}, 'New Chat')),
+          h('kbd', { 'aria-hidden': 'true' }, shortcut),
         ),
+        h('div', { class: 'sidebar-status' }, this.agentFile, this.indexStatus),
       ),
-      h('div', { class: 'sidebar-filter' }, icon('search'), this.filter),
-      this.list,
     );
   }
 
@@ -69,6 +87,21 @@ export class Sidebar {
     this.render();
   }
 
+  // The project instruction file of the open chat, shown at the foot of the list.
+  setAgentFile(name: string | null): void {
+    this.agentFile.hidden = !name;
+    if (name) this.agentFile.replaceChildren(sym('description', 'accent'), h('span', {}, name));
+  }
+
+  setIndexStatus(label: string | null, ready: boolean): void {
+    this.indexStatus.hidden = !label;
+    if (label)
+      this.indexStatus.replaceChildren(
+        sym(ready ? 'check_circle' : 'pending', ready ? 'accent' : ''),
+        h('span', {}, `Status: ${label}`),
+      );
+  }
+
   private scheduleSearch(): void {
     clearTimeout(this.searchTimer);
     const query = this.filter.value.trim();
@@ -83,6 +116,11 @@ export class Sidebar {
   }
 
   private render(): void {
+    const tokens = this.chats.reduce((sum, chat) => sum + (chat.tokens ?? 0), 0);
+    const costs = this.chats.map((chat) => chat.cost).filter((cost): cost is number => typeof cost === 'number');
+    this.totals.textContent = `${formatTokens(tokens)} tokens${costs.length ? ` • ${formatCost(costs.reduce((a, b) => a + b, 0))}` : ''}`;
+    this.totals.title = 'All saved chats; the cost is estimated from official list prices.';
+
     const query = this.filter.value.trim();
     const shown = query && this.found ? this.found : filterChats(this.chats, query);
     if (shown.length === 0) {
@@ -97,10 +135,14 @@ export class Sidebar {
       groups.set(group, [...(groups.get(group) ?? []), chat]);
     }
     this.list.replaceChildren(
-      ...[...groups].flatMap(([group, chats]) => [
-        h('div', { class: 'sidebar-group' }, group),
-        ...chats.map((chat) => this.item(chat)),
-      ]),
+      ...[...groups].map(([group, chats]) =>
+        h(
+          'div',
+          { class: 'sidebar-group' },
+          h('div', { class: 'sidebar-group-label' }, group.toUpperCase()),
+          ...chats.map((chat) => this.item(chat)),
+        ),
+      ),
     );
   }
 
@@ -124,7 +166,10 @@ export class Sidebar {
       h(
         'span',
         { class: 'sidebar-item-meta' },
-        project ? `${project} · ${relativeTime(chat.updatedAt)}` : relativeTime(chat.updatedAt),
+        active ? sym('commit', 'accent') : null,
+        project ? h('span', { class: 'sidebar-item-project' }, project) : null,
+        project ? h('span', { 'aria-hidden': 'true' }, '•') : null,
+        h('span', {}, relativeTime(chat.updatedAt)),
       ),
       chat.snippet ? h('span', { class: 'sidebar-item-snippet' }, chat.snippet) : null,
     );
@@ -146,8 +191,9 @@ export function dayGroup(iso: string, now = new Date()): string {
 export function relativeTime(iso: string, now = new Date()): string {
   const minutes = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000);
   if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (dayGroup(iso, now) === 'Yesterday') return 'Yesterday';
   return new Date(iso).toLocaleDateString();
 }

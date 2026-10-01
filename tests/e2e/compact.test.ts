@@ -52,7 +52,8 @@ describe('compact chat (mock Claude API)', () => {
     for (const label of ['FIRST-QUESTION', 'SECOND-QUESTION', 'THIRD-QUESTION', 'FOURTH-QUESTION']) await ask(label);
 
     // The status bar shows how large the last prompt was, and the button is there to use.
-    await running.page.getByText(/^Context: \d/).waitFor();
+    const context = running.page.locator('.context-text');
+    await expect.poll(() => context.textContent()).toMatch(/^\d+ \/ 1M$/);
     const button = running.page.getByLabel('Compact chat');
     await button.waitFor();
     expect(await button.isEnabled()).toBe(true);
@@ -69,7 +70,7 @@ describe('compact chat (mock Claude API)', () => {
     expect(asked).toContain('Answer to FIRST-QUESTION');
     expect(asked).not.toContain('SECOND-QUESTION');
     // The size of the prompt is not known until the next request.
-    await running.page.getByText(/^Context: \d/).waitFor({ state: 'detached' });
+    await expect.poll(() => context.textContent()).toBe('— / 1M');
 
     await ask('FIFTH-QUESTION');
     const sent = claude.agentRequests.at(-1).messages;

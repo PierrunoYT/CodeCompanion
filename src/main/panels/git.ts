@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { createTwoFilesPatch } from 'diff';
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git';
-import type { GitFile, GitStatus } from '@shared/panels';
+import { parseNumstat, type GitFile, type GitStatus } from '@shared/panels';
 import { Workspace } from '../tools/workspace';
 
 // Git reads the repository's own .git/config, which can name commands to run: core.fsmonitor on status, clean and
@@ -33,6 +33,9 @@ export function filterNames(configListing: string): string[] {
   return [...new Set(names)];
 }
 
+// New files larger than this are not counted for the line counts in the Git panel.
+const MAX_COUNTED_BYTES = 2 * 1024 * 1024;
+
 // The Git panel: changed files, diffs, commit and discard for the open project.
 export class GitService {
   private readonly workspace: Workspace;
@@ -60,9 +63,86 @@ export class GitService {
   }
 
   async status(): Promise<GitStatus> {
-    if (!(await this.isRepo())) return { isRepo: false, branch: null, files: [] };
-    const status = await (await this.repo()).status();
-    return { isRepo: true, branch: status.current, files: toFiles(status) };
+    if (!(await this.isRepo()))
+      return { isRepo: false, branch: null, files: [], tracking: null, ahead: 0, behind: 0, canPush: false };
+    const repo = await this.repo();
+    const status = await repo.status();
+    const hasOrigin = status.tracking
+      ? true
+      : (await repo.getRemotes().catch(() => [])).some((remote) => remote.name === 'origin');
+    return {
+      isRepo: true,
+      branch: status.current,
+      files: await this.withLineCounts(toFiles(status)),
+      tracking: status.tracking,
+      ahead: status.ahead,
+      behind: status.behind,
+      canPush: Boolean(status.current) && hasOrigin,
+    };
+  }
+
+  // Adds the lines added and removed to each file: `git diff --numstat` for tracked files (renames counted as a
+  // deletion and an addition), and the line count of new files, which git does not diff.
+  private async withLineCounts(files: GitFile[]): Promise<GitFile[]> {
+    if (files.length === 0) return files;
+    const repo = await this.repo();
+    const safe = ['--no-ext-diff', '--no-textconv', '--no-renames', '--numstat'];
+    const hasHead = await repo.revparse(['--verify', 'HEAD']).then(
+      () => true,
+      () => false,
+    );
+    const output = hasHead
+      ? await repo.diff([...safe, 'HEAD']).catch(() => '')
+      : `${await repo.diff([...safe, '--cached']).catch(() => '')}\n${await repo.diff(safe).catch(() => '')}`;
+    const counts = parseNumstat(output);
+    return Promise.all(
+      files.map(async (file) => {
+        if (file.status === 'untracked') {
+          const lines = await this.countLines(file.path);
+          return lines === null ? file : { ...file, added: lines, removed: 0 };
+        }
+        const count = counts.get(file.path);
+        return count ? { ...file, ...count } : file;
+      }),
+    );
+  }
+
+  private async countLines(path: string): Promise<number | null> {
+    try {
+      const content = await readFile(this.workspace.resolve(path));
+      // Binary or large files are not counted, as git does not count binary files.
+      if (content.length > MAX_COUNTED_BYTES || content.includes(0)) return null;
+      const text = content.toString('utf8');
+      return text.length === 0 ? 0 : text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+    } catch {
+      return null;
+    }
+  }
+
+  // Pushes the current branch: to its upstream, or to `origin` (setting it as the upstream) when it has none yet.
+  // Pre-push hooks run, as in any git client. Credentials come from the user's git setup (a credential manager may
+  // show its own sign-in window); the app has no terminal, so git cannot ask for a password and fails instead.
+  async push(): Promise<GitStatus> {
+    if (!(await this.isRepo())) throw new Error('This project is not a Git repository.');
+    const repo = await this.repo();
+    const status = await repo.status();
+    if (!status.current) throw new Error('Check out a branch before pushing.');
+    if (status.tracking) {
+      await repo.push();
+    } else {
+      const remotes = await repo.getRemotes();
+      if (!remotes.some((remote) => remote.name === 'origin'))
+        throw new Error('This repository has no remote named origin to push to.');
+      await repo.push(['--set-upstream', 'origin', status.current]);
+    }
+    return this.status();
+  }
+
+  // Reverts every changed file (and deletes new ones), as Discard does for one file.
+  async discardAll(): Promise<GitStatus> {
+    const status = await this.status();
+    for (const file of status.files) await this.discard(file.path);
+    return this.status();
   }
 
   // Unified diff of all changes, or of one file. Untracked files are shown as additions.

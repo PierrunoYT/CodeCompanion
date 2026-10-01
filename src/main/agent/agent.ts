@@ -392,12 +392,16 @@ export class Agent {
       emit({ type: 'tool-running', id: eventId });
     }
 
+    // How long the tool itself ran, not counting the wait for approval.
+    const started = performance.now();
+    const durationMs = () => Math.round(performance.now() - started);
     try {
       const output = await tool.run(input, context);
       emit({
         type: 'tool-end',
         id: eventId,
         status: output.isError ? 'error' : 'done',
+        durationMs: durationMs(),
         summary: output.summary ?? tool.name,
         path: output.path,
         output: tool.name === 'run_command' || tool.name === 'command_output' ? output.content : undefined,
@@ -407,7 +411,14 @@ export class Agent {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const expected = error instanceof ToolError;
-      emit({ type: 'tool-end', id: eventId, status: 'error', summary: `${tool.name} failed`, output: message });
+      emit({
+        type: 'tool-end',
+        id: eventId,
+        status: 'error',
+        durationMs: durationMs(),
+        summary: `${tool.name} failed`,
+        output: message,
+      });
       return { result: { id: call.id, content: expected ? message : `Error: ${message}`, isError: true } };
     }
   }

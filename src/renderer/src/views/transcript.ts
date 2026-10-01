@@ -8,7 +8,8 @@ import {
   type ApprovalDecision,
   type TranscriptItem,
 } from '@shared/chat';
-import { h, icon, trustedHtml } from '../dom';
+import { h, icon, sym, trustedHtml } from '../dom';
+import { formatDuration } from '../format';
 import { renderDiff, renderMarkdown } from '../markdown';
 
 export interface TranscriptActions {
@@ -47,19 +48,40 @@ function restoreFocus(node: HTMLElement, key: string): void {
   node.focus({ preventScroll: true });
 }
 
+// Material Symbols names for the tools' cards.
 const TOOL_ICONS: Record<string, string> = {
-  read_file: 'file-earmark-text',
-  list_directory: 'folder2-open',
+  read_file: 'description',
+  list_directory: 'folder_open',
   grep: 'search',
-  search_code: 'search-heart',
-  edit_file: 'pencil-square',
-  write_file: 'file-earmark-plus',
+  search_code: 'manage_search',
+  edit_file: 'edit_document',
+  write_file: 'note_add',
   run_command: 'terminal',
   command_output: 'terminal',
-  web_search: 'globe',
-  fetch_url: 'globe',
-  browser: 'window',
+  web_search: 'travel_explore',
+  fetch_url: 'public',
+  browser: 'web',
+  propose_plan: 'checklist',
+  task: 'smart_toy',
+  load_skill: 'school',
 };
+
+// What a tool row shows after the tool's name: the file, command or other target, and the result in parentheses at
+// the end of the summary as a chip ("Read notes.txt (2 lines)" gives "notes.txt" and "2 lines").
+export function toolLabel(item: { summary?: string; path?: string; preview?: { title: string; command?: string } }): {
+  target: string;
+  chip: string | null;
+} {
+  const text = item.summary ?? item.preview?.title ?? '';
+  const match = /\s*\(([^()]+)\)$/.exec(text);
+  const chip = match ? match[1]! : null;
+  const rest = match ? text.slice(0, match.index) : text;
+  const target =
+    item.preview?.command ??
+    item.path ??
+    rest.replace(/^(Edit|Write|Open|Fetch|Read|Listed|Edited|Wrote|Created)\s+/, '');
+  return { target, chip };
+}
 
 // Lines added and removed, shown next to an edit's title.
 function diffStats(diff: string): HTMLElement {
@@ -92,7 +114,7 @@ export class TranscriptView {
   });
   private readonly announced = new Set<string>();
   private primed = false;
-  private readonly nodes = new Map<string, { item: TranscriptItem; node: HTMLElement }>();
+  private readonly nodes = new Map<string, { item: TranscriptItem; leads: boolean; node: HTMLElement }>();
   // Items are placed in containers of CHUNK_SIZE items each (see CHUNK_SIZE).
   private readonly chunks: HTMLElement[] = [];
   // <details> the user opened, so re-rendering a card does not collapse it.
@@ -119,8 +141,10 @@ export class TranscriptView {
       const chunk = this.chunk(Math.floor(index / CHUNK_SIZE));
       if (index % CHUNK_SIZE === 0) previous = null;
       let entry = this.nodes.get(item.id);
-      if (!entry || entry.item !== item) {
-        const node = this.renderItem(item);
+      // The assistant's avatar is shown once per turn: on the first item after the user's message.
+      const leads = item.kind !== 'user' && (index === 0 || items[index - 1]!.kind === 'user');
+      if (!entry || entry.item !== item || entry.leads !== leads) {
+        const node = this.renderItem(item, leads);
         // Update a changed item in place rather than swapping its element: a new element among the transcript's
         // children makes the browser recheck the styles of the whole (long) list, on every streamed frame.
         if (entry && entry.node.tagName === node.tagName) {
@@ -128,7 +152,7 @@ export class TranscriptView {
           morph(entry.node, node);
           if (focus !== null) restoreFocus(entry.node, focus);
         } else if (entry) entry.node.replaceWith(node);
-        entry = { item, node: entry && entry.node.tagName === node.tagName ? entry.node : node };
+        entry = { item, leads, node: entry && entry.node.tagName === node.tagName ? entry.node : node };
         this.nodes.set(item.id, entry);
       }
       const expectedNext: ChildNode | null = previous ? previous.nextSibling : chunk.firstChild;
@@ -227,102 +251,152 @@ export class TranscriptView {
     return this.chunks[index]!;
   }
 
-  private renderItem(item: TranscriptItem): HTMLElement {
+  // Every item is a row: an avatar column, then the content. The user's rows show "U"; the assistant's avatar is shown
+  // on the first row of its turn (`leads`) and the other rows keep the column empty, so the turn lines up.
+  private renderItem(item: TranscriptItem, leads: boolean): HTMLElement {
+    const avatar = leads
+      ? h('div', { class: 'avatar avatar-assistant', 'aria-hidden': 'true' }, sym('smart_toy'))
+      : h('div', { class: 'avatar-space', 'aria-hidden': 'true' });
     switch (item.kind) {
       case 'user':
         return h(
           'div',
           { class: 'message user', dataset: { id: item.id } },
-          h('div', { class: 'bubble' }, item.text),
-          item.imageCount > 0
-            ? h('div', { class: 'attachments' }, icon('image'), ` ${item.imageCount} image(s)`)
-            : null,
+          h('div', { class: 'avatar avatar-user', 'aria-hidden': 'true' }, 'U'),
+          h(
+            'div',
+            { class: 'message-body' },
+            h('div', { class: 'bubble' }, item.text),
+            item.imageCount > 0
+              ? h('div', { class: 'attachments' }, sym('image'), ` ${item.imageCount} image(s)`)
+              : null,
+          ),
         );
       case 'assistant':
         return h(
           'div',
           { class: `message assistant${item.streaming ? ' streaming' : ''}`, dataset: { id: item.id } },
-          // Rendered only when opened: while an answer streams, the thinking would otherwise be parsed and highlighted
-          // again on every frame, although it is usually collapsed.
-          item.thinking
-            ? this.details(`${item.id}:thinking`, h('span', {}, icon('lightbulb'), ' Thinking'), () => [
-                trustedHtml('div', 'markdown thinking', renderMarkdown(item.thinking)),
-              ])
-            : null,
-          item.text ? trustedHtml('div', 'markdown', renderMarkdown(item.text)) : null,
-          item.streaming && !item.text ? h('div', { class: 'typing' }, h('span'), h('span'), h('span')) : null,
+          avatar,
+          h(
+            'div',
+            { class: 'message-body' },
+            // Rendered only when opened: while an answer streams, the thinking would otherwise be parsed and
+            // highlighted again on every frame, although it is usually collapsed.
+            item.thinking
+              ? this.details(`${item.id}:thinking`, h('span', {}, sym('psychology'), ' Thinking'), () => [
+                  trustedHtml('div', 'markdown thinking', renderMarkdown(item.thinking)),
+                ])
+              : null,
+            item.text ? trustedHtml('div', 'markdown', renderMarkdown(item.text)) : null,
+            item.streaming && !item.text ? h('div', { class: 'typing' }, h('span'), h('span'), h('span')) : null,
+          ),
         );
       case 'tool':
-        return this.renderTool(item);
+        return this.renderTool(item, avatar);
       case 'error':
         return h(
           'div',
-          { class: 'message error alert alert-danger py-2', dataset: { id: item.id } },
-          icon('exclamation-triangle'),
-          ' ',
-          item.text,
+          { class: 'message error', dataset: { id: item.id } },
+          avatar,
+          h('div', { class: 'message-body alert alert-danger' }, sym('error'), ' ', item.text),
         );
       case 'notice':
-        return h('div', { class: 'message notice', dataset: { id: item.id } }, icon('info-circle'), ' ', item.text);
+        return h(
+          'div',
+          { class: 'message notice', dataset: { id: item.id } },
+          avatar,
+          h('div', { class: 'message-body' }, sym('info'), ' ', item.text),
+        );
     }
   }
 
-  private renderTool(item: Extract<TranscriptItem, { kind: 'tool' }>): HTMLElement {
+  private renderTool(item: Extract<TranscriptItem, { kind: 'tool' }>, avatar: HTMLElement): HTMLElement {
+    // The full summary ("Read notes.txt (2 lines)") names the card for screen readers and its Undo button; on screen
+    // the row shows the tool name, its target and the result in a chip, as in a code editor's log.
     const title = item.summary ?? item.preview?.title ?? item.name.replace(/_/g, ' ');
+    const { target, chip } = toolLabel(item);
+    const awaiting = item.status === 'awaiting-approval';
     const status: Record<typeof item.status, HTMLElement> = {
-      'awaiting-approval': h('span', { class: 'status-pill' }, 'Needs approval'),
+      'awaiting-approval': h(
+        'span',
+        { class: item.preview?.command ? 'status-chip' : 'status-pill' },
+        item.preview?.command ? 'Awaiting approval' : 'Pending Approval',
+      ),
       running: h('span', {
-        class: 'spinner-border spinner-border-sm text-secondary',
+        class: 'spinner-border spinner-border-sm tool-spinner',
         role: 'img',
         'aria-label': 'Running',
       }),
-      done: h('span', {}, icon('check2', 'text-success'), h('span', { class: 'visually-hidden' }, 'Done')),
-      error: h('span', {}, icon('x-circle', 'text-danger'), h('span', { class: 'visually-hidden' }, 'Failed')),
-      declined: h('span', { class: 'badge text-bg-secondary' }, 'Declined'),
+      done: h('span', { class: 'tool-status' }, sym('check', 'ok'), h('span', { class: 'visually-hidden' }, 'Done')),
+      error: h(
+        'span',
+        { class: 'tool-status' },
+        sym('error', 'failed'),
+        h('span', { class: 'visually-hidden' }, 'Failed'),
+      ),
+      declined: h('span', { class: 'status-chip' }, 'Declined'),
     };
 
     const header = h(
       'div',
       { class: 'tool-header' },
-      icon(TOOL_ICONS[item.name] ?? 'tools'),
-      h('span', { class: 'tool-title' }, title),
+      awaiting ? sym(TOOL_ICONS[item.name] ?? 'build', 'tool-icon') : sym('expand_more', 'tool-chevron'),
+      h(
+        'span',
+        { class: 'tool-title', title },
+        h('span', { class: 'tool-name' }, item.name),
+        target ? h('span', { class: 'tool-target' }, target) : null,
+        h('span', { class: 'visually-hidden' }, ` ${title}`),
+      ),
       // Not for a diff shown only in part, whose counts would be too low.
       item.preview?.diff && !item.preview.diffOmittedLines ? diffStats(item.preview.diff) : null,
-      item.path && item.status !== 'awaiting-approval'
-        ? h(
-            'button',
-            {
-              class: 'btn btn-link btn-sm p-0 ms-1',
-              title: 'Open in editor',
-              dataset: { focusKey: 'open' },
-              onclick: () => this.actions.openFile(item.path!),
-            },
-            icon('box-arrow-up-right'),
-          )
-        : null,
-      item.undo === 'available'
-        ? h(
-            'button',
-            {
-              class: 'btn btn-outline-secondary btn-sm py-0 ms-2 undo-button',
-              title: 'Put the file back the way it was before this edit',
-              'aria-label': `Undo ${title}`,
-              dataset: { focusKey: 'undo' },
-              onclick: (event: Event) => {
-                // The button sits in the card's summary; do not also open or close the card.
-                event.preventDefault();
-                event.stopPropagation();
-                this.actions.undoEdit(item.id, item.path);
+      h(
+        'span',
+        { class: 'tool-meta' },
+        chip && !awaiting ? h('span', { class: 'tool-chip' }, chip) : null,
+        item.path && !awaiting
+          ? h(
+              'button',
+              {
+                class: 'tool-action',
+                title: 'Open in editor',
+                dataset: { focusKey: 'open' },
+                onclick: (event: Event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.actions.openFile(item.path!);
+                },
               },
-            },
-            icon('arrow-counterclockwise'),
-            ' Undo',
-          )
-        : item.undo === 'undone'
-          ? // Takes the Undo button's focus key, so a keyboard user who pressed Undo lands on the result.
-            h('span', { class: 'badge text-bg-secondary ms-2', tabindex: -1, dataset: { focusKey: 'undo' } }, 'Undone')
+              sym('open_in_new'),
+            )
           : null,
-      h('span', { class: 'ms-auto' }, status[item.status]),
+        item.undo === 'available'
+          ? h(
+              'button',
+              {
+                class: 'tool-action undo-button',
+                title: 'Put the file back the way it was before this edit',
+                'aria-label': `Undo ${title}`,
+                dataset: { focusKey: 'undo' },
+                onclick: (event: Event) => {
+                  // The button sits in the card's summary; do not also open or close the card.
+                  event.preventDefault();
+                  event.stopPropagation();
+                  this.actions.undoEdit(item.id, item.path);
+                },
+              },
+              sym('undo'),
+              h('span', {}, 'Undo'),
+            )
+          : item.undo === 'undone'
+            ? // Takes the Undo button's focus key, so a keyboard user who pressed Undo lands on the result.
+              h('span', { class: 'tool-chip', tabindex: -1, dataset: { focusKey: 'undo' } }, 'Undone')
+            : null,
+        item.durationMs !== undefined && !awaiting
+          ? h('span', { class: 'tool-duration', title: 'How long the tool ran' }, formatDuration(item.durationMs))
+          : null,
+        status[item.status],
+      ),
     );
 
     const preview = () => this.renderPreview(item);
@@ -338,15 +412,52 @@ export class TranscriptView {
           )
         : null;
 
-    if (item.status === 'awaiting-approval') {
-      const feedback = h('textarea', {
-        class: 'form-control form-control-sm',
-        rows: 1,
-        placeholder: 'Optional: tell the assistant what to do instead',
+    if (awaiting) {
+      const command = Boolean(item.preview?.command);
+      const feedback = h('input', {
+        type: 'text',
+        class: 'approval-note',
+        placeholder: command ? 'Optional: tell the assistant what to do instead…' : 'Add revision feedback or note...',
         'aria-label': 'Optional feedback if you decline',
-      });
+      }) as HTMLInputElement;
       const decide = (approved: boolean) =>
         this.actions.decide(item.id, { approved, feedback: approved ? undefined : feedback.value });
+      feedback.addEventListener('keydown', (event) => {
+        // Enter with a note declines with it, the way the note is meant to be used.
+        if (event.key === 'Enter' && feedback.value.trim()) decide(false);
+      });
+      const decline = h(
+        'button',
+        { class: 'btn btn-outline-secondary btn-sm', onclick: () => decide(false) },
+        command ? 'Skip' : 'Decline',
+      );
+      const approve = h(
+        'button',
+        { class: 'btn btn-primary btn-sm', onclick: () => decide(true) },
+        sym(command ? 'play_arrow' : 'done'),
+        h('span', {}, command ? 'Approve & Run' : 'Approve'),
+      );
+      // A command card keeps its buttons in the header and the command below it; other cards end in a footer bar.
+      const box = command
+        ? h(
+            'div',
+            { class: 'tool-box command-box' },
+            h(
+              'div',
+              { class: 'tool-header' },
+              ...header.childNodes,
+              h('span', { class: 'tool-buttons' }, decline, approve),
+            ),
+            preview(),
+            feedback,
+          )
+        : h(
+            'div',
+            { class: 'tool-box' },
+            header,
+            preview(),
+            h('div', { class: 'approval' }, feedback, h('span', { class: 'tool-buttons' }, decline, approve)),
+          );
       return h(
         'div',
         {
@@ -355,29 +466,32 @@ export class TranscriptView {
           'aria-label': `Approval needed: ${title}`,
           dataset: { id: item.id },
         },
-        header,
-        preview(),
-        h(
-          'div',
-          { class: 'approval' },
-          feedback,
-          h('button', { class: 'btn btn-outline-secondary btn-sm', onclick: () => decide(false) }, 'Decline'),
-          h('button', { class: 'btn btn-primary btn-sm', onclick: () => decide(true) }, icon('check2'), ' Approve'),
-        ),
+        avatar,
+        box,
       );
     }
 
     if (item.status === 'running') {
-      return h('div', { class: 'tool-card running', dataset: { id: item.id } }, header, output());
+      return h(
+        'div',
+        { class: 'tool-card running', dataset: { id: item.id } },
+        avatar,
+        h('div', { class: 'tool-box' }, header, output()),
+      );
     }
 
     const hasBody = Boolean(item.preview?.diff || item.preview?.command || item.preview?.text || item.output);
     return h(
       'div',
       { class: `tool-card ${item.status}`, dataset: { id: item.id } },
-      // Built when the card is first opened: a long chat has many finished cards, most of them never opened, and their
-      // diffs are by far the largest part of the page.
-      hasBody ? this.details(item.id, header, () => [preview(), output()].filter(Boolean) as HTMLElement[]) : header,
+      avatar,
+      h(
+        'div',
+        { class: `tool-box${hasBody ? '' : ' no-body'}` },
+        // Built when the card is first opened: a long chat has many finished cards, most of them never opened, and
+        // their diffs are by far the largest part of the page.
+        hasBody ? this.details(item.id, header, () => [preview(), output()].filter(Boolean) as HTMLElement[]) : header,
+      ),
     );
   }
 

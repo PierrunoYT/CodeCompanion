@@ -6,16 +6,23 @@ export interface ModelOption {
   id: string;
   label: string;
   provider: Provider;
+  // Context window in tokens, from the providers' model pages (October 2026).
+  contextWindow: number;
 }
 
 export const MODEL_OPTIONS: ModelOption[] = [
-  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'anthropic' },
-  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'anthropic' },
-  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic' },
-  { id: 'gpt-6-astra', label: 'GPT-6 Astra', provider: 'openai' },
-  { id: 'gpt-6-sol', label: 'GPT-6 Sol', provider: 'openai' },
-  { id: 'gpt-6-luna', label: 'GPT-6 Luna', provider: 'openai' },
+  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'anthropic', contextWindow: 1_000_000 },
+  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'anthropic', contextWindow: 1_000_000 },
+  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', contextWindow: 200_000 },
+  { id: 'gpt-6-astra', label: 'GPT-6 Astra', provider: 'openai', contextWindow: 1_050_000 },
+  { id: 'gpt-6-sol', label: 'GPT-6 Sol', provider: 'openai', contextWindow: 1_050_000 },
+  { id: 'gpt-6-luna', label: 'GPT-6 Luna', provider: 'openai', contextWindow: 1_050_000 },
 ];
+
+// The context window of a built-in model; null for a model id entered by hand, whose window is unknown.
+export function contextWindow(model: string): number | null {
+  return MODEL_OPTIONS.find((option) => option.id === model)?.contextWindow ?? null;
+}
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 

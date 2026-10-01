@@ -1,17 +1,21 @@
 import { applyChatEvent, type ChatEvent, type ChatSnapshot } from '@shared/chat';
-import type { ImageAttachment } from '@shared/ipc';
+import { indexStatusLabel } from '@shared/index_status';
+import type { ImageAttachment, IndexStatus } from '@shared/ipc';
 import {
   acceptsImages,
   COMPACT_SUGGESTED_TOKENS,
+  contextWindow,
   estimateCost,
   formatCost,
   imagesNotSupportedMessage,
   MODEL_OPTIONS,
   providerForModel,
 } from '@shared/models';
+import type { GitStatus } from '@shared/panels';
 import type { ProjectInfo } from '@shared/project';
 import type { SettingsView } from '@shared/settings';
-import { h, icon, setChildren } from './dom';
+import { h, icon, setChildren, sym } from './dom';
+import { formatTokens, readPreference, writePreference } from './format';
 import { Composer } from './views/composer';
 import { openHistoryDialog, openProjectSettingsDialog, openSettingsDialog } from './views/dialogs';
 import { Panels } from './views/panels';
@@ -19,6 +23,10 @@ import { Sidebar } from './views/sidebar';
 import { TranscriptView } from './views/transcript';
 
 const api = window.api;
+
+const FEEDBACK_URL = 'https://github.com/PierrunoYT/patch/issues/new';
+// While the code index is being built, the status bar asks for its progress this often.
+const INDEX_POLL_MS = 1500;
 
 export class App {
   private settings!: SettingsView;
@@ -28,8 +36,11 @@ export class App {
   private frame = 0;
   private welcomeGeneration = 0;
   private projectGeneration = 0;
+  private gitGeneration = 0;
+  private indexGeneration = 0;
+  private indexTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly drafts = new Map<string, ReturnType<Composer['getDraft']>>();
-  private readonly projectTabs = h('nav', { class: 'project-tabs', 'aria-label': 'Open projects', hidden: true });
+  private readonly projectTabs = h('nav', { class: 'project-tabs', 'aria-label': 'Open projects' });
 
   private readonly transcript = new TranscriptView({
     decide: (id, decision) => void api.invoke('chat:decide', id, decision),
@@ -42,6 +53,7 @@ export class App {
     stop: () => void api.invoke('chat:stop'),
     resume: () => void api.invoke('chat:resume').catch((error) => this.toast(error)),
     pickImages: () => api.invoke('files:pick-images').catch((error) => (this.toast(error), [])),
+    listFiles: () => (this.project ? api.invoke('files:list').catch(() => []) : Promise.resolve([])),
     notice: (message) => this.toast(message),
   });
 
@@ -51,80 +63,78 @@ export class App {
     open: (id) => void api.invoke('history:open', id).catch((error) => this.toast(error)),
     newChat: () => void this.newChat(),
   });
+  // The project menu (open folder, project settings, recent projects), behind the header's "tune" button.
   private readonly projectButton = h('button', {
-    class: 'btn btn-sm btn-ghost project-button',
+    class: 'icon-button project-button',
     onclick: () => this.toggleProjectMenu(),
   });
-  private readonly projectMenu = h('div', { class: 'dropdown-menu project-menu' });
+  private readonly projectMenu = h('div', { class: 'dropdown-menu dropdown-menu-end project-menu' });
   private readonly modelSelect = h('select', {
-    class: 'form-select form-select-sm model-select',
+    class: 'model-select',
     'aria-label': 'Model',
     onchange: () => void this.chooseModel(),
   }) as HTMLSelectElement;
   private readonly askButton = h(
     'button',
     { class: 'mode-option', onclick: () => void this.setMode('ask') },
-    icon('shield-check'),
-    ' Ask first',
+    sym('touch_app'),
+    h('span', {}, 'Ask'),
   );
   private readonly autoButton = h(
     'button',
     { class: 'mode-option', onclick: () => void this.setMode('auto') },
-    icon('lightning-charge'),
-    ' Auto',
+    sym('bolt'),
+    h('span', {}, 'Auto-Approve'),
   );
-  private readonly planSwitch = h('input', {
-    type: 'checkbox',
+  private readonly planSwitch = h('button', {
+    class: 'plan-switch',
     role: 'switch',
-    class: 'form-check-input',
-    id: 'plan-mode-switch',
-    onchange: () => void this.setPlanMode(),
-  }) as HTMLInputElement;
-  private readonly branchLabel = h('span', { class: 'status-item', hidden: true });
-  private readonly agentLabel = h('span', { class: 'status-item' });
+    'aria-label': 'Plan Mode',
+    onclick: () => void this.setPlanMode(),
+  });
+  private readonly branchLabel = h('span', { class: 'status-item status-branch', hidden: true });
+  private readonly agentLabel = h('span', { class: 'status-item', hidden: true });
+  private readonly engineLabel = h('span', { class: 'status-item' });
   private readonly contextMeter = h('span', { class: 'context-meter', 'aria-hidden': 'true' }, h('span'));
-  private readonly contextText = h('span');
+  private readonly contextText = h('span', { class: 'context-text' });
   private readonly contextLabel = h(
     'span',
-    { class: 'status-item context-item ms-auto', hidden: true },
-    this.contextText,
+    { class: 'status-item context-item' },
+    h('span', { class: 'status-muted' }, 'Context:'),
     this.contextMeter,
+    this.contextText,
   );
-  private readonly usageLabel = h('span', { class: 'status-item' });
-  private branchGeneration = 0;
+  private readonly indexLabel = h('span', { class: 'status-item', hidden: true });
+  private readonly tokensLabel = h('span', { class: 'status-item' });
+  private readonly costLabel = h('span', { class: 'status-item status-cost' });
   private readonly chatScroll = h('div', { class: 'chat-scroll' });
   private readonly welcome = h('div', { class: 'welcome' });
   private readonly toastArea = h('div', { class: 'toast-area' });
   private readonly panels = new Panels(
-    () => this.settings.theme,
     (error) => this.toast(error),
     () => this.project !== null,
+    (status) => this.showGitStatus(status),
   );
   private readonly compactButton = h(
     'button',
-    { class: 'btn btn-sm btn-ghost', 'aria-label': 'Compact chat', onclick: () => void this.compactChat() },
-    icon('arrows-collapse'),
+    { class: 'icon-button', 'aria-label': 'Compact chat', onclick: () => void this.compactChat() },
+    sym('view_compact'),
   );
   private readonly exportButton = h(
     'button',
     {
-      class: 'btn btn-sm btn-ghost',
+      class: 'icon-button',
       title: 'Export this chat as Markdown',
       'aria-label': 'Export chat',
       onclick: () => void this.exportChat(),
     },
-    icon('download'),
+    sym('download'),
   );
   private readonly panelHost = h('div', { class: 'panel-host' }, this.panels.element);
   private readonly panelButton = h(
     'button',
-    { class: 'btn btn-sm btn-ghost', title: 'Show or hide the side panel', onclick: () => this.togglePanel() },
-    icon('layout-sidebar-reverse'),
-  );
-  private readonly sidebarButton = h(
-    'button',
-    { class: 'btn btn-sm btn-ghost', title: 'Show or hide the chat list', onclick: () => this.toggleSidebar() },
-    icon('layout-sidebar'),
+    { class: 'icon-button', title: 'Show or hide the side panel', onclick: () => this.togglePanel() },
+    sym('terminal'),
   );
 
   async start(root: HTMLElement): Promise<void> {
@@ -139,7 +149,12 @@ export class App {
     this.renderAll();
     void this.renderProjects();
     void this.sidebar.refresh();
-    void this.renderBranch();
+    void this.refreshGit();
+    void this.refreshIndex();
+    void api.invoke('app:info').then(
+      (info) => this.panels.setVersion(info.version),
+      () => {},
+    );
 
     api.on('history:changed', (chats) => this.sidebar.update(chats));
     api.on('settings:changed', (settings) => {
@@ -147,15 +162,17 @@ export class App {
       this.applyTheme();
       this.renderHeader();
       void this.renderWelcome();
+      void this.refreshIndex();
     });
     api.on('project:changed', (project) => {
       if (project?.path !== this.project?.path) {
         if (this.project) this.drafts.set(this.project.path, this.composer.getDraft());
-        this.composer.setDraft(this.drafts.get(project?.path ?? '') ?? { text: '', images: [] });
+        this.composer.setDraft(this.drafts.get(project?.path ?? '') ?? { text: '', images: [], mentions: [] });
       }
       this.project = project;
       this.panels.projectChanged();
-      void this.renderBranch();
+      void this.refreshGit();
+      void this.refreshIndex();
       this.renderHeader();
       void this.renderWelcome();
       void this.renderProjects();
@@ -169,7 +186,11 @@ export class App {
     api.on('chat:event', ({ chatId, event }) => {
       if (chatId !== this.chat.id) return;
       this.pendingEvents.push(event);
-      if (event.type === 'tool-end') this.panels.filesChanged();
+      if (event.type === 'tool-end') {
+        this.panels.filesChanged();
+        // search_code builds the index on its first call.
+        if (event.status === 'done') void this.refreshIndex();
+      }
       // Stream deltas arrive quickly; apply them in batches once per frame.
       this.frame ||= requestAnimationFrame(() => this.flushEvents());
     });
@@ -184,7 +205,6 @@ export class App {
       this.panels.show(name);
     });
     this.setPanelVisible(readPreference('panelVisible') !== 'false');
-    this.setSidebarVisible(readPreference('sidebarVisible') !== 'false');
     this.panels.show('terminal');
     document.addEventListener('click', (event) => {
       if (!this.projectMenu.contains(event.target as Node) && !this.projectButton.contains(event.target as Node)) {
@@ -206,18 +226,26 @@ export class App {
         'header',
         { class: 'app-header' },
         h(
-          'span',
-          { class: 'brand' },
-          h('span', { class: 'brand-mark', role: 'img', 'aria-label': 'Patch' }),
-          h('span', { class: 'brand-name', 'aria-hidden': 'true' }, 'Patch'),
+          'div',
+          { class: 'header-left' },
+          h(
+            'span',
+            { class: 'brand' },
+            sym('terminal', 'brand-icon'),
+            h('span', { class: 'brand-name', role: 'img', 'aria-label': 'Patch' }, 'Patch AI'),
+          ),
+          this.projectTabs,
         ),
-        h('span', { class: 'header-divider', 'aria-hidden': 'true' }),
-        h('div', { class: 'project-picker' }, this.projectButton, this.projectMenu),
-        this.projectTabs,
         h(
           'div',
           { class: 'header-controls' },
-          this.modelSelect,
+          h(
+            'label',
+            { class: 'model-pill', title: 'Model for this chat' },
+            h('span', { class: 'live-dot', 'aria-hidden': 'true' }),
+            this.modelSelect,
+            sym('expand_more', 'model-caret'),
+          ),
           h(
             'div',
             { class: 'mode-toggle', role: 'group', 'aria-label': 'Approval mode' },
@@ -227,11 +255,14 @@ export class App {
           h(
             'div',
             {
-              class: 'form-check form-switch plan-switch',
+              class: 'plan-pill',
               title: 'Plan mode: before multi-step changes, the assistant shows its plan for approval',
+              onclick: (event: Event) => {
+                if (event.target !== this.planSwitch) this.planSwitch.click();
+              },
             },
+            h('span', { 'aria-hidden': 'true' }, 'Plan Mode'),
             this.planSwitch,
-            h('label', { class: 'form-check-label', for: 'plan-mode-switch' }, 'Plan'),
           ),
         ),
         h(
@@ -240,17 +271,29 @@ export class App {
           this.compactButton,
           this.exportButton,
           h(
-            'button',
-            { class: 'btn btn-sm btn-ghost', title: 'Chat history', onclick: () => void this.openHistory() },
-            icon('clock-history'),
+            'a',
+            {
+              class: 'icon-button',
+              href: FEEDBACK_URL,
+              target: '_blank',
+              rel: 'noreferrer',
+              title: 'Send feedback (opens a new GitHub issue in your browser)',
+              'aria-label': 'Send feedback',
+            },
+            sym('feedback'),
           ),
           h('span', { class: 'header-divider', 'aria-hidden': 'true' }),
-          this.sidebarButton,
-          this.panelButton,
           h(
             'button',
-            { class: 'btn btn-sm btn-ghost', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() },
-            icon('gear'),
+            { class: 'icon-button', title: 'Chat history', onclick: () => void this.openHistory() },
+            sym('model_training'),
+          ),
+          this.panelButton,
+          h('div', { class: 'project-picker' }, this.projectButton, this.projectMenu),
+          h(
+            'button',
+            { class: 'icon-button', title: 'Settings (Ctrl+,)', onclick: () => this.openSettings() },
+            sym('settings'),
           ),
         ),
       ),
@@ -266,7 +309,13 @@ export class App {
         ),
         this.panelHost,
       ),
-      h('footer', { class: 'app-footer' }, this.branchLabel, this.agentLabel, this.contextLabel, this.usageLabel),
+      h(
+        'footer',
+        { class: 'app-footer' },
+        h('div', { class: 'status-group' }, this.branchLabel, this.agentLabel, this.engineLabel),
+        h('div', { class: 'status-group status-center' }, this.contextLabel),
+        h('div', { class: 'status-group status-right' }, this.indexLabel, this.tokensLabel, this.costLabel),
+      ),
       this.toastArea,
     );
   }
@@ -288,7 +337,7 @@ export class App {
       transcript = applyChatEvent(transcript, event);
       if (event.type === 'busy') {
         this.chat.busy = event.busy;
-        if (!event.busy) void this.renderBranch();
+        if (!event.busy) void this.refreshGit();
       }
       if (event.type === 'resumable') this.chat.resumable = event.resumable;
       if (event.type === 'usage') this.chat.usage = event.totals;
@@ -302,52 +351,49 @@ export class App {
   }
 
   private renderHeader(): void {
-    // With a project open, its tab shows the name; the button keeps it for screen readers and as the menu's label.
+    // The project menu's button names the open project for screen readers (its tab shows the name on screen).
     this.projectButton.replaceChildren(
-      icon(this.project ? 'folder2-open' : 'folder2'),
-      h('span', { class: this.project ? 'visually-hidden' : '' }, ` ${this.project?.name ?? 'Open project'}`),
-      ' ',
-      icon('chevron-down', 'small'),
+      sym('tune'),
+      h('span', { class: 'visually-hidden' }, this.project ? `Project ${this.project.name}` : 'Open project'),
     );
-    this.projectButton.title = this.project ? `Projects (${this.project.path})` : 'Open a project folder';
+    this.projectButton.title = this.project ? `Project: ${this.project.path}` : 'Open a project folder';
     this.sidebar.setActive(this.chat.id);
     this.exportButton.disabled = this.chat.transcript.length === 0;
 
-    // How full the context is: the size of the last request's prompt. Nudge towards compacting once it is large.
+    // How full the context is: the size of the last request's prompt, against the model's context window. Nudge
+    // towards compacting once it is large.
+    const started = this.chat.transcript.length > 0;
+    const model = started ? this.chat.model : this.settings.model;
+    const window = contextWindow(model);
     const contextTokens = this.chat.usage.contextTokens;
     const nearLimit = contextTokens !== undefined && contextTokens >= COMPACT_SUGGESTED_TOKENS;
     this.compactButton.disabled = this.chat.transcript.length === 0 || this.chat.busy;
-    this.compactButton.className = `btn btn-sm ${nearLimit ? 'btn-warning' : 'btn-ghost'}`;
+    this.compactButton.classList.toggle('warn', nearLimit);
     this.compactButton.title = nearLimit
-      ? `The prompt is about ${format(contextTokens)} tokens. Summarize the older messages to free up context.`
+      ? `The prompt is about ${formatTokens(contextTokens)} tokens. Summarize the older messages to free up context.`
       : 'Compact chat: summarize the older messages to free up context';
-    this.contextLabel.hidden = contextTokens === undefined;
-    // Whichever of the two comes first on the right pushes them there.
-    this.usageLabel.classList.toggle('ms-auto', this.contextLabel.hidden);
-    this.contextText.textContent =
-      contextTokens === undefined
-        ? ''
-        : `Context: ${format(contextTokens)}${nearLimit ? ' · consider compacting' : ''}`;
-    // The bar fills up towards the size at which compacting is suggested.
-    const fill = Math.min(1, (contextTokens ?? 0) / COMPACT_SUGGESTED_TOKENS);
-    (this.contextMeter.firstElementChild as HTMLElement).style.width = `${Math.round(fill * 100)}%`;
-    this.contextLabel.title = `Size of the latest prompt; compacting is suggested from ${format(COMPACT_SUGGESTED_TOKENS)} tokens.`;
-    this.contextLabel.classList.toggle('text-warning-emphasis', nearLimit);
+    // Unknown before the first request and after a compaction, until the next request reports the new size.
+    const used = contextTokens === undefined ? '—' : formatTokens(contextTokens);
+    this.contextText.textContent = `${used}${window ? ` / ${formatTokens(window)}` : ''}${nearLimit ? ' · consider compacting' : ''}`;
+    const fill = Math.min(1, (contextTokens ?? 0) / (window ?? COMPACT_SUGGESTED_TOKENS));
+    (this.contextMeter.firstElementChild as HTMLElement).style.width = `${(fill * 100).toFixed(1)}%`;
+    this.contextLabel.title = window
+      ? `Size of the latest prompt, of the model's ${formatTokens(window)}-token context window. Compacting is suggested from ${formatTokens(COMPACT_SUGGESTED_TOKENS)}.`
+      : `Size of the latest prompt. Compacting is suggested from ${formatTokens(COMPACT_SUGGESTED_TOKENS)} tokens.`;
     this.contextLabel.classList.toggle('near-limit', nearLimit);
 
     const auto = this.settings.approvalMode === 'auto';
     this.askButton.classList.toggle('active', !auto);
     this.askButton.setAttribute('aria-pressed', String(!auto));
-    this.askButton.title = 'Edits and commands wait for your approval.';
+    this.askButton.title = 'Ask first: edits and commands wait for your approval.';
     this.autoButton.classList.toggle('active', auto);
     this.autoButton.setAttribute('aria-pressed', String(auto));
-    this.autoButton.title = 'Edits and commands run without asking. MCP tools and plans still ask.';
-    this.planSwitch.checked = this.settings.planMode;
+    this.autoButton.title = 'Auto: edits and commands run without asking. MCP tools and plans still ask.';
+    this.planSwitch.setAttribute('aria-checked', String(this.settings.planMode));
+    this.planSwitch.classList.toggle('on', this.settings.planMode);
 
     // A chat keeps its model; the picker sets the model for new chats, so it is locked once the chat has started.
-    const started = this.chat.transcript.length > 0;
-    const model = started ? this.chat.model : this.settings.model;
-    const options = MODEL_OPTIONS.some((option) => option.id === model)
+    const options: Array<{ id: string; label: string }> = MODEL_OPTIONS.some((option) => option.id === model)
       ? MODEL_OPTIONS
       : [...MODEL_OPTIONS, { id: model, label: model }];
     // Rebuilt only when the model changes: the header is rendered on every streamed frame, and a rebuilt list would
@@ -361,22 +407,26 @@ export class App {
       ? 'A chat keeps its model. Start a new chat to use another one.'
       : 'Model for this chat';
     this.composer.setImagesBlocked(acceptsImages(model) ? null : imagesNotSupportedMessage(model));
+    const label = options.find((option) => option.id === model)?.label ?? model;
+    this.engineLabel.replaceChildren(h('span', { class: 'status-muted' }, 'Engine:'), ` ${label}`);
 
     const agentFile = this.chat.agentFile;
     this.agentLabel.hidden = !agentFile;
     this.agentLabel.title = agentFile ? `${agentFile} from the project is included in this chat's instructions` : '';
-    this.agentLabel.replaceChildren(...(agentFile ? [icon('file-earmark-check'), ` ${agentFile} loaded`] : []));
+    this.agentLabel.replaceChildren(...(agentFile ? [h('span', { class: 'dot' }), agentFile] : []));
+    this.sidebar.setAgentFile(agentFile);
 
     const { inputTokens, outputTokens, cacheReadTokens } = this.chat.usage;
     const cacheWriteTokens = this.chat.usage.cacheWriteTokens ?? 0;
+    const total = inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens;
     const officialProvider =
       this.chat.officialPricing ?? (providerForModel(model) === 'anthropic' || !this.settings.openaiBaseUrl.trim());
     const cost = estimateCost(model, this.chat.usage, officialProvider);
-    this.usageLabel.title = cost === null ? '' : 'Estimated from official list prices.';
-    this.usageLabel.textContent =
-      inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens > 0
-        ? `Tokens: ${format(inputTokens)} in · ${format(cacheReadTokens)} read · ${format(cacheWriteTokens)} written · ${format(outputTokens)} out${cost === null ? '' : ` · ≈ ${formatCost(cost)}`}`
-        : '';
+    this.tokensLabel.replaceChildren(sym('toll'), `Tokens: ${formatTokens(total)}`);
+    this.tokensLabel.title = `${formatTokens(inputTokens)} in · ${formatTokens(cacheReadTokens)} cache read · ${formatTokens(cacheWriteTokens)} cache written · ${formatTokens(outputTokens)} out`;
+    this.costLabel.hidden = cost === null;
+    this.costLabel.textContent = cost === null ? '' : `Cost: ${total === 0 ? '$0.00' : formatCost(cost)}`;
+    this.costLabel.title = cost === null ? '' : 'Estimated from official list prices.';
   }
 
   private async renderWelcome(): Promise<void> {
@@ -433,7 +483,7 @@ export class App {
         'ul',
         { class: 'text-body-secondary tips' },
         h('li', {}, 'Describe a task: "Add input validation to the signup form and a test for it."'),
-        h('li', {}, 'Ask about the code: "How does authentication work here?"'),
+        h('li', {}, 'Ask about the code: "How does authentication work here?" Type @ to mention a file.'),
         h(
           'li',
           {},
@@ -552,35 +602,37 @@ export class App {
     for (const path of this.drafts.keys()) {
       if (!projects.some((project) => project.path === path)) this.drafts.delete(path);
     }
-    this.projectTabs.hidden = projects.length === 0;
     this.projectTabs.replaceChildren(
-      ...projects.map((project) =>
-        h(
+      ...projects.map((project) => {
+        const active = project.path === this.project?.path;
+        return h(
           'div',
-          { class: `project-tab${project.path === this.project?.path ? ' active' : ''}` },
+          { class: `project-tab${active ? ' active' : ''}` },
           h(
             'button',
             {
               title: project.path,
-              'aria-pressed': String(project.path === this.project?.path),
+              'aria-pressed': String(active),
               onclick: () => void this.openProject(project.path),
             },
-            project.name,
+            sym(active ? 'folder_open' : 'folder'),
+            h('span', {}, project.name),
           ),
           h(
             'button',
             {
+              class: 'project-tab-close',
               'aria-label': `Close project ${project.name}`,
               onclick: () => void api.invoke('project:close', project.path).catch((error) => this.toast(error)),
             },
-            icon('x-lg'),
+            sym('close'),
           ),
-        ),
-      ),
+        );
+      }),
       h(
         'button',
-        { class: 'project-tab-add', title: 'Open another project…', onclick: () => void this.chooseProject() },
-        icon('plus-lg'),
+        { class: 'icon-button project-tab-add', title: 'Open Repository', onclick: () => void this.chooseProject() },
+        sym('add'),
       ),
     );
   }
@@ -592,11 +644,7 @@ export class App {
   }
 
   private async setPlanMode(): Promise<void> {
-    const planMode = this.planSwitch.checked;
-    await api.invoke('settings:update', { planMode }).catch((error) => {
-      this.planSwitch.checked = !planMode;
-      this.toast(error);
-    });
+    await api.invoke('settings:update', { planMode: !this.settings.planMode }).catch((error) => this.toast(error));
   }
 
   private async chooseModel(): Promise<void> {
@@ -607,16 +655,39 @@ export class App {
     });
   }
 
-  // The current branch in the status bar; refreshed when the project changes and after each run.
-  private async renderBranch(): Promise<void> {
-    const generation = ++this.branchGeneration;
+  // Git state for the status bar and the Git tab's badge; refreshed when the project changes and after each run.
+  private async refreshGit(): Promise<void> {
+    const generation = ++this.gitGeneration;
     // Without a project the main process would reject the call (and log an error), so do not ask.
     const status = this.project ? await api.invoke('git:status').catch(() => null) : null;
-    if (generation !== this.branchGeneration) return;
+    if (generation !== this.gitGeneration) return;
+    this.showGitStatus(status);
+  }
+
+  private showGitStatus(status: GitStatus | null): void {
     const branch = status?.isRepo ? (status.branch ?? 'detached') : null;
+    const changed = status?.files.length ?? 0;
     this.branchLabel.hidden = branch === null;
-    this.branchLabel.title = branch && status?.files.length ? `${status.files.length} changed file(s)` : '';
-    this.branchLabel.replaceChildren(...(branch ? [icon('git'), ` ${branch}${status?.files.length ? ' *' : ''}`] : []));
+    this.branchLabel.title = changed ? `${changed} uncommitted file(s)` : '';
+    this.branchLabel.replaceChildren(...(branch ? [sym('fork_right'), `Git: ${branch}${changed ? '*' : ''}`] : []));
+    this.panels.setChangeCount(status?.isRepo ? changed : 0);
+    this.panels.setSync(status);
+  }
+
+  // The code index's state for the status bar and the chat list. Polled while an index is being built.
+  private async refreshIndex(): Promise<void> {
+    clearTimeout(this.indexTimer);
+    const generation = ++this.indexGeneration;
+    const status: IndexStatus | null = this.project ? await api.invoke('index:status').catch(() => null) : null;
+    if (generation !== this.indexGeneration) return;
+    const label = status ? indexStatusLabel(status) : null;
+    this.indexLabel.hidden = label === null;
+    this.indexLabel.title = status?.reason ?? '';
+    this.indexLabel.replaceChildren(
+      ...(label ? [h('span', { class: `dot${label.ready ? ' live' : ''}` }), label.bar] : []),
+    );
+    this.sidebar.setIndexStatus(label?.short ?? null, label?.ready ?? false);
+    if (status?.indexing) this.indexTimer = setTimeout(() => void this.refreshIndex(), INDEX_POLL_MS);
   }
 
   private openSettings(): void {
@@ -624,7 +695,11 @@ export class App {
       update: (patch) => api.invoke('settings:update', patch),
       setSecret: (name, value) => api.invoke('settings:set-secret', name, value),
       indexStatus: () => api.invoke('index:status'),
-      rebuildIndex: () => api.invoke('index:rebuild'),
+      rebuildIndex: async () => {
+        const status = await api.invoke('index:rebuild');
+        void this.refreshIndex();
+        return status;
+      },
       mcpStatus: () => api.invoke('mcp:status'),
     });
   }
@@ -642,6 +717,7 @@ export class App {
       this.toast(result.action === 'deleted' ? `Deleted ${result.path}` : `Restored ${result.path}`, 'success');
       // Files changed outside a tool call, so the Git view has to be refreshed here.
       this.panels.filesChanged();
+      void this.refreshGit();
     } catch (error) {
       this.toast(error);
     }
@@ -694,16 +770,6 @@ export class App {
     this.setPanelVisible(this.panelHost.hidden);
   }
 
-  private toggleSidebar(): void {
-    this.setSidebarVisible(this.sidebar.element.hidden);
-  }
-
-  private setSidebarVisible(visible: boolean): void {
-    this.sidebar.element.hidden = !visible;
-    this.sidebarButton.classList.toggle('active', visible);
-    writePreference('sidebarVisible', String(visible));
-  }
-
   private setPanelVisible(visible: boolean): void {
     this.panelHost.hidden = !visible;
     this.panelButton.classList.toggle('active', visible);
@@ -722,26 +788,5 @@ export class App {
     const toast = h('div', { class: `app-toast alert alert-${kind} shadow`, role: 'alert' }, message);
     this.toastArea.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
-  }
-}
-
-function format(tokens: number): string {
-  return tokens >= 1000 ? `${(tokens / 1000).toFixed(tokens >= 100_000 ? 0 : 1)}k` : String(tokens);
-}
-
-// UI conveniences only (panel visibility); the app works the same when storage is unavailable.
-function readPreference(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writePreference(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Ignore.
   }
 }

@@ -6,6 +6,7 @@ import '@xterm/xterm/css/xterm.css';
 // Bundled with the app (the page's CSP allows no remote fonts).
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/material-symbols-outlined';
 import './styles.css';
 import { App } from './app';
 import { installErrorReporting } from './error_reporting';

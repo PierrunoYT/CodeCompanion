@@ -153,7 +153,7 @@ describe('ChatStore', () => {
 
     expect(store.list()).toEqual([
       // Model 'm' has no known price.
-      { id: idA, title: 'Renamed', projectPath: null, updatedAt: '2026-01-02T00:00:00Z', cost: null },
+      { id: idA, title: 'Renamed', projectPath: null, updatedAt: '2026-01-02T00:00:00Z', cost: null, tokens: 0 },
     ]);
     expect(new ChatStore(join(dir, 'chats')).load(idA)?.title).toBe('Renamed');
   });

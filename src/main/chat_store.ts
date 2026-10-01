@@ -124,5 +124,6 @@ export function summarize(chat: SavedChat): ChatSummary {
     projectPath: chat.projectPath,
     updatedAt: chat.updatedAt,
     cost: usage ? estimateCost(chat.conversation.model, usage, official) : null,
+    tokens: usage ? usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + (usage.cacheWriteTokens ?? 0) : 0,
   };
 }

@@ -1,4 +1,4 @@
-import { providerForModel, SMALL_MODELS } from '@shared/models';
+import { providerForModel, SMALL_MODELS, type Provider } from '@shared/models';
 import type { SettingsStore } from '../settings';
 import { AnthropicCompletionClient, AnthropicConversation, createAnthropicClient } from './anthropic';
 import { createOpenAIClient, OpenAICompletionClient, OpenAIConversation } from './openai';
@@ -37,9 +37,21 @@ export class LlmService {
   // Prefers the pinned conversation's provider; falls back to whichever provider has a key.
   // Custom endpoints use the conversation model rather than assuming they serve OpenAI's small model.
   smallModel(conversation: Conversation): CompletionClient | null {
-    const preferred = conversation.provider;
     const customEndpoint =
-      preferred === 'openai' && conversation.serialize().api === 'chat' ? this.settings.get().openaiBaseUrl.trim() : '';
+      conversation.provider === 'openai' && conversation.serialize().api === 'chat'
+        ? this.settings.get().openaiBaseUrl.trim()
+        : '';
+    return this.smallModelFor(conversation.provider, customEndpoint, conversation.model);
+  }
+
+  // For work outside a chat (commit messages): the provider of the model in settings is preferred.
+  smallModelForSettings(): CompletionClient | null {
+    const { model, openaiBaseUrl } = this.settings.get();
+    const provider = providerForModel(model);
+    return this.smallModelFor(provider, provider === 'openai' ? openaiBaseUrl.trim() : '', model);
+  }
+
+  private smallModelFor(preferred: Provider, customEndpoint: string, customModel: string): CompletionClient | null {
     const order = preferred === 'anthropic' ? (['anthropic', 'openai'] as const) : (['openai', 'anthropic'] as const);
     for (const provider of order) {
       if (provider === 'anthropic') {
@@ -54,7 +66,7 @@ export class LlmService {
         if (key) {
           return new OpenAICompletionClient(
             createOpenAIClient(key, customEndpoint || TEST_OPENAI_BASE_URL, BACKGROUND_RETRIES),
-            customEndpoint ? conversation.model : SMALL_MODELS.openai,
+            customEndpoint ? customModel : SMALL_MODELS.openai,
           );
         }
       }

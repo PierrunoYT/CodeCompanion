@@ -1,10 +1,15 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import type { GitStatus, PanelName } from '@shared/panels';
-import { h, icon, setChildren, trustedHtml } from '../dom';
-import { renderDiff } from '../markdown';
+import { diffHunks, type DiffHunk, type GitFile, type GitStatus, type PanelName } from '@shared/panels';
+import { h, setChildren, sym } from '../dom';
+import { readPreference, writePreference } from '../format';
 
 const api = window.api;
+
+// The side panel's width in pixels: 320 by default, as wide as the user drags it, within these bounds.
+const DEFAULT_WIDTH = 320;
+const MIN_WIDTH = 260;
+const MAX_WIDTH_SHARE = 0.6;
 
 interface Panel {
   element: HTMLElement;
@@ -13,23 +18,28 @@ interface Panel {
   projectChanged(): void;
 }
 
-// Right-hand side of the window: Terminal, Git and Browser tabs. Each tab is built the first time it is shown.
+// Right-hand side of the window: Terminal, Git and Browser tabs, and a footer with the Git sync state and the app
+// version. Each tab is built the first time it is shown.
 export class Panels {
   readonly element = h('div', { class: 'panels' });
   private readonly tabBar = h('div', { class: 'panel-tabs', role: 'tablist' });
   private readonly body = h('div', { class: 'panel-body' });
+  private readonly gitBadge = h('span', { class: 'panel-badge', hidden: true });
+  private readonly syncLabel = h('span', { class: 'panel-sync' });
+  private readonly versionLabel = h('span', { class: 'panel-version' });
   private readonly panels = new Map<PanelName, Panel>();
   private active: PanelName | null = null;
 
   constructor(
-    private readonly theme: () => 'dark' | 'light',
     private readonly onError: (error: unknown) => void,
     private readonly hasProject: () => boolean,
+    // The Git tab read a new status (after a refresh, commit, push or discard).
+    private readonly onGitStatus: (status: GitStatus | null) => void,
   ) {
     const tabs: Array<[PanelName, string, string]> = [
       ['terminal', 'Terminal', 'terminal'],
-      ['git', 'Git', 'git'],
-      ['browser', 'Browser', 'window'],
+      ['git', 'Git', 'fork_right'],
+      ['browser', 'Browser', 'web'],
     ];
     for (const [name, label, iconName] of tabs) {
       this.tabBar.appendChild(
@@ -44,8 +54,9 @@ export class Panels {
             dataset: { panel: name },
             onclick: () => this.show(name),
           },
-          icon(iconName),
-          ` ${label}`,
+          sym(iconName),
+          h('span', {}, label),
+          name === 'git' ? this.gitBadge : null,
         ),
       );
     }
@@ -69,7 +80,12 @@ export class Panels {
       this.show(target);
       this.tabBar.querySelector<HTMLElement>(`#panel-tab-${target}`)?.focus();
     });
-    this.element.append(this.tabBar, this.body);
+    this.element.append(
+      this.resizeHandle(),
+      this.tabBar,
+      this.body,
+      h('div', { class: 'panel-footer' }, this.syncLabel, this.versionLabel),
+    );
   }
 
   show(name: PanelName): void {
@@ -103,20 +119,90 @@ export class Panels {
     if (this.active === 'git') this.panels.get('git')?.shown();
   }
 
+  // Uncommitted files, shown as a badge on the Git tab, and the sync state in the footer.
+  setChangeCount(count: number): void {
+    this.gitBadge.hidden = count === 0;
+    this.gitBadge.textContent = String(count);
+    this.gitBadge.setAttribute('aria-label', `${count} changed file${count === 1 ? '' : 's'}`);
+  }
+
+  setSync(status: GitStatus | null): void {
+    this.syncLabel.replaceChildren(h('span', { class: 'dot live' }), syncText(status));
+  }
+
+  setVersion(version: string): void {
+    this.versionLabel.textContent = `v${version}`;
+  }
+
+  private reportGit(status: GitStatus | null): void {
+    this.setChangeCount(status?.isRepo ? status.files.length : 0);
+    this.setSync(status);
+    this.onGitStatus(status);
+  }
+
   private create(name: PanelName): Panel {
     if (name === 'terminal') return new TerminalPanel(this.hasProject);
     if (name === 'browser') return new BrowserPanel();
-    return new GitPanel(this.theme, this.onError);
+    return new GitPanel(this.onError, (status) => this.reportGit(status));
   }
+
+  // Dragging the panel's left edge resizes it; the width is remembered.
+  private resizeHandle(): HTMLElement {
+    const handle = h('div', {
+      class: 'panel-resize',
+      role: 'separator',
+      'aria-orientation': 'vertical',
+      'aria-label': 'Resize the side panel',
+      tabindex: 0,
+    });
+    const apply = (width: number) => {
+      const host = this.element.parentElement;
+      if (!host) return;
+      const max = Math.max(MIN_WIDTH, window.innerWidth * MAX_WIDTH_SHARE);
+      const clamped = Math.round(Math.min(max, Math.max(MIN_WIDTH, width)));
+      host.style.width = `${clamped}px`;
+      writePreference('panelWidth', String(clamped));
+    };
+    requestAnimationFrame(() => apply(Number(readPreference('panelWidth')) || DEFAULT_WIDTH));
+    handle.addEventListener('pointerdown', (event) => {
+      const host = this.element.parentElement;
+      if (!host) return;
+      event.preventDefault();
+      handle.setPointerCapture(event.pointerId);
+      const right = host.getBoundingClientRect().right;
+      const move = (moved: PointerEvent) => apply(right - moved.clientX);
+      const stop = () => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', stop);
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', stop);
+    });
+    handle.addEventListener('keydown', (event) => {
+      const host = this.element.parentElement;
+      if (!host || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+      event.preventDefault();
+      apply(host.getBoundingClientRect().width + (event.key === 'ArrowLeft' ? 24 : -24));
+    });
+    return handle;
+  }
+}
+
+export function syncText(status: GitStatus | null): string {
+  if (!status) return 'Git: no project';
+  if (!status.isRepo) return 'Git: not a repository';
+  if (status.ahead || status.behind) return `Git sync: ↑${status.ahead} ↓${status.behind}`;
+  if (status.files.length) return `Git sync: ${status.files.length} uncommitted`;
+  return status.tracking ? 'Git sync: clean' : 'Git sync: clean (no upstream)';
 }
 
 class TerminalPanel implements Panel {
   readonly element = h('div', { class: 'terminal-panel' });
   private readonly terminal = new Terminal({
-    fontFamily: 'Cascadia Mono, Consolas, Menlo, monospace',
-    fontSize: 13,
+    fontFamily: "'JetBrains Mono Variable', 'Cascadia Mono', Consolas, Menlo, monospace",
+    fontSize: 12,
     cursorBlink: true,
-    theme: { background: '#0b0f14' },
+    theme: { background: '#0a0e13' },
   });
   private readonly fit = new FitAddon();
   private started = false;
@@ -208,17 +294,17 @@ class BrowserPanel implements Panel {
     });
 
     const button = (name: string, title: string, action: () => void) =>
-      h('button', { class: 'btn btn-sm btn-outline-secondary', title, onclick: action }, icon(name));
+      h('button', { class: 'icon-button', title, onclick: action }, sym(name));
 
     this.element.append(
       h(
         'div',
         { class: 'browser-toolbar' },
-        button('arrow-left', 'Back', () => this.webview.goBack()),
-        button('arrow-right', 'Forward', () => this.webview.goForward()),
-        button('arrow-clockwise', 'Reload', () => this.webview.reload()),
+        button('arrow_back', 'Back', () => this.webview.goBack()),
+        button('arrow_forward', 'Forward', () => this.webview.goForward()),
+        button('refresh', 'Reload', () => this.webview.reload()),
         this.address,
-        button('bug', 'Developer tools', () => this.webview.openDevTools()),
+        button('bug_report', 'Developer tools', () => this.webview.openDevTools()),
       ),
       this.webview,
     );
@@ -238,33 +324,52 @@ class BrowserPanel implements Panel {
   }
 }
 
+const STATUS_LETTERS: Record<GitFile['status'], string> = {
+  modified: 'M',
+  added: 'A',
+  deleted: 'D',
+  renamed: 'R',
+  untracked: 'U',
+  conflicted: 'C',
+};
+
 class GitPanel implements Panel {
   readonly element = h('div', { class: 'git-panel' });
-  private readonly fileList = h('div', { class: 'git-files list-group list-group-flush' });
-  private readonly diffView = h('div', { class: 'git-diff' });
-  private readonly message = h('input', {
-    class: 'form-control form-control-sm',
+  private readonly content = h('div', { class: 'git-content' });
+  private readonly message = h('textarea', {
+    class: 'git-message',
+    rows: 3,
     placeholder: 'Commit message',
     'aria-label': 'Commit message',
-  });
-  private readonly header = h('div', { class: 'git-header' });
-  private readonly commitButton = h(
+  }) as HTMLTextAreaElement;
+  private readonly generateButton = h(
     'button',
-    { class: 'btn btn-sm btn-primary', onclick: () => void this.commit() },
-    icon('check2'),
-    ' Commit all',
+    {
+      class: 'git-generate',
+      title: 'Write a commit message for these changes with the small model',
+      onclick: () => void this.generate(),
+    },
+    sym('auto_fix_high'),
+    h('span', {}, 'Generate'),
   );
-  private readonly branch = h('div', { class: 'git-branch' });
-  private readonly footer = h('div', { class: 'git-commit-box' }, this.message, this.commitButton, this.branch);
+  private readonly commitButton = h('button', { class: 'git-commit', onclick: () => void this.commit() });
   private selected: string | null = null;
   private status: GitStatus | null = null;
+  private hunks: DiffHunk[] = [];
+  private hunk = 0;
+  private refreshGeneration = 0;
 
   constructor(
-    private readonly theme: () => 'dark' | 'light',
     private readonly onError: (error: unknown) => void,
+    private readonly onStatus: (status: GitStatus | null) => void,
   ) {
-    this.message.addEventListener('keydown', (event) => event.key === 'Enter' && void this.commit());
-    this.element.append(this.header, h('div', { class: 'git-split' }, this.fileList, this.diffView), this.footer);
+    this.message.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        void this.commit();
+      }
+    });
+    this.element.append(this.content);
   }
 
   shown(): void {
@@ -273,27 +378,31 @@ class GitPanel implements Panel {
 
   projectChanged(): void {
     this.selected = null;
+    this.message.value = '';
   }
 
   private async refresh(): Promise<void> {
+    const generation = ++this.refreshGeneration;
+    let status: GitStatus;
     try {
-      this.status = await api.invoke('git:status');
+      status = await api.invoke('git:status');
     } catch {
-      setChildren(this.header, h('div', { class: 'text-body-secondary p-3' }, 'Open a project to see its changes.'));
-      this.fileList.replaceChildren();
-      this.diffView.replaceChildren();
-      this.footer.hidden = true;
+      if (generation !== this.refreshGeneration) return;
+      this.status = null;
+      this.onStatus(null);
+      setChildren(this.content, h('div', { class: 'git-empty' }, 'Open a project to see its changes.'));
       return;
     }
-    const status = this.status;
-    this.footer.hidden = !status.isRepo;
+    if (generation !== this.refreshGeneration) return;
+    this.status = status;
+    this.onStatus(status);
     if (!status.isRepo) {
       setChildren(
-        this.header,
+        this.content,
         h(
           'div',
-          { class: 'p-3' },
-          h('p', { class: 'text-body-secondary' }, 'This project is not a Git repository.'),
+          { class: 'git-empty' },
+          h('p', {}, 'This project is not a Git repository.'),
           h(
             'button',
             { class: 'btn btn-sm btn-outline-secondary', onclick: () => this.run(() => api.invoke('git:init')) },
@@ -301,97 +410,233 @@ class GitPanel implements Panel {
           ),
         ),
       );
-      this.fileList.replaceChildren();
-      this.diffView.replaceChildren();
       return;
     }
 
-    setChildren(
-      this.header,
+    if (this.selected && !status.files.some((file) => file.path === this.selected)) this.selected = null;
+    const diff = status.files.length ? await api.invoke('git:diff', this.selected).catch(() => '') : '';
+    if (generation !== this.refreshGeneration) return;
+    this.hunks = diffHunks(diff);
+    this.hunk = Math.min(this.hunk, Math.max(0, this.hunks.length - 1));
+
+    const changed = status.files.length;
+    const pushOnly = changed === 0 && status.canPush && status.ahead > 0;
+    this.commitButton.disabled = changed === 0 && !pushOnly;
+    this.commitButton.replaceChildren(
+      sym(status.canPush ? 'cloud_upload' : 'check'),
       h(
-        'div',
-        { class: 'git-section-title' },
-        h('span', {}, `Changed files (${status.files.length})`),
-        h(
-          'button',
-          { class: 'btn btn-sm btn-ghost ms-auto', title: 'Refresh', onclick: () => void this.refresh() },
-          icon('arrow-clockwise'),
-        ),
+        'span',
+        {},
+        pushOnly
+          ? `Push ${status.ahead} commit${status.ahead === 1 ? '' : 's'}`
+          : status.canPush
+            ? 'Commit & Push'
+            : 'Commit all',
       ),
     );
-    this.commitButton.disabled = status.files.length === 0;
-    this.branch.replaceChildren(icon('git'), ` ${status.branch ?? 'detached'}`);
+    this.commitButton.title = status.canPush
+      ? `Commit every change, then push to ${status.tracking ?? 'origin'} (Ctrl+Enter in the message)`
+      : 'Commit every change (Ctrl+Enter in the message). The repository has no remote to push to.';
+    this.generateButton.disabled = changed === 0;
 
-    if (this.selected && !status.files.some((file) => file.path === this.selected)) this.selected = null;
     setChildren(
-      this.fileList,
-      status.files.length === 0 ? h('div', { class: 'text-body-secondary p-3' }, 'No changes.') : null,
-      ...status.files.map((file) =>
+      this.content,
+      h(
+        'section',
+        {},
         h(
           'div',
-          { class: `list-group-item git-file${file.path === this.selected ? ' active' : ''}` },
-          h(
-            'button',
-            {
-              class: 'btn btn-link p-0 text-reset text-decoration-none text-truncate text-start flex-grow-1',
-              title: file.path,
-              onclick: () => this.select(file.path),
-            },
-            file.path,
-          ),
-          h(
-            'span',
-            { class: `git-status git-${file.status}`, title: file.status, 'aria-label': file.status },
-            file.status.charAt(0).toUpperCase(),
-          ),
-          h(
-            'button',
-            {
-              class: 'btn btn-sm btn-link p-0 text-secondary',
-              title: file.status === 'untracked' ? 'Delete new file' : 'Discard changes',
-              onclick: () => {
-                const verb = file.status === 'untracked' ? 'Delete the new file' : 'Discard all changes to';
-                if (confirm(`${verb} ${file.path}?`)) this.run(() => api.invoke('git:discard', file.path));
-              },
-            },
-            icon('arrow-counterclockwise'),
-          ),
+          { class: 'git-section-title' },
+          h('span', {}, `CHANGED FILES (${changed})`),
+          changed
+            ? h(
+                'button',
+                {
+                  class: 'git-link',
+                  onclick: () => {
+                    if (confirm(`Discard all ${changed} changes? New files are deleted. This cannot be undone.`))
+                      this.run(() => api.invoke('git:discard-all'));
+                  },
+                },
+                'Discard All',
+              )
+            : null,
+        ),
+        changed === 0
+          ? h('div', { class: 'git-empty' }, 'No changes.')
+          : h('div', { class: 'git-files' }, ...status.files.map((file) => this.fileRow(file))),
+      ),
+      changed ? this.diffPreview() : null,
+      h(
+        'section',
+        { class: 'git-commit-box' },
+        h('div', { class: 'git-section-title' }, h('span', {}, 'COMMIT MESSAGE'), this.generateButton),
+        this.message,
+        this.commitButton,
+        h(
+          'div',
+          { class: 'git-branch' },
+          h('span', {}, sym('fork_right', 'accent'), ` Branch: ${status.branch ?? 'detached'}`),
+          changed
+            ? h('span', { class: 'git-uncommitted' }, `● ${changed} uncommitted`)
+            : h('span', {}, status.ahead ? `↑${status.ahead} to push` : 'clean'),
         ),
       ),
     );
-    await this.renderDiff();
+  }
+
+  private fileRow(file: GitFile): HTMLElement {
+    const counts =
+      file.added === undefined
+        ? ''
+        : `+${file.added}${file.removed ? ` -${file.removed}` : file.status === 'modified' ? ' -0' : ''}`;
+    return h(
+      'div',
+      { class: `git-file${file.path === this.selected ? ' active' : ''}` },
+      h(
+        'button',
+        {
+          class: 'git-file-name',
+          title: file.path,
+          'aria-pressed': String(file.path === this.selected),
+          onclick: () => this.select(file.path),
+        },
+        h(
+          'span',
+          { class: `git-status git-${file.status}`, title: file.status, 'aria-label': file.status },
+          STATUS_LETTERS[file.status],
+        ),
+        h('span', { class: 'git-path' }, file.path),
+      ),
+      counts
+        ? h('span', { class: 'git-counts', 'aria-label': `${file.added} added, ${file.removed} removed` }, counts)
+        : null,
+      h(
+        'button',
+        {
+          class: 'git-discard',
+          title: file.status === 'untracked' ? 'Delete new file' : 'Discard changes',
+          onclick: () => {
+            const verb = file.status === 'untracked' ? 'Delete the new file' : 'Discard all changes to';
+            if (confirm(`${verb} ${file.path}?`)) this.run(() => api.invoke('git:discard', file.path));
+          },
+        },
+        sym('undo'),
+      ),
+    );
+  }
+
+  // One hunk at a time, of the selected file or of all changes.
+  private diffPreview(): HTMLElement {
+    const hunk = this.hunks[this.hunk];
+    const step = (by: number) => {
+      this.hunk = (this.hunk + by + this.hunks.length) % this.hunks.length;
+      const preview = this.content.querySelector('.git-diff');
+      preview?.replaceWith(this.diffPreview());
+    };
+    return h(
+      'section',
+      { class: 'git-diff' },
+      h('div', { class: 'git-section-title' }, h('span', {}, 'DIFF PREVIEW')),
+      h(
+        'div',
+        { class: 'git-diff-box' },
+        hunk
+          ? h(
+              'div',
+              { class: 'git-diff-header' },
+              h('span', { class: 'git-diff-file', title: hunk.file }, hunk.file.split('/').pop() ?? hunk.file),
+              h(
+                'span',
+                { class: 'git-hunks' },
+                this.hunks.length > 1
+                  ? h(
+                      'button',
+                      { class: 'git-link', 'aria-label': 'Previous hunk', onclick: () => step(-1) },
+                      sym('chevron_left'),
+                    )
+                  : null,
+                `Hunk ${this.hunk + 1}/${this.hunks.length}`,
+                this.hunks.length > 1
+                  ? h(
+                      'button',
+                      { class: 'git-link', 'aria-label': 'Next hunk', onclick: () => step(1) },
+                      sym('chevron_right'),
+                    )
+                  : null,
+              ),
+            )
+          : h('div', { class: 'git-diff-header' }, h('span', {}, 'No textual changes.')),
+        hunk
+          ? h(
+              'div',
+              { class: 'git-diff-lines' },
+              ...hunk.lines.map((line) =>
+                h(
+                  'div',
+                  {
+                    class: `git-diff-line${line.startsWith('+') ? ' add' : line.startsWith('-') ? ' del' : ''}`,
+                    title: line,
+                  },
+                  line || ' ',
+                ),
+              ),
+            )
+          : null,
+      ),
+    );
   }
 
   private select(path: string): void {
     this.selected = this.selected === path ? null : path;
+    this.hunk = 0;
     void this.refresh();
   }
 
-  private async renderDiff(): Promise<void> {
-    if (!this.status?.files.length) {
-      this.diffView.replaceChildren();
-      return;
+  private async generate(): Promise<void> {
+    this.generateButton.disabled = true;
+    this.generateButton.classList.add('busy');
+    try {
+      this.message.value = await api.invoke('git:suggest-message');
+      this.message.focus();
+    } catch (error) {
+      this.onError(error);
+    } finally {
+      this.generateButton.classList.remove('busy');
+      this.generateButton.disabled = !this.status?.files.length;
     }
-    const diff = await api.invoke('git:diff', this.selected);
-    setChildren(
-      this.diffView,
-      diff
-        ? trustedHtml('div', '', renderDiff(diff, this.theme()))
-        : h('div', { class: 'text-body-secondary p-3' }, 'No textual changes.'),
-    );
   }
 
   private async commit(): Promise<void> {
+    const status = this.status;
+    if (!status?.isRepo) return;
+    const pushOnly = status.files.length === 0 && status.canPush && status.ahead > 0;
     const message = this.message.value.trim();
-    if (!message) {
+    if (!pushOnly && !message) {
       this.message.focus();
       return;
     }
-    this.run(async () => {
-      const status = await api.invoke('git:commit', message);
-      this.message.value = '';
-      return status;
-    });
+    this.commitButton.disabled = true;
+    try {
+      if (!pushOnly) {
+        await api.invoke('git:commit', message);
+        this.message.value = '';
+      }
+      if (status.canPush) {
+        try {
+          await api.invoke('git:push');
+        } catch (error) {
+          const reason =
+            error instanceof Error
+              ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+              : String(error);
+          this.onError(pushOnly ? `Push failed: ${reason}` : `Committed, but the push failed: ${reason}`);
+        }
+      }
+    } catch (error) {
+      this.onError(error);
+    }
+    void this.refresh();
   }
 
   private run(action: () => Promise<unknown>): void {

@@ -21,9 +21,13 @@ import { McpHub } from './tools/mcp';
 import { Workspace } from './tools/workspace';
 import type { IndexStatus } from '@shared/ipc';
 import { BrowserService } from './panels/browser';
+import { suggestCommitMessage } from './panels/commit_message';
 import { GitService } from './panels/git';
 import { TerminalService } from './panels/terminal';
 import { createMainWindow } from './window';
+
+// Files offered for @-mentions in the composer; a larger project lists the first ones, breadth first.
+const MAX_MENTION_FILES = 20_000;
 
 app.setName('Patch');
 
@@ -297,6 +301,12 @@ function start(): void {
     if (!project) throw new Error('No project is open.');
     openInEditor(settings.get().editorCommand, project.path, path);
   });
+  handle('files:list', async () => {
+    const project = projects.current();
+    if (!project) return [];
+    const workspace = new Workspace(project.path);
+    return (await workspace.listFiles(workspace.root, MAX_MENTION_FILES)).map((file) => workspace.relative(file));
+  });
 
   handle('terminal:start', (cols, rows) => {
     const project = projects.current();
@@ -310,7 +320,18 @@ function start(): void {
   handle('git:diff', (path) => git().diff(path));
   handle('git:commit', (message) => git().commit(message));
   handle('git:discard', (path) => git().discard(path));
+  handle('git:discard-all', () => git().discardAll());
   handle('git:init', () => git().init());
+  handle('git:push', () => git().push());
+  handle('git:suggest-message', async () => {
+    const service = git();
+    const [status, diff] = await Promise.all([service.status(), service.diff(null)]);
+    return suggestCommitMessage(
+      llm.smallModelForSettings(),
+      diff,
+      status.files.map((file) => file.path),
+    );
+  });
 
   const openWindow = () => createMainWindow((guest) => browser.attach(guest));
   buildMenu(() => mainWindow, join(userData, 'logs'));

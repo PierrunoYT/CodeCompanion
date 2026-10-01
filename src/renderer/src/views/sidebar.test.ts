@@ -14,8 +14,10 @@ describe('chat list labels', () => {
 
   it('says how long ago a chat was updated', () => {
     expect(relativeTime(at(0), now)).toBe('just now');
-    expect(relativeTime(at(0, 0, 10), now)).toBe('10 min ago');
-    expect(relativeTime(at(0, 5), now)).toBe('5 h ago');
+    expect(relativeTime(at(0, 0, 10), now)).toBe('10m ago');
+    expect(relativeTime(at(0, 5), now)).toBe('5h ago');
+    expect(relativeTime(at(0, 22), now)).toBe('22h ago');
+    expect(relativeTime(at(1, 2), now)).toBe('Yesterday');
     expect(relativeTime(at(2), now)).toBe(new Date(at(2)).toLocaleDateString());
   });
 });

@@ -89,7 +89,7 @@ describe('switching between open projects (mock Claude API)', () => {
     expect(betaSystem).toContain('BETA-PROJECT-INSTRUCTIONS');
     expect(betaSystem).not.toContain('ALPHA-AGENTS-RULES');
     // The status bar says which instruction file the chat on screen uses.
-    expect(await running.page.getByText('AGENTS.md loaded').isVisible()).toBe(false);
+    expect(await running.page.locator('.app-footer').getByText('AGENTS.md').isVisible()).toBe(false);
   });
 
   it('keeps attached images with the draft of their own project', async () => {
@@ -102,7 +102,7 @@ describe('switching between open projects (mock Claude API)', () => {
     await running.page.getByText('Alpha answered.', { exact: true }).waitFor();
     expect(await message().inputValue()).toBe('');
     expect(await attachments().count()).toBe(0);
-    expect(await running.page.getByText('AGENTS.md loaded').isVisible()).toBe(true);
+    expect(await running.page.locator('.app-footer').getByText('AGENTS.md').isVisible()).toBe(true);
     await pasteImage('alpha-shot.png');
     await attachments().filter({ hasText: 'alpha-shot.png' }).waitFor();
 

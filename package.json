@@ -40,7 +40,6 @@
         "to": "icon.png"
       }
     ],
-    "afterPack": "scripts/after-pack.mjs",
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
@@ -48,6 +47,7 @@
     "mac": {
       "icon": "build/icon.icns",
       "x64ArchFiles": "**/node-pty/prebuilds/darwin-arm64/**",
+      "singleArchFiles": "node_modules/node-pty/prebuilds/darwin-*/**",
       "target": [
         {
           "target": "default",

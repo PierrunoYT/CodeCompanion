@@ -71,6 +71,11 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run test:e2e
 
+      # test:e2e builds out/ on Windows; the other legs skip it, so they need their own build before packaging.
+      - name: Build the app
+        if: runner.os != 'Windows'
+        run: npm run build
+
       # The Linux prebuild does not exist, and a binary compiled for Node would not load in Electron.
       - name: Rebuild node-pty for Electron
         if: runner.os == 'Linux'
@@ -192,7 +197,7 @@ jobs:
             echo "SHA-256 of \`Patch-Installer.exe\`: \`$(grep ' Patch-Installer.exe$' dist/SHA256SUMS.txt | cut -d' ' -f1)\` (every file's checksum is in \`SHA256SUMS.txt\`)."
             echo "The Windows installer and app are code-signed; both Authenticode signatures were verified before publishing."
             echo
-            echo "The Windows installer is the supported download. The Linux AppImage and deb, and the macOS DMG, are experimental: they are built by CI but have not been tested by hand. The macOS app is not code-signed, so macOS may report it as damaged after download; after copying it to Applications, run \`xattr -cr /Applications/Patch.app\` to open it."
+            echo "The Windows installer is the supported download. The Linux AppImage and deb, and the macOS DMG, are experimental: they are built by CI but have not been tested by hand. The macOS app is not code-signed, so macOS may report it as damaged after download; after copying it to Applications, \`xattr -cr /Applications/Patch.app\` clears the quarantine flag. Whether the unsigned app then launches has not been checked yet (#22)."
             if [ -n "$MISSING_PACKAGES" ]; then
               echo
               echo "Not included in this release because their build failed: $MISSING_PACKAGES."

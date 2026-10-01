@@ -46,7 +46,7 @@
     "npmRebuild": false,
     "mac": {
       "icon": "build/icon.icns",
-      "x64ArchFiles": "**/node-pty/prebuilds/darwin-arm64/**",
+      "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/**",
       "singleArchFiles": "node_modules/node-pty/prebuilds/darwin-*/**",
       "target": [
         {

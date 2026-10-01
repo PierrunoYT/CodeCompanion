@@ -65,7 +65,8 @@ jobs:
       - run: npm run test:unit
 
       # End-to-end tests stay on Windows. They fail on the macOS runners (node-pty cannot spawn a shell) and the
-      # long_run streaming test times out on Linux, so running them here would stop the Windows release too.
+      # long_run streaming test times out on Linux. A failing Linux or macOS leg only drops its own packages from the
+      # release (see the release job), but there is no point building them from a run that is known to fail.
       - name: End-to-end tests
         if: runner.os == 'Windows'
         run: npm run test:e2e
@@ -121,8 +122,11 @@ jobs:
             dist/*.AppImage
             dist/*.deb
 
+  # Runs even when a build leg failed, so an experimental Linux or macOS failure cannot hold back the supported Windows
+  # installer. The release still requires the Windows installer (checked below) and is skipped if the run is cancelled.
   release:
     needs: build
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -146,10 +150,27 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Only the Windows leg uploads an .exe, and it uploads only after its tests passed and both signatures verified.
+      # Without it there is no release; missing Linux or macOS packages are named in the release notes instead.
+      - name: Require the signed Windows installer
+        shell: bash
+        run: |
+          if [ ! -f dist/Patch-Installer.exe ]; then
+            echo "::error::The Windows build failed, so there is no installer to release."
+            exit 1
+          fi
+          missing=()
+          for pattern in '*.AppImage' '*.deb' '*.dmg'; do
+            compgen -G "dist/$pattern" > /dev/null || missing+=("$pattern")
+          done
+          echo "MISSING_PACKAGES=${missing[*]}" >> "$GITHUB_ENV"
+
       # A checksum file, attached to the release, so a download can be verified.
       - name: Write the checksums
         shell: bash
-        run: (cd dist && sha256sum *.exe *.dmg *.AppImage *.deb > SHA256SUMS.txt && cat SHA256SUMS.txt)
+        run: |
+          shopt -s nullglob
+          (cd dist && sha256sum *.exe *.dmg *.AppImage *.deb > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       # Release notes: this version's section of CHANGELOG.md plus a link to the full file at this tag. The Linux and
       # macOS packages are attached but called out as untested, so a release does not imply they are supported.
@@ -171,7 +192,11 @@ jobs:
             echo "SHA-256 of \`Patch-Installer.exe\`: \`$(grep ' Patch-Installer.exe$' dist/SHA256SUMS.txt | cut -d' ' -f1)\` (every file's checksum is in \`SHA256SUMS.txt\`)."
             echo "The Windows installer and app are code-signed; both Authenticode signatures were verified before publishing."
             echo
-            echo "The Windows installer is the supported download. The Linux AppImage and deb, and the macOS DMG, are experimental: they are built by CI but have not been tested by hand. The macOS DMG is unsigned, so Gatekeeper asks before first launch."
+            echo "The Windows installer is the supported download. The Linux AppImage and deb, and the macOS DMG, are experimental: they are built by CI but have not been tested by hand. The macOS app is not code-signed, so macOS may report it as damaged after download; after copying it to Applications, run \`xattr -cr /Applications/Patch.app\` to open it."
+            if [ -n "$MISSING_PACKAGES" ]; then
+              echo
+              echo "Not included in this release because their build failed: $MISSING_PACKAGES."
+            fi
             echo
             echo "Full changelog: https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md"
           } >> release-notes.md
@@ -180,4 +205,6 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.dmg dist/*.AppImage dist/*.deb dist/SHA256SUMS.txt --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        run: |
+          shopt -s nullglob
+          gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.dmg dist/*.AppImage dist/*.deb dist/SHA256SUMS.txt --title "$GITHUB_REF_NAME" --notes-file release-notes.md

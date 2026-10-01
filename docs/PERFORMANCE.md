@@ -4,7 +4,7 @@
 
 **Question:** does the chat UI need a virtualized or paginated message list for long chats?
 
-**Answer:** not at this point. Three targeted changes roughly halved opening time and improved long-chat rendering, but the initial claim that a 5,000-item chat streamed as smoothly as an empty chat was based on an off-screen answer. The later [Windows bisection](#windows-bisection-2026-09-30) measured 14–21 ms median frames while actually following the answer, versus the earlier 7 ms off-screen result. Remaining costs include layout across the long transcript and rendering the growing answer.
+**Answer:** not at this point. Three targeted changes roughly halved opening time and improved long-chat rendering, but the initial claim that a 5,000-item chat streamed as smoothly as an empty chat was based on an off-screen answer. The later [Windows bisection](#windows-bisection-2026-09-30) measured 14–21 ms median frames while actually following the answer, versus the earlier 7 ms off-screen result. [Grouping the items into chunks](#chunked-transcript-2026-10-01) removed that cost: a 5,000-item chat now streams at the empty chat's 7 ms median frame while following the answer, which the benchmark now checks. What remains is rendering the growing answer, which is the same in an empty chat.
 
 ### How it is measured
 
@@ -20,6 +20,7 @@
 - **Streaming:** a 20,000-character answer (prose, lists, code blocks) streamed by the mock API as 400 deltas, 5 ms apart. The chat is streamed into twice: once empty, once after the long chat has been opened. Measured while it arrives:
   - `requestAnimationFrame` intervals (p50, p95, worst)
   - Chromium's script, layout and style-recalculation time, from the DevTools protocol's `Performance.getMetrics`
+  - `maxBottomGapPx`, the view's largest distance from the bottom, sampled every 250 ms. Above 80 px the view was not following the answer, and the frame times measure an answer off screen that Chromium skips
 - **Window:** the invisible e2e test window, with background throttling off.
 
 Machine: Intel Core Ultra 9 285K (24 threads), 47 GB RAM, Windows 11, Electron 44.4.5, 144 Hz display (a 7 ms frame is a full frame rate). Treat the numbers as relative; they vary by machine.
@@ -135,8 +136,31 @@ it. The 7 ms was the benchmark measuring a chat that was not following. With the
 see), the streamed item is on screen and is laid out on every frame. The extra 0.6 s of layout over the empty chat
 (0.5 s) is the price of 5,000 `content-visibility: auto` siblings around it; none of the small pieces accounts for it.
 
-Ruled out: the focus check, the `ResizeObserver` and flex layout (a small gain, not kept). Not tried: grouping older
-items into a few `content-visibility` chunks, so fewer elements take part in each layout.
+Ruled out: the focus check, the `ResizeObserver` and flex layout (a small gain, not kept). Grouping the items into
+`content-visibility` chunks, measured next, fixed it.
+
+#### Chunked transcript (2026-10-01)
+
+`TranscriptView` now places items in `.transcript-chunk` containers of 50 (`CHUNK_SIZE`). Each chunk is a flex column
+with `content-visibility: auto` and `contain-intrinsic-size: auto 6000px`, and the items inside keep their own
+`content-visibility: auto`. A frame at the bottom of a 5,000-item chat lays out 100 chunks, almost all skipped, plus
+the 50 items of the last chunk, instead of 5,000 siblings. An item's chunk is fixed by its position, so a streamed
+update still changes one element in place.
+
+Windows machine above, 1,000 turns (5,000 items), same build apart from the change. Three runs with chunks, two
+without. In every run of both variants the view stayed 1 px from the bottom (`maxBottomGapPx`), so both measure a
+followed, visible answer:
+
+| 5,000-item chat while streaming | Frame p50 / p95 | Frames drawn | Layout      | Script      |
+| ------------------------------- | --------------- | ------------ | ----------- | ----------- |
+| Empty chat (reference)          | 7 / 21 ms       | 672–683      | 0.65–0.67 s | 2.26–2.29 s |
+| Without chunks                  | 21 / 35 ms      | 300–322      | 1.26–1.28 s | 2.08 s      |
+| With chunks                     | 7 / 21–28 ms    | 521–652      | 0.63–0.68 s | 2.91–3.19 s |
+
+Layout during the stream is back to the empty chat's, and twice as many frames are drawn. Script time is higher
+because more frames means more renders of the growing answer's Markdown (see "Not changed, and why" below); per frame
+it is lower. Opening is unchanged (1.14–1.27 s). `tests/e2e/transcript_view.test.ts` checks that 200 items land in
+four chunks in order, and that opening at the end, following a new approval card and Undo focus still work.
 
 ### Not changed, and why
 

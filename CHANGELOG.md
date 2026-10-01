@@ -51,6 +51,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Fixed
 
+- Streaming an answer at the bottom of a very long chat is smooth again: the transcript groups its items into chunks of 50 that the browser skips while off screen, so a 5,000-item chat streams at the same 7 ms median frame as an empty one, instead of 21–28 ms. The performance benchmark now also checks that the view is following the answer (#19).
 - Starting Patch a second time on the same profile brings the open window forward instead of running a second instance, which overwrote the first one's settings, projects and chat index (#31).
 - Closing, removing or editing a project whose path was given through a link (such as macOS's `/var` for `/private/var`) no longer fails with "Unknown project": `ProjectStore` looks every path up by its real path, like opening already did. A project whose folder later becomes a link elsewhere can still be closed and removed.
 - Prevent commands from starting after Stop, cancel foreground and active-project background process trees (including startup waits), and avoid hangs when child processes retain output pipes. Other projects' background jobs remain independent.

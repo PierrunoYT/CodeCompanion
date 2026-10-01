@@ -74,6 +74,13 @@ describe('the transcript view (mock Claude API)', () => {
     await running.page.evaluate((id) => window.api.invoke('history:open', id), LONG_ID);
     await running.page.getByText('Answer 99', { exact: true }).waitFor();
     await expect.poll(distanceFromBottom, { timeout: 5_000 }).toBeLessThan(5);
+    // The 200 items are grouped 50 to a chunk (CHUNK_SIZE), in order.
+    const layout = await running.page.evaluate(() => ({
+      chunks: [...document.querySelectorAll('.transcript > .transcript-chunk')].map((chunk) => chunk.children.length),
+      ids: [...document.querySelectorAll<HTMLElement>('.transcript-chunk > [data-id]')].map((node) => node.dataset.id),
+    }));
+    expect(layout.chunks).toEqual([50, 50, 50, 50]);
+    expect(layout.ids).toEqual(longTranscript().map((item) => item.id));
   });
 
   it('keeps following the bottom when a tall approval card arrives, so Approve is in view', async () => {

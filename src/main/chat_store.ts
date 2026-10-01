@@ -28,7 +28,11 @@ export class ChatStore {
   // Returns whether the index was written, i.e. whether the chat list changed.
   save(chat: SavedChat, checkpoint = false): boolean {
     writeJson(this.chatFile(chat.id), chat);
-    if (checkpoint && this.index.some((item) => item.id === chat.id)) return false;
+    if (checkpoint && this.index.some((item) => item.id === chat.id)) {
+      // The cached search text is keyed to the index timestamp, which a checkpoint leaves unchanged.
+      this.textCache.delete(chat.id);
+      return false;
+    }
     const summary = summarize(chat);
     this.index = [summary, ...this.index.filter((item) => item.id !== chat.id)];
     writeJson(this.indexFile, this.index);

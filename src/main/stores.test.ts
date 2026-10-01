@@ -75,6 +75,17 @@ describe('ChatStore', () => {
     expect(store.list()[0]?.title).toBe('Later');
   });
 
+  it('searches the text a checkpoint wrote, though the index timestamp is unchanged', () => {
+    const store = new ChatStore(join(dir, 'chats'));
+    const user = (text: string) => ({ kind: 'user' as const, id: 'u1', text, imageCount: 0 });
+    store.save({ ...chat(idA, '2026-01-01T00:00:00Z'), transcript: [user('first draft')] });
+    expect(store.search('draft').map((item) => item.id)).toEqual([idA]);
+
+    store.save({ ...chat(idA, '2026-01-01T00:00:00Z'), transcript: [user('second version')] }, true);
+    expect(store.search('version').map((item) => item.id)).toEqual([idA]);
+    expect(store.search('draft')).toEqual([]);
+  });
+
   it('searches titles, projects and message text, and explains message matches', () => {
     const store = new ChatStore(join(dir, 'chats'));
     const first = {

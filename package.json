@@ -40,12 +40,14 @@
         "to": "icon.png"
       }
     ],
+    "afterPack": "scripts/after-pack.mjs",
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
     "npmRebuild": false,
     "mac": {
       "icon": "build/icon.icns",
+      "x64ArchFiles": "**/node-pty/prebuilds/darwin-arm64/**",
       "target": [
         {
           "target": "default",

@@ -60,7 +60,7 @@ Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/
 
 Both local packaging scripts pass `--publish never`, including when CI environment variables are present. They build artifacts only and do not require a GitHub publishing token. The tag-triggered release workflow publishes explicitly.
 
-Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s Windows and macOS prebuilt binaries work across Electron versions. Linux has no prebuild, so rebuild `node-pty` for Electron before packaging there (CI does). macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
+Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s Windows and macOS prebuilt binaries work across Electron versions. Linux has no prebuild, so rebuild `node-pty` for Electron before packaging there (CI does). The macOS target is a universal app. `scripts/after-pack.mjs` drops the other architecture's `node-pty` prebuild from each build; otherwise both contain the same `darwin-arm64` binary and `@electron/universal` refuses to merge them. That arm64 prebuild is also listed in `mac.x64ArchFiles`, because it is already a universal Mach-O and must not be merged again. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
 
 ### Application icons
 

@@ -1,17 +1,25 @@
 name: Release
 
-# Push a tag such as v0.1.0 to build the Windows installer and attach it to a GitHub release.
+# Push a tag such as v0.1.0 to build the installers and attach them to a GitHub release. Linux and macOS packages
+# are experimental until they have been tested by hand (see the GitHub issue for that); the Windows installer is
+# the supported release.
 on:
   push:
     tags: ['v*']
 
+# Build jobs run third-party install scripts, so they only get a read token. The release job is the one that writes.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -19,6 +27,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # node-pty compiles from source on Linux and needs a compiler and Python.
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3
 
       - run: npm ci
 
@@ -36,12 +49,69 @@ jobs:
 
       - run: npm run typecheck
       - run: npm run test:unit
-      - run: npm run test:e2e
 
-      # Build the NSIS installer without publishing; the release is created below.
-      - run: npx electron-builder --win --publish never
+      # End-to-end tests stay on Windows. They fail on the macOS runners (node-pty cannot spawn a shell) and the
+      # long_run streaming test times out on Linux, so running them here would stop the Windows release too.
+      - name: End-to-end tests
+        if: runner.os == 'Windows'
+        run: npm run test:e2e
 
-      # Release notes: this version's section of CHANGELOG.md plus a link to the full file at this tag.
+      # The Linux prebuild does not exist, and a binary compiled for Node would not load in Electron.
+      - name: Rebuild node-pty for Electron
+        if: runner.os == 'Linux'
+        run: npx @electron/rebuild -f -w node-pty
+
+      # Builds this platform's targets from package.json without publishing. The release job publishes.
+      - run: npx electron-builder --publish never
+
+      - name: The Linux package contains the Electron node-pty binary
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          unpacked=$(find dist -type d -name 'linux-unpacked' | head -1)
+          test -n "$unpacked"
+          node_file=$(find "$unpacked" -path '*node-pty*pty.node' | head -1)
+          test -n "$node_file"
+          echo "packaged pty: $node_file"
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The tag check already ran on every build leg, which this job requires. It is repeated here so a future change
+      # that stops requiring every leg cannot publish notes for a tag that does not match package.json.
+      - name: Check the tag matches the package version
+        shell: bash
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: dist
+          merge-multiple: true
+
+      # Release notes: this version's section of CHANGELOG.md plus a link to the full file at this tag. The Linux and
+      # macOS packages are attached but called out as untested, so a release does not imply they are supported.
       - name: Write the release notes
         shell: bash
         run: |
@@ -57,6 +127,9 @@ jobs:
           {
             echo
             echo "---"
+            echo
+            echo "The Windows installer is the supported download. The Linux AppImage and deb, and the macOS DMG, are experimental: they are built by CI but have not been tested by hand. The macOS DMG is unsigned, so Gatekeeper asks before first launch."
+            echo
             echo "Full changelog: https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md"
           } >> release-notes.md
 
@@ -64,4 +137,4 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "dist/Patch-Installer.exe" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        run: gh release create "$GITHUB_REF_NAME" dist/Patch-* --title "$GITHUB_REF_NAME" --notes-file release-notes.md

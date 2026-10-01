@@ -11,7 +11,7 @@ npm run dev        # hot-reloading renderer, rebuilds main/preload on change
 
 npm 11 runs dependency install scripts only for packages listed under `allowScripts` in `package.json` (`electron`, `esbuild`). If `node_modules/electron/dist` is missing after installing, run `node node_modules/electron/install.js`.
 
-`node-pty` ships prebuilt binaries for Windows and macOS (x64 and arm64), so no compiler is needed there. On Linux it compiles from source; see the [node-pty prerequisites](https://github.com/microsoft/node-pty#dependencies).
+`node-pty` ships prebuilt binaries for Windows and macOS (x64 and arm64), so no compiler is needed there. On Linux it compiles from source; see the [node-pty prerequisites](https://github.com/microsoft/node-pty#dependencies). A binary compiled for Node will not load in the packaged app, so a Linux package has to be built with `npx @electron/rebuild -f -w node-pty` first. CI does that before `electron-builder` and checks the package contains `pty.node`.
 
 ### Amp orbs
 
@@ -60,7 +60,7 @@ Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/
 
 Both local packaging scripts pass `--publish never`, including when CI environment variables are present. They build artifacts only and do not require a GitHub publishing token. The tag-triggered release workflow publishes explicitly.
 
-Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
+Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s Windows and macOS prebuilt binaries work across Electron versions. Linux has no prebuild, so rebuild `node-pty` for Electron before packaging there (CI does). macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
 
 ### Application icons
 
@@ -70,13 +70,15 @@ The Windows executable, installer, and uninstaller use `build/icon.ico`; macOS u
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request. The `test` job runs on `windows-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e`. Two separate jobs run on `ubuntu-latest`: `format` runs `npm run format:check` and fails when a file is not Prettier-formatted, and `lint` runs `npm run lint` and fails on any ESLint error. Run the same commands locally before pushing (`npm run format` fixes formatting). Windows is the only supported platform. Linux and macOS are not tested in CI: `node-pty` cannot spawn a shell on the macOS runners and the `long_run` end-to-end test times out on Linux. Bringing them back is tracked in [#14](https://github.com/PierrunoYT/patch/issues/14).
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request. The `test` job runs on `windows-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e`. Two separate jobs run on `ubuntu-latest`: `format` runs `npm run format:check` and fails when a file is not Prettier-formatted, and `lint` runs `npm run lint` and fails on any ESLint error. Run the same commands locally before pushing (`npm run format` fixes formatting). Windows is the only supported platform. Linux and macOS are not part of the test job: `node-pty` cannot spawn a shell on the macOS runners and the `long_run` end-to-end test times out on Linux. Bringing those tests back is tracked in [#14](https://github.com/PierrunoYT/patch/issues/14).
+
+A `package` job builds the Linux (AppImage and deb) and macOS (universal DMG) installers on every pull request and uploads them as artifacts, so a change that stops them building fails CI. It does not run the end-to-end suite and does not mean those builds have been used. Trying the packaged apps by hand is tracked in [#22](https://github.com/PierrunoYT/patch/issues/22).
 
 Pull requests into `main` need one approving review before they can be merged (repository ruleset "Require approval on main"). GitHub does not count an author's approval of their own pull request; the repository admin can bypass the rule, which also keeps direct pushes to `main` working for the maintainer.
 
 Patch's changelog follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). Historical changes are consolidated under `Unreleased`; the package version alone does not indicate a published Patch release. Add user-facing entries under the applicable `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security` category, omitting empty categories. When publishing Patch, move the relevant entries into `## [x.y.z] - YYYY-MM-DD`, retain an `Unreleased` section, link the release heading to its tag, and update the `Unreleased` link to compare that tag with `HEAD`. Do not link to the removed releases.
 
-`.github/workflows/release.yml` runs when a tag such as `v0.1.0` is pushed. It checks that the tag matches the `package.json` version, runs the same checks as CI, builds the Windows installer with `electron-builder` and creates a GitHub release with `Patch-Installer.exe` attached. The release notes are the matching `## [x.y.z]` section of `CHANGELOG.md` plus a link to the full file at that tag; the run fails if the section is missing. To release: add the `## [x.y.z] - date` section to `CHANGELOG.md`, update the version, commit, then `git tag v0.1.0` and `git push origin v0.1.0`.
+`.github/workflows/release.yml` runs when a tag such as `v0.1.0` is pushed. It checks that the tag matches the `package.json` version, runs typecheck and unit tests on all three platforms and the end-to-end tests on Windows only, builds each platform's installers with `electron-builder` (NSIS on Windows, AppImage and deb on Linux, universal DMG on macOS) and creates a GitHub release with all of them attached. The release notes say the Linux and macOS packages are experimental and untested. The macOS DMG is unsigned, so Gatekeeper asks before first launch; signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …) and need an Apple Developer account. Build jobs have read-only repository permissions; only the release job can write. The release notes are the matching `## [x.y.z]` section of `CHANGELOG.md` plus a link to the full file at that tag; the run fails if the section is missing. To release: add the `## [x.y.z] - date` section to `CHANGELOG.md`, update the version, commit, then `git tag v0.1.0` and `git push origin v0.1.0`.
 
 Before tagging, use the built app once against the real Anthropic and OpenAI APIs (with a throwaway profile via `PATCH_USER_DATA`): a task that edits a file, Undo, Stop and Resume, an image, and Compact chat on a chat with a few large file reads. The mock APIs in the end-to-end tests accept requests the real APIs reject; before 0.2.0, that let a bug through that made OpenAI chats fail after the first turn.
 

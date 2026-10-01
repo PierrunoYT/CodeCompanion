@@ -42,9 +42,9 @@ jobs:
     name: test
     runs-on: windows-latest
     timeout-minutes: 25
-    # Linux and macOS are not part of CI yet: node-pty cannot spawn a shell on the macOS runners and the long_run
-    # streaming test times out on Linux, both of which also fail on upstream main. Tracked as a GitHub issue; the
-    # jobs come back once those are fixed.
+    # Linux and macOS are not part of the test job yet: node-pty cannot spawn a shell on the macOS runners and the
+    # long_run streaming test times out on Linux, both of which also fail on upstream main. Tracked as a GitHub issue;
+    # the jobs come back once those are fixed. The package job below still builds both platforms.
     steps:
       - uses: actions/checkout@v4
 
@@ -62,3 +62,75 @@ jobs:
       - run: npm run test:unit
 
       - run: npm run test:e2e
+
+  # Proves the installers for the other platforms actually build, including a node-pty binary compiled for Electron
+  # on Linux (it ships no Linux prebuild). These builds are not hand-tested; see the experimental note in the docs.
+  package:
+    name: package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            flags: --linux
+          - os: macos-latest
+            flags: --mac --universal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # node-pty compiles from source on Linux and needs a compiler and Python.
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3
+
+      - run: npm ci
+
+      - run: node node_modules/electron/install.js
+
+      # The Linux prebuild does not exist, and a binary compiled for Node would not load in Electron. Build it for
+      # Electron's ABI. Windows and macOS keep node-pty's own prebuilds, which match Electron's ABI.
+      - name: Rebuild node-pty for Electron
+        if: runner.os == 'Linux'
+        run: npx @electron/rebuild -f -w node-pty
+
+      - name: node-pty has a native binary
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            test -f node_modules/node-pty/build/Release/pty.node
+          else
+            test -f "node_modules/node-pty/prebuilds/$(node -p process.platform)-$(node -p process.arch)/pty.node"
+          fi
+
+      - run: npm run build
+
+      - name: Build the installers
+        run: npx electron-builder ${{ matrix.flags }} --publish never
+
+      - name: The Linux package contains the Electron node-pty binary
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          unpacked=$(find dist -type d -name 'linux-unpacked' | head -1)
+          test -n "$unpacked"
+          node_file=$(find "$unpacked" -path '*node-pty*pty.node' | head -1)
+          test -n "$node_file"
+          echo "packaged pty: $node_file"
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb

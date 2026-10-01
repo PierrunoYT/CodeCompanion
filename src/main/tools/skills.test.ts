@@ -71,6 +71,19 @@ describe('project skills', () => {
     expect(() => readSkill(workspace, 'secret')).toThrow(/outside the project/);
   });
 
+  it('skips a linked entry inside the skills folder and still lists the real skills', () => {
+    const outside = tempDir();
+    write(outside, { 'secret.md': 'TOKEN=outside-the-project\n' });
+    const root = tempDir();
+    write(root, { '.patch/skills/deploy.md': 'Release checklist.\n' });
+    // A link named like a skill, pointing at a folder outside the project.
+    symlinkSync(outside, join(root, '.patch', 'skills', 'outside.md'), 'junction');
+    expect(listSkills(new Workspace(root))).toEqual({
+      skills: [{ name: 'deploy', description: 'Release checklist.' }],
+      omitted: 0,
+    });
+  });
+
   it('reads a skill through the confined workspace', () => {
     const workspace = projectWith({ '.patch/skills/deploy.md': 'Step one.\n' });
     expect(readSkill(workspace, 'deploy')).toContain('Step one.');

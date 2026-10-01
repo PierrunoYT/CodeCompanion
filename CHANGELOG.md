@@ -47,6 +47,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Preserve provider-native conversation history and shorten only outgoing requests during compaction or context trimming.
 - Keep local `pack` and `dist` builds non-publishing, even when CI environment variables are present; publishing remains explicit in the release workflow.
 
+- Crash-resume checkpoints after a tool batch write only the chat file. They no longer rewrite the chat index or broadcast `history:changed` (a chat not yet in the index is still indexed); the index updates on the regular saves ([#17](https://github.com/PierrunoYT/patch/issues/17)).
+
 ### Removed
 
 - Telemetry, analytics, automatic update checks and the upstream publishing pipeline.

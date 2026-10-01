@@ -67,6 +67,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Security
 
+- A packaged app ignores `ELECTRON_RENDERER_URL`, which `npm run dev` uses to load the page from the dev server. Before, setting it when starting Patch loaded any page with the app's full IPC access (#27).
 - The packaged app sets Electron's fuses: it ignores `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` flags, loads its code only from `app.asar`, validates the archive's integrity (a modified archive stops the app), and encrypts browser-panel cookies on disk (#25).
 - The Git panel no longer runs commands named in a repository's own `.git/config`: `core.fsmonitor` is disabled, filter drivers the repository defines locally are neutralized, and diffs skip external diff programs and textconv. Before, opening the Git tab on a folder from an untrusted source could run a command (#24).
 - Confine file access to the workspace, including symlinked paths and new files, ignore external or dangling `.gitignore`/`.ccignore` links, and block browser access to files outside the project.

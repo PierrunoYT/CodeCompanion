@@ -162,7 +162,7 @@ JSON files (settings, projects, chats, indexes) are written through a temp file 
 
 - **Renderer isolation**: `contextIsolation`, `sandbox`, no `nodeIntegration`. Strict CSP (`script-src 'self'`, no remote images or connections).
 - **Preload**: exposes only `invoke`/`on` for allow-listed channels.
-- **Navigation**: the app window cannot navigate; `http(s)` links and `window.open` go to the system browser.
+- **Navigation**: the app window cannot navigate; `http(s)` links and `window.open` go to the system browser. The app page always comes from the built files on disk in a packaged app: the dev server URL (`ELECTRON_RENDERER_URL`, set by `npm run dev`) is only used when the app is not packaged (`renderer_url.ts`).
 - **Browser panel**: guests get no preload, no Node, sandboxed, in their own session partition; popups are denied. A guest can only be attached to `about:blank` or an `http(s)` URL. Every permission request (camera, microphone, location, notifications) is denied. Browser-tool top-level redirects and later page navigation stay on the approved hostname; cross-host destinations need a new tool call. Project `file://` URLs are preapproved only after `confineFileUrl` checks confinement.
 - **Model output**: rendered markdown and diffs pass through DOMPurify; images, embeds, forms and styles are removed from model output (an image URL is a common data-exfiltration channel for prompt injection). Generated UI never uses inline handlers.
 - **Secrets**: keys are encrypted at rest when system encryption is available and never sent to the renderer. Plaintext fallback and failed migration are flagged in Settings.
@@ -190,7 +190,7 @@ These are accepted limits of the unreleased Patch baseline; each is a trade-off,
 - **Project instructions, `AGENTS.md` and project skills** are prompt text, not trusted configuration: they are added to the system prompt (skills when loaded), so a malicious repository can steer the model. Approvals still apply to edits and commands.
 - **MCP servers run with the user's permissions.** A stdio server is a program the user configured; approval covers each tool call, not what the server does on its own. Stdio servers start in the project that was open when they connected and are not restarted on a project switch. Renaming a server in Settings drops its stored secrets (#23).
 - **Git panel commits run the repository's hooks.** Viewing status and diffs or discarding a file runs nothing the repository's config names, but **Commit** runs its commit hooks (including a local `core.hooksPath`), as any git client does; tools like husky depend on that. A repository whose filter drivers are defined in its local config (for example `git lfs install --local`) is shown and committed without those filters in the Git panel.
-- **Open findings from the 2026-10-01 security audit** (label `security` in the issues): Windows builds are unsigned (#26); `ELECTRON_RENDERER_URL` is honoured in packaged builds (#27); two running instances overwrite each other's files (#31).
+- **Open findings from the 2026-10-01 security audit** (label `security` in the issues): Windows builds are unsigned (#26); two running instances overwrite each other's files (#31).
 
 ## Tests
 

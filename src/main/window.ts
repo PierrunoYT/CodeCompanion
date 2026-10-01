@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen, session, shell, type WebContents } from 'electron';
 import { join } from 'node:path';
 import { appLog } from './app_log';
+import { devRendererUrl } from './renderer_url';
 
 // Set by the end-to-end tests: the window is fully transparent, has no taskbar entry and never takes focus. It is still
 // shown, so the page renders and animation frames run as they do for a user.
@@ -40,8 +41,9 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
   }
   window.once('ready-to-show', () => (quietTestRun ? window.showInactive() : window.show()));
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    window.loadURL(process.env.ELECTRON_RENDERER_URL);
+  const devUrl = devRendererUrl(app.isPackaged, process.env);
+  if (devUrl) {
+    window.loadURL(devUrl);
   } else {
     window.loadFile(join(__dirname, '../renderer/index.html'));
   }

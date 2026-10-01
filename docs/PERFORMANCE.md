@@ -261,7 +261,7 @@ Serialization grows linearly with the chat. The write does not: the same 6.4 MB 
 
 ### Checkpoints skip the index ([#17](https://github.com/PierrunoYT/patch/issues/17))
 
-A checkpoint now writes only the chat file. The chat index is rewritten and `history:changed` is sent only by the regular saves (debounced changes and the end of a run), or when the chat is not in the index yet. That removes the index write and the broadcast from every tool batch. The chat file is still written synchronously, which crash-resume needs, so the per-batch cost in a very long chat is reduced but not gone; moving that write off the main thread is the remaining step. The numbers above are from before this change and have not been re-measured: re-run `npm run perf`.
+A checkpoint now writes only the chat file. The chat index is rewritten and `history:changed` is sent only by the regular saves (debounced changes and the end of a run), or when the chat is not in the index yet. That removes the index write and the broadcast from every tool batch. The chat file is still written synchronously, which crash-resume needs, so the per-batch cost in a very long chat is reduced but not gone; moving that write off the main thread is the remaining step ([#55](https://github.com/PierrunoYT/patch/issues/55)). The numbers above are from before this change and have not been re-measured: re-run `npm run perf`.
 
 ### Re-run of the renderer and main-process benchmarks (2026-10-01)
 

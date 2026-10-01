@@ -105,7 +105,7 @@
     "bootstrap-icons": "^1.13.1",
     "diff2html": "^3.4.56",
     "dompurify": "^3.4.16",
-    "electron": "^44.4.5",
+    "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^10.11.0",

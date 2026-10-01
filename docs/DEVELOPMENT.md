@@ -51,6 +51,8 @@ Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screens
 
 The end-to-end tests start the real app, but its windows are invisible: `launchApp` sets `PATCH_E2E_QUIET=1`, which makes the window fully transparent, keeps it out of the taskbar and shows it without taking focus (`window.ts`). It also turns off Chromium's slowing of hidden and covered windows (`index.ts`), which otherwise made tests time out now and then when other windows covered the test window. Set `E2E_SHOW_WINDOW=1` to watch a run.
 
+The end-to-end harness auto-answers only Patch's native `Confirm settings` message box. Browser `confirm()` dialogs, such as Undo, remain under Playwright's dialog handling; replacing every Electron message box would race those handlers.
+
 To reproduce the README screenshots (`approval.png`, `settings.png`, `git.png`, `browser.png`) without local paths or secrets: `npm run build`, then `E2E_DOC_SCREENSHOTS=docs/images xvfb-run -a npx vitest run --project e2e tests/e2e/documentation-visuals.test.ts` (on Windows, without `xvfb-run -a`). Regenerate them after visible UI changes. The browser image combines its rendered toolbar with Electron's captured guest surface because Xvfb does not composite webviews into Playwright screenshots; the address field uses a documentation-only example URL. The same test measures text contrast for representative footer, approval and panel controls in both themes (including Decline hover/focus), requiring at least 4.5:1. It does not replace NVDA testing or a full accessibility audit.
 
 Project-store tests use a fixed clock to cover equal-timestamp opens and reopening existing folders; newest-open ordering must survive reload without synthesizing future timestamps.
@@ -62,6 +64,8 @@ Cost estimates use standard [Anthropic prices](https://platform.claude.com/docs/
 Both local packaging scripts pass `--publish never`, including when CI environment variables are present. They build artifacts only and do not require a GitHub publishing token. The tag-triggered release workflow publishes explicitly.
 
 Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pty`'s prebuilt binaries work across Electron versions. macOS signing and notarization use electron-builder's standard environment variables (`CSC_LINK`, `APPLE_ID`, …).
+
+The current Electron baseline is 44.5.1 (#33), which backports upstream ANGLE, Chromium, Dawn and V8 fixes. After an Electron update, run the full test suite, rebuild with `npm run dist`, and smoke-test `dist/win-unpacked/Patch.exe` with a throwaway `PATCH_USER_DATA` profile, including opening a project and running a terminal command. Rebuilding source alone does not update installed copies; users must reinstall from a rebuilt installer.
 
 Packaging also sets Electron's fuses (`build.electronFuses`): no run-as-Node, no `NODE_OPTIONS` or `--inspect`, code only from `app.asar`, asar integrity validation, and encrypted cookies (see `docs/ARCHITECTURE.md` → Security model). They only change the packaged binary: `npm run dev` and the end-to-end tests run the development Electron, so debugging and Playwright are unaffected. To check a build, run `npx @electron/fuses read --app dist/win-unpacked/Patch.exe`. Because of asar integrity, a packaged app can't be patched by editing `resources/app.asar`; rebuild it instead.
 

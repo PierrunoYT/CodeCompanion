@@ -55,6 +55,8 @@
     },
     "mac": {
       "icon": "build/icon.icns",
+      "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/**",
+      "singleArchFiles": "node_modules/node-pty/prebuilds/darwin-*/**",
       "target": [
         {
           "target": "default",
@@ -69,6 +71,14 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "artifactName": "${productName}-${version}.${ext}",
+      "category": "Development"
     },
     "win": {
       "icon": "build/icon.ico",

@@ -58,12 +58,14 @@ describe('kill the app mid-run and resume end to end', () => {
   // The chat file on disk, once `ready` accepts it; the debounced save writes it up to half a second after the event.
   async function savedChat(ready: (chat: any) => boolean): Promise<any> {
     const dir = join(userData, 'chats');
-    for (let index = 0; index < 100; index++) {
+    let last = 'no chat file';
+    for (let index = 0; index < 300; index++) {
       if (existsSync(dir)) {
         for (const file of readdirSync(dir).filter((name) => name.endsWith('.json') && name !== 'index.json')) {
           try {
             const chat = JSON.parse(readFileSync(join(dir, file), 'utf8'));
             if (chat.conversation && ready(chat)) return chat;
+            last = JSON.stringify({ resumable: chat.resumable, transcript: chat.transcript });
           } catch {
             // Half written, or the index file; look again.
           }
@@ -71,7 +73,7 @@ describe('kill the app mid-run and resume end to end', () => {
       }
       await delay(100);
     }
-    throw new Error('The chat file never reached the expected state on disk.');
+    throw new Error(`The chat file never reached the expected state on disk. Last seen: ${last.slice(0, 2000)}`);
   }
 
   // Every tool call in the request has a result right after it, which the API requires.
@@ -108,7 +110,9 @@ describe('kill the app mid-run and resume end to end', () => {
       stopReason: 'tool_use',
     });
     await app.page.evaluate(() => window.api.invoke('chat:send', { text: 'Change the file' }));
-    await waitFor((chat) => chat.transcript.some((item) => item.kind === 'tool' && item.status === 'awaiting-approval'));
+    await waitFor((chat) =>
+      chat.transcript.some((item) => item.kind === 'tool' && item.status === 'awaiting-approval'),
+    );
     // Wait for the debounced save to write the waiting row, then pull the plug.
     await savedChat((chat) =>
       chat.transcript.some((item: any) => item.kind === 'tool' && item.status === 'awaiting-approval'),

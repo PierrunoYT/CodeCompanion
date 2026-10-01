@@ -90,7 +90,9 @@ export async function launchApp(
       const child = app.process();
       const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
       killed = true;
-      child.kill('SIGKILL');
+      // The whole tree: on Windows, renderer and GPU processes outlive a killed main process and keep holding the
+      // profile's single-instance lock, so the next launch on the same profile would quit at once.
+      killTree(child.pid);
       await exited;
     },
     async close() {

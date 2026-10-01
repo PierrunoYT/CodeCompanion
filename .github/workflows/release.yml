@@ -15,6 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require signing credentials
+        shell: bash
+        run: |
+          if [ -z "$WIN_CSC_LINK" ] || [ -z "$WIN_CSC_KEY_PASSWORD" ]; then
+            echo "::error::Releases require WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD repository secrets. Unsigned releases are disabled."
+            exit 1
+          fi
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -38,13 +49,22 @@ jobs:
       - run: npm run test:unit
       - run: npm run test:e2e
 
-      # Build the NSIS installer without publishing; the release is created below. electron-builder signs the
-      # installer and the app when a code-signing certificate is configured as repository secrets
-      # (WIN_CSC_LINK: base64 of the .pfx, or a URL; WIN_CSC_KEY_PASSWORD), and builds them unsigned otherwise.
-      - run: npx electron-builder --win --publish never
+      # Local builds may be unsigned, but a release must never silently fall back to an unsigned artifact.
+      - run: npx electron-builder --win --publish never --config.forceCodeSigning=true
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Verify release signatures
+        shell: pwsh
+        run: |
+          foreach ($path in @('dist/win-unpacked/Patch.exe', 'dist/Patch-Installer.exe')) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $path -ErrorAction Stop
+            if ($signature.Status -ne 'Valid') {
+              throw "Invalid release signature on ${path}: $($signature.Status)"
+            }
+            Write-Output "Verified release signature: $path"
+          }
 
       # A checksum file, attached to the release, so a download can be verified.
       - name: Write the checksums
@@ -68,16 +88,10 @@ jobs:
             echo
             echo "---"
             echo "SHA-256 of \`Patch-Installer.exe\`: \`$(cut -d' ' -f1 dist/SHA256SUMS.txt)\` (also in \`SHA256SUMS.txt\`)."
-            if [ -n "$WIN_CSC_LINK" ]; then
-              echo "The installer and the app are code-signed."
-            else
-              echo "The installer is not code-signed yet, so Windows SmartScreen may warn before running it; compare the checksum above."
-            fi
+            echo "The installer and the app are code-signed; both Authenticode signatures were verified before publishing."
             echo
             echo "Full changelog: https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md"
           } >> release-notes.md
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
 
       - name: Create the GitHub release
         shell: bash

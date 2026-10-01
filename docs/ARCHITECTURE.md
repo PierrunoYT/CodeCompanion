@@ -193,7 +193,7 @@ These are accepted limits of the unreleased Patch baseline; each is a trade-off,
 - **Project instructions, `AGENTS.md` and project skills** are prompt text, not trusted configuration: they are added to the system prompt (skills when loaded), so a malicious repository can steer the model. Approvals still apply to edits and commands.
 - **MCP servers run with the user's permissions.** A stdio server is a program the user configured; approval covers each tool call, not what the server does on its own. Stdio servers start in the project that was open when they connected and are not restarted on a project switch. Renaming a server in Settings drops its stored secrets (#23).
 - **Git panel commits run the repository's hooks.** Viewing status and diffs or discarding a file runs nothing the repository's config names, but **Commit** runs its commit hooks (including a local `core.hooksPath`), as any git client does; tools like husky depend on that. A repository whose filter drivers are defined in its local config (for example `git lfs install --local`) is shown and committed without those filters in the Git panel.
-- **Open findings from the 2026-10-01 security audit** (label `security` in the issues): Windows builds are unsigned (#26).
+- **Release signing**: Windows releases require signing credentials and valid Authenticode signatures on both the app and installer before publishing; checksums accompany the installer. Local development builds may remain unsigned. Signing credentials have not been provisioned, so releases are blocked (#26); macOS entitlement changes still need signed packaged testing (#28, #22).
 
 ## Tests
 

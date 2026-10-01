@@ -67,6 +67,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Security
 
+- The Git panel no longer runs commands named in a repository's own `.git/config`: `core.fsmonitor` is disabled, filter drivers the repository defines locally are neutralized, and diffs skip external diff programs and textconv. Before, opening the Git tab on a folder from an untrusted source could run a command (#24).
 - Confine file access to the workspace, including symlinked paths and new files, ignore external or dangling `.gitignore`/`.ccignore` links, and block browser access to files outside the project.
 - Require approval for shell expressions that could bypass command-prefix allow-lists and reject unsafe file names passed to external editor commands.
 - Check agent-initiated network navigation against approved hosts, block cross-host redirects and browser popups, and deny browser permission requests.

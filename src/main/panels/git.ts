@@ -5,26 +5,70 @@ import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git';
 import type { GitFile, GitStatus } from '@shared/panels';
 import { Workspace } from '../tools/workspace';
 
+// Git reads the repository's own .git/config, which can name commands to run: core.fsmonitor on status, clean and
+// smudge filters (enabled by .gitattributes) on status, add and checkout, and diff drivers on diff. A folder from an
+// untrusted source must not be able to run anything just because the Git panel was opened, so every call turns
+// these off: fsmonitor is disabled, the filter drivers the repository defines in its local config are neutralized
+// (filters configured globally by the user, such as git-lfs, keep working), and diffs skip external drivers and
+// textconv. Commit hooks still run when the user commits, as in any git client.
+export function hardenedConfig(localFilterNames: string[]): string[] {
+  return [
+    'core.fsmonitor=false',
+    ...localFilterNames.flatMap((name) => [
+      `filter.${name}.clean=`,
+      `filter.${name}.smudge=`,
+      `filter.${name}.process=`,
+      `filter.${name}.required=false`,
+    ]),
+  ];
+}
+
+// Names of the filter drivers defined in the repository's local config (filter.<name>.<key>). Reading config runs
+// nothing.
+export function filterNames(configListing: string): string[] {
+  const names = configListing
+    .split(/\r?\n/)
+    .map((line) => /^filter\.(.+)\.[^.]+$/.exec(line.trim())?.[1])
+    .filter((name): name is string => Boolean(name));
+  return [...new Set(names)];
+}
+
 // The Git panel: changed files, diffs, commit and discard for the open project.
 export class GitService {
-  private readonly git: SimpleGit;
   private readonly workspace: Workspace;
+  private hardened: Promise<SimpleGit> | null = null;
 
   constructor(root: string) {
     this.workspace = new Workspace(root);
-    this.git = simpleGit({ baseDir: this.workspace.root });
+  }
+
+  // A simple-git instance with the overrides above. simple-git refuses to set core.fsmonitor and filter commands
+  // unless allowed, which protects against attacker-chosen values; here the values are fixed and only disable them.
+  private repo(): Promise<SimpleGit> {
+    this.hardened ??= (async () => {
+      const plain = simpleGit({ baseDir: this.workspace.root });
+      const listing = await plain
+        .raw(['config', '--local', '--includes', '--name-only', '--get-regexp', '^filter\\.'])
+        .catch(() => '');
+      return simpleGit({
+        baseDir: this.workspace.root,
+        config: hardenedConfig(filterNames(listing)),
+        unsafe: { allowUnsafeFsMonitor: true, allowUnsafeFilter: true },
+      });
+    })();
+    return this.hardened;
   }
 
   async status(): Promise<GitStatus> {
     if (!(await this.isRepo())) return { isRepo: false, branch: null, files: [] };
-    const status = await this.git.status();
+    const status = await (await this.repo()).status();
     return { isRepo: true, branch: status.current, files: toFiles(status) };
   }
 
   // Unified diff of all changes, or of one file. Untracked files are shown as additions.
   async diff(path: string | null): Promise<string> {
     if (!(await this.isRepo())) return '';
-    const status = await this.git.status();
+    const status = await (await this.repo()).status();
     const files = toFiles(status).filter((file) => path === null || file.path === path);
 
     const parts: string[] = [];
@@ -41,16 +85,18 @@ export class GitService {
         this.workspace.resolve(path);
         return `:(literal)${path}`;
       });
-      const hasHead = await this.git.revparse(['--verify', 'HEAD']).then(
+      const hasHead = await (await this.repo()).revparse(['--verify', 'HEAD']).then(
         () => true,
         () => false,
       );
+      // No external diff programs or textconv drivers: the repository's config could name any command.
+      const safe = ['--no-ext-diff', '--no-textconv'];
       if (hasHead) {
-        parts.push(await this.git.diff(['HEAD', '--', ...paths]));
+        parts.push(await (await this.repo()).diff([...safe, 'HEAD', '--', ...paths]));
       } else {
         // An unborn branch has no HEAD: show both the initial index and subsequent working edits.
-        parts.push(await this.git.diff(['--cached', '--', ...paths]));
-        parts.push(await this.git.diff(['--', ...paths]));
+        parts.push(await (await this.repo()).diff([...safe, '--cached', '--', ...paths]));
+        parts.push(await (await this.repo()).diff([...safe, '--', ...paths]));
       }
     }
     for (const file of files.filter((candidate) => candidate.status === 'untracked')) {
@@ -63,15 +109,15 @@ export class GitService {
 
   async commit(message: string): Promise<GitStatus> {
     if (!message.trim()) throw new Error('Enter a commit message.');
-    await this.git.add(['-A']);
-    await this.git.commit(message.trim());
+    await (await this.repo()).add(['-A']);
+    await (await this.repo()).commit(message.trim());
     return this.status();
   }
 
   // Reverts one file to the last commit; new (untracked) files are deleted.
   async discard(path: string): Promise<GitStatus> {
     if (!(await this.isRepo())) return this.status();
-    const status = await this.git.status();
+    const status = await (await this.repo()).status();
     const file = toFiles(status).find((candidate) => candidate.path === path);
     if (!file) return this.status();
     const absolute = this.workspace.resolve(path);
@@ -81,33 +127,26 @@ export class GitService {
       await rm(absolute, { force: true, recursive: true });
     } else if (rename) {
       this.workspace.resolve(rename.from);
-      await this.git.raw([
-        '--literal-pathspecs',
-        'restore',
-        '--source=HEAD',
-        '--staged',
-        '--worktree',
-        '--',
-        rename.from,
-        path,
-      ]);
+      await (
+        await this.repo()
+      ).raw(['--literal-pathspecs', 'restore', '--source=HEAD', '--staged', '--worktree', '--', rename.from, path]);
     } else if (file.status === 'added') {
-      await this.git.rm(['--cached', '--', literalPath]);
+      await (await this.repo()).rm(['--cached', '--', literalPath]);
       if (existsSync(absolute)) await rm(absolute, { force: true });
     } else {
-      await this.git.checkout(['HEAD', '--', literalPath]);
+      await (await this.repo()).checkout(['HEAD', '--', literalPath]);
     }
     return this.status();
   }
 
   async init(): Promise<GitStatus> {
-    await this.git.init();
+    await (await this.repo()).init();
     return this.status();
   }
 
   private async isRepo(): Promise<boolean> {
     try {
-      return (await this.git.revparse(['--show-toplevel'])).length > 0;
+      return (await (await this.repo()).revparse(['--show-toplevel'])).length > 0;
     } catch {
       return false;
     }

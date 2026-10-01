@@ -308,7 +308,20 @@ function start(): void {
   });
 }
 
-app.whenReady().then(start);
+// One instance per profile. Two would each keep settings, projects and the chat index in memory and overwrite each
+// other's files on save. The lock is tied to the userData folder set above, so different profiles (PATCH_USER_DATA)
+// can still run side by side. A second start on the same profile brings the running window forward instead.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+  app.whenReady().then(start);
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

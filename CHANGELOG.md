@@ -49,6 +49,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Fixed
 
+- Starting Patch a second time on the same profile brings the open window forward instead of running a second instance, which overwrote the first one's settings, projects and chat index (#31).
 - Closing, removing or editing a project whose path was given through a link (such as macOS's `/var` for `/private/var`) no longer fails with "Unknown project": `ProjectStore` looks every path up by its real path, like opening already did. A project whose folder later becomes a link elsewhere can still be closed and removed.
 - Prevent commands from starting after Stop, cancel foreground and active-project background process trees (including startup waits), and avoid hangs when child processes retain output pipes. Other projects' background jobs remain independent.
 - Serialize Undo against sending, resuming, compaction and project switching; use application-generated tool-card IDs to prevent collisions from reused provider IDs.

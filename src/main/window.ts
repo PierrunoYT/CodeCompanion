@@ -82,6 +82,10 @@ function hardenWebContents(window: BrowserWindow, onBrowserAttached: (guest: Web
   });
 
   window.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    if (params.partition !== 'persist:browser') {
+      event.preventDefault();
+      return;
+    }
     // The panel starts on about:blank and the app navigates it itself; never attach a guest to anything else.
     if (params.src && params.src !== 'about:blank' && !/^https?:\/\//i.test(params.src)) {
       event.preventDefault();

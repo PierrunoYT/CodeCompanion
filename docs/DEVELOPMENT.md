@@ -65,7 +65,9 @@ Packaging does not rebuild native modules (`npmRebuild: false`) because `node-pt
 
 Packaging also sets Electron's fuses (`build.electronFuses`): no run-as-Node, no `NODE_OPTIONS` or `--inspect`, code only from `app.asar`, asar integrity validation, and encrypted cookies (see `docs/ARCHITECTURE.md` → Security model). They only change the packaged binary: `npm run dev` and the end-to-end tests run the development Electron, so debugging and Playwright are unaffected. To check a build, run `npx @electron/fuses read --app dist/win-unpacked/Patch.exe`. Because of asar integrity, a packaged app can't be patched by editing `resources/app.asar`; rebuild it instead.
 
-The macOS build runs with the hardened runtime and the entitlements in `build/entitlements.mac.plist`: `allow-jit` (V8) and, until it is confirmed unnecessary on a Mac, `allow-unsigned-executable-memory` (#28). `allow-dyld-environment-variables` is deliberately not granted: it would let `DYLD_INSERT_LIBRARIES` inject a library into the signed app.
+The macOS build runs with the hardened runtime and only `allow-jit` (V8) in `build/entitlements.mac.plist`, for both the app and its helpers. It grants neither `allow-unsigned-executable-memory` nor `allow-dyld-environment-variables` (#28): modern Electron uses JIT memory, and these broader exceptions weaken executable-memory protection and permit library injection. A unit test guards the configured entitlement files and hardened-runtime flag.
+
+The entitlement change still needs a signed packaged build tested on a Mac (#22, #28); Linux tests cannot validate macOS code-signing enforcement. On macOS, build with `npm run dist`, inspect the app and helper entitlements with `codesign -d --entitlements :- <app-or-helper-path>` (only `allow-jit` should be granted), and verify the bundle with `codesign --verify --deep --strict --verbose=2 dist/mac-universal/Patch.app`. Launch the app from the DMG, open a project, start the terminal (loads `node-pty`), use the browser panel, and approve a file edit. Check that neither the app nor its renderer/GPU helpers crash on both Intel and Apple Silicon.
 
 ### Application icons
 

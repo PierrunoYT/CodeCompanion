@@ -73,7 +73,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 - Switching to Auto mode (once per app session), changing the editor command, and adding or changing an MCP server that runs a program now ask for confirmation in a native dialog shown by the main process, so a compromised UI can't apply them silently (#29).
 
-- The macOS build no longer has the `allow-dyld-environment-variables` entitlement, which let `DYLD_INSERT_LIBRARIES` inject a library into the signed app (#28).
+- The macOS app and helpers grant only `allow-jit`, removing both `allow-dyld-environment-variables` (library injection through `DYLD_INSERT_LIBRARIES`) and `allow-unsigned-executable-memory` (unrestricted executable memory). Signed packaged launches on Intel and Apple Silicon still need manual verification (#28, #22).
 - Releases include `SHA256SUMS.txt` and the installer's SHA-256 in the release notes, so a download can be verified, and the release workflow signs the installer once a code-signing certificate is configured (#26).
 - IPC handlers only answer calls from the app page's top frame (the built page, or the dev server during development), so no other frame or page can use them (#30).
 - A packaged app ignores `ELECTRON_RENDERER_URL`, which `npm run dev` uses to load the page from the dev server. Before, setting it when starting Patch loaded any page with the app's full IPC access (#27).

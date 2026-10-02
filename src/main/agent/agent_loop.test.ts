@@ -13,7 +13,7 @@ import {
   type ToolContext,
   type ToolOutput,
 } from '../tools/types';
-import { Agent, type DroppedFieldError } from './agent';
+import { Agent, type AgentOptions, type DroppedFieldError } from './agent';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
 
@@ -110,6 +110,7 @@ function setup(
     onEditApplied = undefined as ((toolId: string, edit: EditUndo) => void) | undefined,
     // Retries wait through this instead of real timers; the default returns at once.
     sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => {}),
+    agentOptions = {} as Partial<AgentOptions>,
   } = {},
 ) {
   const conversation = new ScriptedConversation(steps);
@@ -126,6 +127,7 @@ function setup(
     onEditApplied,
     sleep,
     random: () => 0.5,
+    ...agentOptions,
   });
   return { agent, conversation, events, requestApproval, sleep };
 }
@@ -1050,4 +1052,26 @@ describe('Agent: provider continuation usage', () => {
       }
     },
   );
+});
+
+describe('Agent: secret redaction', () => {
+  it('hides secrets in results from the model and the transcript', async () => {
+    const leaky = tool('leaky', () => ({
+      content: 'DB_PASSWORD=supersecret1\nkey AKIAIOSFODNN7EXAMPLE',
+      summary: 'Read AKIAIOSFODNN7EXAMPLE',
+    }));
+    const failing = tool('failing', () => {
+      throw new ToolError('bad token ghp_' + 'a'.repeat(36));
+    });
+    const { agent, conversation, events } = setup(
+      [{ toolCalls: [call('t1', 'leaky'), call('t2', 'failing')] }, { text: 'done' }],
+      { tools: [leaky, failing] },
+    );
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    const [first, second] = conversation.results[0]!;
+    expect(first!.content).toBe('DB_PASSWORD=[REDACTED:_____]\nkey [REDACTED:_____]');
+    expect(second!.content).toBe('bad token [REDACTED:_____]');
+    expect(JSON.stringify(events)).not.toMatch(/AKIAIOSFODNN7EXAMPLE|supersecret1|ghp_/);
+  });
 });

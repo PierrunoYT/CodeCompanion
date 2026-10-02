@@ -533,3 +533,20 @@ describe('helpers', () => {
     ).toContain('propose_plan');
   });
 });
+
+describe('redacted placeholders', () => {
+  it('are never written back into a file', async () => {
+    await call(readFileTool, { path: 'src/app.ts' });
+    await expect(
+      call(editFileTool, {
+        path: 'src/app.ts',
+        old_string: 'const a = 1;',
+        new_string: 'const a = "[REDACTED:_____]";',
+      }),
+    ).rejects.toThrow('placeholder');
+    await expect(call(writeFileTool, { path: 'new.txt', content: 'key=[REDACTED:_____]' })).rejects.toThrow(
+      'placeholder',
+    );
+    expect(existsSync(join(root, 'new.txt'))).toBe(false);
+  });
+});

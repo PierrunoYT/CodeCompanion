@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { z } from 'zod';
 import { detectEol, fileSize, isBinaryFile, MAX_READ_BYTES, sha256, withLineNumbers } from './text_files';
+import { containsRedaction } from './redact';
 import { defineTool, MAX_OUTPUT_CHARS, ToolError, type ToolContext } from './types';
 
 const DEFAULT_READ_LINES = 2000;
@@ -147,6 +148,7 @@ export const writeFileTool = defineTool({
   }),
   requiresApproval: true,
   async preview({ path, content }, context) {
+    refuseRedacted(content);
     const file = context.workspace.resolve(path);
     if (existsSync(file)) requireRead(file, path, context);
     const before = existsSync(file) ? await readFile(file, 'utf8') : '';
@@ -154,6 +156,7 @@ export const writeFileTool = defineTool({
     return { title: existsSync(file) ? `Overwrite ${rel}` : `Create ${rel}`, diff: unifiedDiff(rel, before, content) };
   },
   async run({ path, content }, context) {
+    refuseRedacted(content);
     const file = context.workspace.resolve(path);
     const exists = existsSync(file);
     if (exists) requireRead(file, path, context);
@@ -234,6 +237,15 @@ function splitsSurrogatePair(text: string, offset: number): boolean {
   return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
 }
 
+// Tool results hide secrets behind a placeholder. Writing it back would replace the real value with the placeholder.
+function refuseRedacted(...texts: string[]): void {
+  if (texts.some(containsRedaction)) {
+    throw new ToolError(
+      'The text contains a [REDACTED:_____] placeholder: a secret was hidden from you. Do not write the placeholder into a file; leave that part unchanged or ask the user for the value.',
+    );
+  }
+}
+
 function requireRead(file: string, path: string, context: ToolContext): void {
   if (!context.readFiles.has(file)) {
     throw new ToolError(
@@ -247,6 +259,7 @@ export function applyEdit(
   content: string,
   { old_string, new_string, replace_all = false }: { old_string: string; new_string: string; replace_all?: boolean },
 ): string {
+  refuseRedacted(old_string, new_string);
   const eol = detectEol(content);
   const find = eol === '\r\n' ? old_string.replace(/\r?\n/g, '\r\n') : old_string;
   const replacement = eol === '\r\n' ? new_string.replace(/\r?\n/g, '\r\n') : new_string;

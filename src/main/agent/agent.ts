@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ApprovalDecision, ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
 import type { Conversation, ToolCall, ToolResult, UserInput } from '../llm/types';
+import { redactSecrets } from '../tools/redact';
 import { toToolSpecs } from '../tools/registry';
 import { ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolPreview } from '../tools/types';
 import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
@@ -397,19 +398,21 @@ export class Agent {
     const durationMs = () => Math.round(performance.now() - started);
     try {
       const output = await tool.run(input, context);
+      // Secrets in a result (an .env file, a printed token) go neither to the model nor to the transcript.
+      const content = redactSecrets(output.content);
       emit({
         type: 'tool-end',
         id: eventId,
         status: output.isError ? 'error' : 'done',
         durationMs: durationMs(),
-        summary: output.summary ?? tool.name,
+        summary: output.summary ? redactSecrets(output.summary) : tool.name,
         path: output.path,
-        output: tool.name === 'run_command' || tool.name === 'command_output' ? output.content : undefined,
+        output: tool.name === 'run_command' || tool.name === 'command_output' ? content : undefined,
         undoable: output.undo && !output.isError ? this.keepUndo(eventId, output.undo) : undefined,
       });
-      return { result: { id: call.id, content: output.content, isError: output.isError, images: output.images } };
+      return { result: { id: call.id, content, isError: output.isError, images: output.images } };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = redactSecrets(error instanceof Error ? error.message : String(error));
       const expected = error instanceof ToolError;
       emit({
         type: 'tool-end',

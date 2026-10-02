@@ -1,0 +1,171 @@
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { applyHunks, applyPatchTool, parsePatch } from './apply_patch';
+import { ShellRunner } from './shell';
+import type { ToolContext } from './types';
+import { Workspace } from './workspace';
+
+let root: string;
+let context: ToolContext;
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'cc-patch-'));
+  mkdirSync(join(root, 'src'));
+  writeFileSync(join(root, 'src', 'a.ts'), 'one\ntwo\nthree\nfour\n');
+  writeFileSync(join(root, 'src', 'b.ts'), 'alpha\nbeta\n');
+  const workspace = new Workspace(root);
+  context = {
+    workspace,
+    signal: new AbortController().signal,
+    readFiles: new Set([join(workspace.root, 'src', 'a.ts'), join(workspace.root, 'src', 'b.ts')]),
+    shell: new ShellRunner(() => workspace.root),
+    browser: null,
+    codeSearch: null,
+    webSearch: null,
+    onProgress: () => {},
+  };
+});
+
+afterEach(() => {
+  context.shell.stopAll();
+  rmSync(root, { recursive: true, force: true });
+});
+
+const patch = (...body: string[]) => ['*** Begin Patch', ...body, '*** End Patch'].join('\n');
+const run = (text: string) => applyPatchTool.run(applyPatchTool.schema!.parse({ patch: text }), context);
+const read = (path: string) => readFileSync(join(root, path), 'utf8');
+
+describe('parsePatch', () => {
+  it('parses add, delete, update and move', () => {
+    const ops = parsePatch(
+      patch(
+        '*** Add File: n.txt',
+        '+hello',
+        '*** Delete File: old.txt',
+        '*** Update File: a.ts',
+        '*** Move to: b.ts',
+        '@@ fn',
+        ' keep',
+        '-gone',
+        '+new',
+        '*** End of File',
+      ),
+    );
+    expect(ops.map((op) => op.kind)).toEqual(['add', 'delete', 'update']);
+    expect(ops[2]).toMatchObject({ moveTo: 'b.ts', hunks: [{ anchor: 'fn', atEnd: true }] });
+  });
+
+  it.each([
+    ['missing begin', 'nothing\n*** End Patch'],
+    ['missing end', '*** Begin Patch\n*** Add File: a\n+x'],
+    ['no files', '*** Begin Patch\n*** End Patch'],
+    ['add line without +', patch('*** Add File: a', 'x')],
+    ['bad hunk line', patch('*** Update File: a', '@@', '?x')],
+  ])('rejects %s', (_name, text) => {
+    expect(() => parsePatch(text)).toThrow();
+  });
+});
+
+describe('applyHunks', () => {
+  const hunk = (anchor: string | null, ...lines: string[]) => ({
+    anchor,
+    atEnd: false,
+    lines: lines.map((line) => ({ prefix: line[0] as ' ' | '-' | '+', text: line.slice(1) })),
+  });
+
+  it('applies several hunks in order and keeps the final newline', () => {
+    expect(applyHunks('a\nb\nc\nd\n', [hunk(null, '-a', '+A'), hunk(null, ' c', '-d', '+D')], 'f')).toBe(
+      'A\nb\nc\nD\n',
+    );
+  });
+
+  it('keeps CRLF line endings', () => {
+    expect(applyHunks('a\r\nb\r\n', [hunk(null, '-b', '+B')], 'f')).toBe('a\r\nB\r\n');
+  });
+
+  it('uses an anchor to choose between repeated blocks', () => {
+    const content = 'fn a\nx\nfn b\nx\n';
+    expect(applyHunks(content, [hunk('fn b', '-x', '+y')], 'f')).toBe('fn a\nx\nfn b\ny\n');
+    expect(() => applyHunks(content, [hunk(null, '-x', '+y')], 'f')).toThrow('matches 2 places');
+  });
+
+  it('tolerates whitespace differences but not different text', () => {
+    expect(applyHunks('  a  \nb\n', [hunk(null, '-a', '+z')], 'f')).toBe('z\nb\n');
+    expect(() => applyHunks('a\n', [hunk(null, '-nope', '+z')], 'f')).toThrow('does not match');
+  });
+
+  it('inserts at the end of the file', () => {
+    expect(applyHunks('a\nb\n', [{ anchor: null, atEnd: true, lines: [{ prefix: '+', text: 'c' }] }], 'f')).toBe(
+      'a\nb\nc\n',
+    );
+  });
+});
+
+describe('apply_patch tool', () => {
+  it('changes several files at once', async () => {
+    const result = await run(
+      patch(
+        '*** Update File: src/a.ts',
+        '@@',
+        ' one',
+        '-two',
+        '+TWO',
+        '*** Add File: src/new.ts',
+        '+export {};',
+        '*** Update File: src/b.ts',
+        '*** Move to: src/c.ts',
+        '@@',
+        '-alpha',
+        '+ALPHA',
+      ),
+    );
+    expect(read('src/a.ts')).toBe('one\nTWO\nthree\nfour\n');
+    expect(read('src/new.ts')).toBe('export {};\n');
+    expect(read('src/c.ts')).toBe('ALPHA\nbeta\n');
+    expect(existsSync(join(root, 'src', 'b.ts'))).toBe(false);
+    expect(result.content).toContain('Moved src/b.ts to src/c.ts');
+    expect(result.summary).toBe('Patched 3 files');
+  });
+
+  it('deletes a file that was read', async () => {
+    await run(patch('*** Delete File: src/b.ts'));
+    expect(existsSync(join(root, 'src', 'b.ts'))).toBe(false);
+  });
+
+  it('changes nothing when one file fails', async () => {
+    await expect(
+      run(patch('*** Update File: src/a.ts', '@@', '-one', '+1', '*** Update File: src/b.ts', '@@', '-missing', '+x')),
+    ).rejects.toThrow('does not match');
+    expect(read('src/a.ts')).toBe('one\ntwo\nthree\nfour\n');
+  });
+
+  it('requires files to be read and refuses to overwrite or escape the project', async () => {
+    await expect(run(patch('*** Add File: src/a.ts', '+x'))).rejects.toThrow('already exists');
+    await expect(run(patch('*** Add File: ../outside.txt', '+x'))).rejects.toThrow('outside the project');
+    await expect(run(patch('*** Add File: x.txt', '+a', '*** Add File: x.txt', '+b'))).rejects.toThrow('twice');
+    context.readFiles.clear();
+    await expect(run(patch('*** Update File: src/a.ts', '@@', '-one', '+1'))).rejects.toThrow('has not been read');
+  });
+
+  it('refuses redacted placeholders', async () => {
+    await expect(run(patch('*** Add File: k.txt', '+key=[REDACTED:_____]'))).rejects.toThrow('placeholder');
+  });
+
+  it('asks in Auto mode when it touches a protected file', () => {
+    const ask = (text: string) => applyPatchTool.mustAsk!({ patch: text } as never, context);
+    expect(ask(patch('*** Add File: .env', '+A=1'))).toBe(true);
+    expect(ask(patch('*** Update File: src/a.ts', '*** Move to: .git/x', '@@', '-one', '+1'))).toBe(true);
+    expect(ask(patch('*** Add File: src/x.ts', '+1'))).toBe(false);
+  });
+
+  it('previews one combined diff', async () => {
+    const preview = await applyPatchTool.preview!(
+      { patch: patch('*** Update File: src/a.ts', '@@', '-one', '+1') },
+      context,
+    );
+    expect(preview.title).toBe('Updated src/a.ts');
+    expect(preview.diff).toContain('+1');
+  });
+});

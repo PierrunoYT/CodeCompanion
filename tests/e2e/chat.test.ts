@@ -198,7 +198,14 @@ describe('chat end to end (mock Claude API)', () => {
     const before = webRequests;
     claude.script(
       {
-        blocks: [{ type: 'tool_use', id: `allowed-${approvalMode}`, name: 'fetch_url', input: { url: webUrl } }],
+        blocks: [
+          {
+            type: 'tool_use',
+            id: `allowed-${approvalMode}`,
+            name: 'fetch_url',
+            input: { url: `${webUrl}?mode=${approvalMode}` },
+          },
+        ],
         stopReason: 'tool_use',
       },
       { blocks: [{ type: 'text', text: `Network ${approvalMode} complete` }], stopReason: 'end_turn' },

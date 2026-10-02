@@ -19,7 +19,14 @@ import { browserTool } from './browser';
 import { availableTools } from './registry';
 import { commandOutputTool, runCommandTool, ShellRunner } from './shell';
 import { ToolError, truncateOutput, type AgentTool, type ToolContext } from './types';
-import { extractArticle, fetchUrlTool, fetchWithoutCrossHostRedirect } from './web';
+import {
+  clearFetchCache,
+  extractArticle,
+  fetchUrlTool,
+  fetchWithoutCrossHostRedirect,
+  readBodyCapped,
+  relevantLines,
+} from './web';
 import { Workspace } from './workspace';
 
 let root: string;
@@ -612,5 +619,86 @@ describe('grep limits', () => {
     const text = (await call(grepTool, { pattern: 'needle' })).content as string;
     expect(text.split('\n').filter((line) => line.includes(':'))).toHaveLength(100);
     expect(text).toContain('Stopped at 100 matches');
+  });
+});
+
+describe('fetch_url paging, cache and size cap', () => {
+  const originalFetch = globalThis.fetch;
+  let requests: string[];
+
+  function serve(body: string | (() => Response), type = 'text/plain') {
+    requests = [];
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      requests.push(String(input));
+      return typeof body === 'function' ? body() : new Response(body, { headers: { 'content-type': type } });
+    }) as typeof fetch;
+  }
+
+  beforeEach(() => clearFetchCache());
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    clearFetchCache();
+  });
+
+  const fetchText = async (input: object) => (await call(fetchUrlTool, input)).content as string;
+
+  it('returns a long page in parts and reads the next part from the cache', async () => {
+    serve('a'.repeat(20_000) + 'b'.repeat(5_000));
+    const first = await fetchText({ url: 'https://docs.test/long' });
+    expect(first).toContain('Use offset=20000 to read on');
+    const second = await fetchText({ url: 'https://docs.test/long', offset: 20_000 });
+    expect(second.startsWith('b'.repeat(5_000))).toBe(true);
+    expect(second).not.toContain('read on');
+    expect(requests).toHaveLength(1);
+    await fetchText({ url: 'https://docs.test/long', force_refetch: true });
+    expect(requests).toHaveLength(2);
+    await expect(fetchText({ url: 'https://docs.test/long', offset: 99_999 })).rejects.toThrow('past the end');
+  });
+
+  it('lists the lines that match the objective first on a long page', async () => {
+    const filler = Array.from({ length: 2000 }, (_, i) => `filler line number ${i}`).join('\n');
+    serve(`${filler}\nThe retry budget is configured with maxRetries.\n${filler}`);
+    const text = await fetchText({ url: 'https://docs.test/retry', objective: 'how is the retry budget configured' });
+    expect(text.startsWith('Lines most relevant to')).toBe(true);
+    expect(text).toContain('The retry budget is configured with maxRetries.');
+  });
+
+  it('stops reading a response at the byte cap', async () => {
+    const chunk = new Uint8Array(512 * 1024).fill(97);
+    let sent = 0;
+    serve(
+      () =>
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              controller.enqueue(chunk);
+              sent++;
+            },
+          }),
+          { headers: { 'content-type': 'text/plain' } },
+        ),
+    );
+    const text = await fetchText({ url: 'https://docs.test/endless', offset: 0 });
+    expect(sent).toBeLessThan(10);
+    expect(text).toContain('Use offset=20000 to read on');
+    const body = await readBodyCapped(new Response('x'.repeat(100)), 40);
+    expect(body).toEqual({ text: 'x'.repeat(40), truncated: true });
+  });
+
+  it('keeps only the most recent pages', async () => {
+    serve('x');
+    for (let i = 0; i < 25; i++) await fetchText({ url: `https://docs.test/${i}` });
+    await fetchText({ url: 'https://docs.test/24' });
+    expect(requests).toHaveLength(25);
+    await fetchText({ url: 'https://docs.test/0' });
+    expect(requests).toHaveLength(26);
+  });
+});
+
+describe('relevantLines', () => {
+  it('ranks lines by shared words and ignores filler words', () => {
+    const text = 'nothing here\nretry budget setting\nretry only\nunrelated';
+    expect(relevantLines(text, 'the retry budget')).toEqual(['retry budget setting', 'retry only']);
+    expect(relevantLines(text, 'the and')).toEqual([]);
   });
 });

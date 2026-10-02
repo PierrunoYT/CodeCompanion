@@ -63,6 +63,8 @@ const TOOL_ICONS: Record<string, string> = {
   browser: 'web',
   propose_plan: 'checklist',
   task: 'smart_toy',
+  finder: 'person_search',
+  oracle: 'psychology',
   load_skill: 'school',
   glob: 'find_in_page',
   apply_patch: 'edit_document',

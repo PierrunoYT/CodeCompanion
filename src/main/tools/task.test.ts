@@ -9,7 +9,7 @@ import { SUBAGENT_MAX_TURNS } from '../agent/agent';
 import { AnthropicConversation, createAnthropicClient } from '../llm/anthropic';
 import { editFileTool } from './files';
 import { defineTool, type ToolContext } from './types';
-import { createTaskTool, subagentConversation } from './task';
+import { createFinderTool, createOracleTool, createTaskTool, subagentConversation } from './task';
 import { Workspace } from './workspace';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
@@ -354,5 +354,48 @@ describe('subagentConversation', () => {
     expect(sent).toContain('Where is the lexer defined?');
     expect(sent).not.toContain('PARENT SUMMARY');
     expect(sent).not.toContain('Refactor the parser');
+  });
+});
+
+describe('finder and oracle', () => {
+  const options = (conversations: { chat: Conversation; finder?: Conversation }) => ({
+    createConversation: () => conversations.chat,
+    createFinderConversation: conversations.finder ? () => conversations.finder! : undefined,
+    system: 'system prompt',
+    tools: () => [readTool],
+  });
+
+  it('finder runs on its own (cheaper) conversation with a search-focused prompt', async () => {
+    const chat = new ScriptedConversation([]);
+    const finder = new ScriptedConversation([{ text: 'src/lexer.ts:10' }]);
+    const tool = createFinderTool(options({ chat, finder }));
+
+    const output = await tool.run(tool.schema!.parse({ query: 'where is the lexer' }), context());
+
+    expect(output.content).toContain('src/lexer.ts:10');
+    expect(output.summary).toBe('Finder: where is the lexer');
+    expect(finder.users[0]!.text).toBe('where is the lexer');
+    expect(finder.requests[0]!.system).toContain('codebase-search subagent');
+    expect(chat.turns).toBe(0);
+    expect(tool.parallelSafe).toBe(true);
+  });
+
+  it('finder falls back to the chat conversation when no small model is set', async () => {
+    const chat = new ScriptedConversation([{ text: 'found it' }]);
+    const tool = createFinderTool(options({ chat }));
+    expect((await tool.run(tool.schema!.parse({ query: 'x' }), context())).content).toContain('found it');
+    expect(chat.turns).toBe(1);
+  });
+
+  it('oracle advises on the chat conversation and stays read-only', async () => {
+    const chat = new ScriptedConversation([{ text: 'Do B, because of the cache.' }]);
+    const tool = createOracleTool(options({ chat }));
+
+    const output = await tool.run(tool.schema!.parse({ question: 'A or B?' }), context());
+
+    expect(output.content).toContain('Do B, because of the cache.');
+    expect(output.summary).toBe('Oracle: A or B?');
+    expect(chat.requests[0]!.system).toContain('senior advisor');
+    expect(chat.requests[0]!.tools.map((spec) => spec.name)).toEqual(['read_file']);
   });
 });

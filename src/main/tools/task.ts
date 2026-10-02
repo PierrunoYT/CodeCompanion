@@ -7,6 +7,8 @@ import { defineTool, ToolError, truncateOutput, type AgentTool, type ToolContext
 export interface TaskToolOptions {
   // A fresh conversation per subagent run, on the chat's own model (not the current Settings model).
   createConversation: () => Conversation;
+  // For finder: a fresh conversation on a cheaper, faster model. Without it, finder uses the chat's own model.
+  createFinderConversation?: () => Conversation;
   // The chat's system prompt. A short preamble is added in front so the subagent knows it is read-only.
   system: string;
   // The parent's tool list; only the read-only subset is offered to the subagent.
@@ -37,6 +39,15 @@ const SUBAGENT_PREAMBLE = `You are a read-only research subagent. Another agent 
 - Answer the delegated question directly. Your last message, the one with no tool call, is the only thing the other agent receives, so include the paths and line numbers it needs.
 - Do not start the work yourself and do not propose a plan for it. Report what you found.`;
 
+const FINDER_PREAMBLE = `You are a fast codebase-search subagent. Another agent asked you where something is.
+- Search broadly with glob, grep and search_code, open only what you need to confirm a hit, and stop as soon as you can answer.
+- Answer with a short list of paths with line numbers and one line each saying what is there. No long explanations.`;
+
+const ORACLE_PREAMBLE = `You are a senior advisor. Another agent asks you for a second opinion: a diagnosis of a bug, a review of a design or a plan, or advice on a hard decision.
+- Read the code you need to be sure, then think carefully before answering.
+- Give a clear recommendation first, then the reasons, the risks and what you would check. If you are unsure, say what would settle it.
+- You cannot change anything, and you should not write the implementation; advise.`;
+
 // Runs a read-only subagent: a nested agent that can inspect the project (read files, grep, semantic search) but
 // cannot change anything, run commands or reach the network. Its answer comes back as the tool result; its
 // progress streams into the parent transcript while it works. Read-only scope means no approval cards are needed
@@ -56,11 +67,62 @@ export function createTaskTool(options: TaskToolOptions): AgentTool {
   });
 }
 
-async function runSubagent(options: TaskToolOptions, task: string, context: ToolContext) {
+// A faster, cheaper read-only subagent for "where is X" questions.
+export function createFinderTool(options: TaskToolOptions): AgentTool {
+  return defineTool({
+    name: 'finder',
+    description:
+      'Locate things in the codebase with a fast read-only subagent on a cheaper model: where a function is defined, which files handle a feature, every place that uses a name. Describe what you are looking for in plain words; it answers with paths and line numbers. Use task instead for questions that need explaining or summarizing.',
+    schema: z.object({
+      query: z.string().describe('What to find, in plain words, with any names you already know.'),
+    }),
+    requiresApproval: false,
+    parallelSafe: true,
+    run: async ({ query }, context) =>
+      runSubagent(options, query, context, {
+        preamble: FINDER_PREAMBLE,
+        conversation: options.createFinderConversation ?? options.createConversation,
+        label: 'Finder',
+      }),
+  });
+}
+
+// A read-only advisor for hard problems; it reasons on the chat's own model.
+export function createOracleTool(options: TaskToolOptions): AgentTool {
+  return defineTool({
+    name: 'oracle',
+    description:
+      'Ask a read-only advisor for a second opinion on something hard: why a bug happens, whether a plan or design holds up, which of two approaches is better. It can read the project but cannot change it. Give it the problem, what you already tried and the paths that matter; it answers with a recommendation and reasons. Slower and costlier than task, so use it sparingly.',
+    schema: z.object({
+      question: z.string().describe('The problem or decision, with what you tried and the relevant paths.'),
+    }),
+    requiresApproval: false,
+    parallelSafe: true,
+    run: async ({ question }, context) =>
+      runSubagent(options, question, context, {
+        preamble: ORACLE_PREAMBLE,
+        conversation: options.createConversation,
+        label: 'Oracle',
+      }),
+  });
+}
+
+interface SubagentRole {
+  preamble: string;
+  conversation: () => Conversation;
+  label: string;
+}
+
+async function runSubagent(
+  options: TaskToolOptions,
+  task: string,
+  context: ToolContext,
+  role: SubagentRole = { preamble: SUBAGENT_PREAMBLE, conversation: options.createConversation, label: 'Subagent' },
+) {
   let partial = '';
   const agent = new Agent({
-    conversation: options.createConversation(),
-    system: `${SUBAGENT_PREAMBLE}\n\n${options.system}`,
+    conversation: role.conversation(),
+    system: `${role.preamble}\n\n${options.system}`,
     tools: () => options.tools().filter((tool) => READ_ONLY_TOOLS.has(tool.name)),
     // Read-only tools never ask for approval; the subagent cannot escalate. The fallback declines, so even an
     // unexpected approval request cannot turn into a silent side effect.
@@ -94,7 +156,7 @@ async function runSubagent(options: TaskToolOptions, task: string, context: Tool
   if (outcome === 'answer' && partial.trim()) {
     return {
       content: `${truncateOutput(partial.trim())}\n\n${usageLine}`,
-      summary: `Subagent: ${truncate(task, 60)}`,
+      summary: `${role.label}: ${truncate(task, 60)}`,
     };
   }
 
@@ -102,7 +164,7 @@ async function runSubagent(options: TaskToolOptions, task: string, context: Tool
   const excerpt = partial.trim() ? `\n\nLast text before it stopped:\n${truncateOutput(partial.trim())}` : '';
   return {
     content: `The subagent did not finish: ${why}.${excerpt}\n\n${usageLine}`,
-    summary: `Subagent stopped: ${truncate(task, 60)}`,
+    summary: `${role.label} stopped: ${truncate(task, 60)}`,
     isError: true,
   };
 }

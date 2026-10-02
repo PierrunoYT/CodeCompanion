@@ -1,7 +1,8 @@
 import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
 import type { UndoResult } from '@shared/ipc';
-import { acceptsImages, imagesNotSupportedMessage } from '@shared/models';
+import type { UsageTotals } from '@shared/chat';
+import { acceptsImages, imagesNotSupportedMessage, SMALL_MODELS } from '@shared/models';
 import { mergeAllowLists } from '@shared/project';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
@@ -18,7 +19,7 @@ import type { EditBackups } from './tools/edit_backups';
 import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
 import { listSkills } from './tools/skills';
-import { createTaskTool, subagentConversation } from './tools/task';
+import { createFinderTool, createOracleTool, createTaskTool, subagentConversation } from './tools/task';
 import { createTodoTool } from './tools/todo';
 import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
@@ -265,21 +266,31 @@ export class ChatManager {
       const { codeSearch, browser, webSearch } = capabilities();
       return availableTools(
         { browser, codeSearch: codeSearch?.search ?? null, webSearch },
-        [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool, todoTool],
+        [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool, finderTool, oracleTool, todoTool],
         { planMode: this.deps.settings.get().planMode, skills: offersSkills },
       );
     };
     // The checklist lives and dies with this chat; subagents do not get it (they only read).
     const todoTool = createTodoTool();
-    const taskTool = createTaskTool({
+    const subagents = {
       // The chat keeps its own model; a later change in Settings must not move the subagent to another provider.
       createConversation: () => subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved)),
+      // The finder runs on the provider's small model, except on a custom endpoint, which may not serve it.
+      createFinderConversation: () =>
+        conversation.provider === 'openai' &&
+        conversation.serialize().api === 'chat' &&
+        this.deps.settings.get().openaiBaseUrl.trim()
+          ? subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved))
+          : this.deps.llm.createConversation(SMALL_MODELS[conversation.provider]),
       system,
       tools: sessionTools,
-      recordUsage: (usage) => session.recordUsage(usage),
-      decidePermission: (name, input) =>
+      recordUsage: (usage: UsageTotals) => session.recordUsage(usage),
+      decidePermission: (name: string, input: Record<string, unknown>) =>
         decidePermission(this.deps.settings.get().permissionRules, name, input, 'subagent'),
-    });
+    };
+    const taskTool = createTaskTool(subagents);
+    const finderTool = createFinderTool(subagents);
+    const oracleTool = createOracleTool(subagents);
 
     const session: ChatSession = new ChatSession({
       id: saved?.id,

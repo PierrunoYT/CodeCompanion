@@ -8,6 +8,9 @@ import { ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolPr
 import type { PermissionDecision } from './permissions';
 import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 
+// Tools whose result is shown on their card in the transcript (the rest show only a one-line summary).
+const SHOWS_OUTPUT = new Set(['run_command', 'command_output', 'todo_list']);
+
 // Safety net against a model that never stops calling tools.
 const MAX_TURNS = 200;
 // Subagents get a tighter cap: they answer one delegated question, not open-ended tasks.
@@ -442,7 +445,7 @@ export class Agent {
         durationMs: durationMs(),
         summary: output.summary ? redactSecrets(output.summary) : tool.name,
         path: output.path,
-        output: tool.name === 'run_command' || tool.name === 'command_output' ? content : undefined,
+        output: SHOWS_OUTPUT.has(tool.name) ? content : undefined,
         undoable: output.undo && !output.isError ? this.keepUndo(eventId, output.undo) : undefined,
       });
       return { result: { id: call.id, content, isError: output.isError, images: output.images } };

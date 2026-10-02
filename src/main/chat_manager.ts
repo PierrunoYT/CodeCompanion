@@ -19,6 +19,7 @@ import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
 import { listSkills } from './tools/skills';
 import { createTaskTool, subagentConversation } from './tools/task';
+import { createTodoTool } from './tools/todo';
 import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
 import type { McpHub } from './tools/mcp';
@@ -264,10 +265,12 @@ export class ChatManager {
       const { codeSearch, browser, webSearch } = capabilities();
       return availableTools(
         { browser, codeSearch: codeSearch?.search ?? null, webSearch },
-        [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool],
+        [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool, todoTool],
         { planMode: this.deps.settings.get().planMode, skills: offersSkills },
       );
     };
+    // The checklist lives and dies with this chat; subagents do not get it (they only read).
+    const todoTool = createTodoTool();
     const taskTool = createTaskTool({
       // The chat keeps its own model; a later change in Settings must not move the subagent to another provider.
       createConversation: () => subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved)),

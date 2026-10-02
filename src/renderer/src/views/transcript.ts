@@ -64,6 +64,9 @@ const TOOL_ICONS: Record<string, string> = {
   propose_plan: 'checklist',
   task: 'smart_toy',
   load_skill: 'school',
+  glob: 'find_in_page',
+  apply_patch: 'edit_document',
+  todo_list: 'checklist',
 };
 
 // What a tool row shows after the tool's name: the file, command or other target, and the result in parentheses at

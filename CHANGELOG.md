@@ -77,6 +77,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - Correct long-context and cached-token cost accounting, recent-project ordering and approval-button contrast.
 - Restore both paths when discarding staged Git renames, including staged and unstaged edits, and include staged additions in diffs before the first commit.
 - Correct documentation for persisted Undo notifications, the welcome-screen location of Remove from recent, and measured long-chat performance.
+- The app reported version 0.3.0 (in the executable and the side panel's footer) although Patch has no release yet. The package version is now `0.0.0` until the first release.
 
 ### Security
 

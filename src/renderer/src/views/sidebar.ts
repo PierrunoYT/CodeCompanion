@@ -44,9 +44,15 @@ export class Sidebar {
         'div',
         { class: 'sidebar-main' },
         h(
+          'button',
+          { class: 'sidebar-new', title: `New chat (${shortcut})`, onclick: () => this.actions.newChat() },
+          h('span', { class: 'sidebar-new-label' }, sym('add'), h('span', {}, 'New Chat')),
+          h('kbd', { 'aria-hidden': 'true' }, shortcut),
+        ),
+        h(
           'div',
           { class: 'sidebar-header' },
-          h('div', {}, h('h2', { class: 'sidebar-heading' }, 'Sessions'), this.totals),
+          h('div', {}, h('h2', { class: 'sidebar-heading' }, 'Sessions')),
           h(
             'span',
             { class: 'sidebar-saved', title: 'Chats are saved automatically on this computer.' },
@@ -59,12 +65,7 @@ export class Sidebar {
       h(
         'div',
         { class: 'sidebar-bottom' },
-        h(
-          'button',
-          { class: 'sidebar-new', title: `New chat (${shortcut})`, onclick: () => this.actions.newChat() },
-          h('span', { class: 'sidebar-new-label' }, sym('add'), h('span', {}, 'New Chat')),
-          h('kbd', { 'aria-hidden': 'true' }, shortcut),
-        ),
+        this.totals,
         h('div', { class: 'sidebar-status' }, this.agentFile, this.indexStatus),
       ),
     );

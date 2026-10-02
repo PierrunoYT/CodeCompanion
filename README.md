@@ -14,6 +14,7 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 
 ## Features
 
+- OpenCode Desktop-inspired interface with neutral light/dark themes, project and session navigation, a collapsible sidebar, and model/approval controls beside the prompt
 - Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5), OpenAI GPT-6 (Astra, Sol, Luna) or any OpenAI-compatible endpoint, with streaming answers
 - Works directly in your project: read, search, edit and create files, run commands
 - Every file change and command is shown first (diffs, command text) and waits for **Approve** or **Decline** — or switch to **Auto** mode
@@ -32,10 +33,10 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 - Rate limits (429), server errors (5xx) and dropped connections are retried automatically, up to 4 times, waiting about 2 to 16 seconds or as long as the provider asks (up to a minute); each retry is shown in the chat and **Stop** works during the wait
 - Failed or stopped Claude continuations after a server-side pause or compaction leave saved model history unchanged; retries start from the history before that attempt
 - Stop a running task, including its project's background commands, and use **Resume** to continue it after cancellation settles, including after reopening the saved chat; the model is instructed to check interrupted actions before retrying them. A task cut off by a crash, whether during a model request or while tools were running, can be resumed the same way
-- Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
+- Keep several projects open in the sidebar, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically, listed by day in a sidebar, and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
 - `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md"
-- Image attachments (attach or paste) for models that accept images; the paperclip and paste are disabled for a Claude model id the app does not know to accept images (entered under _Other model id…_)
+- Image attachments (attach or paste) for models that accept images, with a compact paperclip beside the model and mode controls; attachment chips take space only when present. The paperclip and paste are disabled for a Claude model id the app does not know to accept images (entered under _Other model id…_)
 - Token totals and estimated cost for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar (with how full the model's context window is), and each chat's estimated cost in the chat list and history; custom endpoints have no official-price estimate
 
 ## Getting started

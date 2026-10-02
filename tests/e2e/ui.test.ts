@@ -35,6 +35,66 @@ describe('user interface', () => {
     await shot('1-welcome');
   });
 
+  it('keeps navigation and prompt controls usable at desktop sizes', async () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 800, height: 500 },
+    ]) {
+      await running.page.setViewportSize(size);
+      await running.page
+        .locator('.composer-controls')
+        .getByLabel('Model', { exact: true })
+        .selectOption('claude-sonnet-5-5');
+      expect(await running.page.getByLabel('Model', { exact: true }).inputValue()).toBe('claude-sonnet-5-5');
+      const geometry = await running.page.evaluate(() => {
+        const input = document.querySelector('.composer-input')!.getBoundingClientRect();
+        const send = document.querySelector('.composer-send')!.getBoundingClientRect();
+        const attach = document.querySelector('[aria-label="Attach images"]')!.getBoundingClientRect();
+        const model = document.querySelector('.model-pill')!.getBoundingClientRect();
+        const box = document.querySelector('.composer-box')!;
+        const controls = document.querySelector('.header-controls')!.getBoundingClientRect();
+        const actions = document.querySelector('.composer-right')!.getBoundingClientRect();
+        return {
+          width: innerWidth,
+          height: innerHeight,
+          inputWidth: input.width,
+          sendRight: send.right,
+          sendBottom: send.bottom,
+          overflow: document.querySelector('.app-main')!.scrollWidth,
+          composerOverflow: box.scrollWidth - box.clientWidth,
+          attachCenter: attach.top + attach.height / 2,
+          modelCenter: model.top + model.height / 2,
+          sendCenter: send.top + send.height / 2,
+          controlsOverlapActions:
+            controls.left < actions.right &&
+            controls.right > actions.left &&
+            controls.top < actions.bottom &&
+            controls.bottom > actions.top,
+        };
+      });
+      expect(geometry.inputWidth).toBeGreaterThan(180);
+      expect(geometry.sendRight).toBeLessThanOrEqual(geometry.width);
+      expect(geometry.sendBottom).toBeLessThanOrEqual(geometry.height);
+      expect(geometry.overflow).toBeLessThanOrEqual(geometry.width);
+      expect(geometry.composerOverflow).toBeLessThanOrEqual(1);
+      expect(geometry.controlsOverlapActions).toBe(false);
+      if (size.width === 1440) {
+        expect(Math.abs(geometry.attachCenter - geometry.modelCenter)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.attachCenter - geometry.sendCenter)).toBeLessThanOrEqual(1);
+      }
+      await shot(`layout-${size.width}`);
+    }
+    await running.page.getByLabel('Model', { exact: true }).selectOption('claude-opus-5-5');
+    const toggle = running.page.getByTitle('Show or hide the sidebar');
+    await toggle.click();
+    expect(await running.page.locator('.sidebar').isVisible()).toBe(false);
+    expect(await toggle.getAttribute('aria-expanded')).toBe('false');
+    await toggle.click();
+    expect(await running.page.locator('.sidebar').isVisible()).toBe(true);
+    expect(await toggle.getAttribute('aria-expanded')).toBe('true');
+    await running.page.setViewportSize({ width: 1440, height: 900 });
+  });
+
   it('shows the project and a missing-key hint after opening it', async () => {
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
     await running.page.getByText('Add your Anthropic API key').waitFor();

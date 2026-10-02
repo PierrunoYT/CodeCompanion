@@ -1,25 +1,25 @@
-/* Patch design tokens, after the Google Stitch design of the main window: charcoal surfaces in steps, a mint accent
-   from the logo, Inter for text and JetBrains Mono for labels and code, Material Symbols for icons. Bootstrap's own variables are pointed at these tokens,
+/* OpenCode Desktop-inspired neutral surfaces, understated controls and a focused conversation workspace.
+   Inter for text, JetBrains Mono for code and Material Symbols for icons. Bootstrap's variables follow these tokens,
    so its components (forms, lists, dropdowns, alerts) follow the theme without extra rules. */
 :root[data-bs-theme='dark'] {
-  --patch-lowest: #0a0e13;
-  --patch-bg: #101419;
-  --patch-surface: #181c21;
-  --patch-raised: #1c2025;
-  --patch-hover: #262a30;
-  --patch-highest: #31353b;
-  --patch-border: #3d4a43;
-  --patch-border-strong: #56635c;
-  --patch-text: #e0e2ea;
-  --patch-muted: #bccac1;
-  --patch-faint: #86948c;
-  --patch-primary: #caffe6;
-  --patch-accent: #70edbf;
-  --patch-accent-hover: #8cf2cf;
-  --patch-accent-ink: #062519;
-  --patch-accent-text: #70edbf;
-  --patch-accent-soft: rgb(112 237 191 / 12%);
-  --patch-accent-rgb: 112, 237, 191;
+  --patch-lowest: #121212;
+  --patch-bg: #101010;
+  --patch-surface: #191919;
+  --patch-raised: #202020;
+  --patch-hover: #292929;
+  --patch-highest: #343434;
+  --patch-border: #2b2b2b;
+  --patch-border-strong: #484848;
+  --patch-text: #ededed;
+  --patch-muted: #b0b0b0;
+  --patch-faint: #969696;
+  --patch-primary: #ededed;
+  --patch-accent: #ededed;
+  --patch-accent-hover: #ffffff;
+  --patch-accent-ink: #171717;
+  --patch-accent-text: #d4d4d4;
+  --patch-accent-soft: rgb(255 255 255 / 7%);
+  --patch-accent-rgb: 237, 237, 237;
   --patch-amber: #e3b341;
   --patch-amber-rgb: 227, 179, 65;
   --patch-red: #fb7185;
@@ -31,30 +31,30 @@
   --patch-del-bg: rgb(76 5 25 / 40%);
   --patch-del-text: #fecdd3;
   --patch-del-mark: #fb7185;
-  --patch-user-bubble: #1d2b29;
-  --patch-code-bg: #0b0f14;
-  --patch-shadow: 0 10px 24px rgb(0 0 0 / 45%);
+  --patch-user-bubble: #202020;
+  --patch-code-bg: #101010;
+  --patch-shadow: 0 8px 28px rgb(0 0 0 / 22%);
 }
 
 :root[data-bs-theme='light'] {
-  --patch-lowest: #fbfbfc;
-  --patch-bg: #f5f6f8;
-  --patch-surface: #ffffff;
-  --patch-raised: #eef0f3;
-  --patch-hover: #e6e9ee;
-  --patch-highest: #dde1e7;
-  --patch-border: #d5dbe2;
-  --patch-border-strong: #b9c0ca;
-  --patch-text: #161b22;
-  --patch-muted: #4b5563;
-  --patch-faint: #5f6873;
-  --patch-primary: #0a6b4d;
-  --patch-accent: #2fcf97;
-  --patch-accent-hover: #26bb87;
-  --patch-accent-ink: #03241a;
-  --patch-accent-text: #0a7453;
-  --patch-accent-soft: rgb(47 207 151 / 14%);
-  --patch-accent-rgb: 47, 207, 151;
+  --patch-lowest: #fcfcfc;
+  --patch-bg: #f8f8f8;
+  --patch-surface: #f3f3f3;
+  --patch-raised: #ededed;
+  --patch-hover: #e5e5e5;
+  --patch-highest: #dbdbdb;
+  --patch-border: #e2e2e2;
+  --patch-border-strong: #b7b7b7;
+  --patch-text: #171717;
+  --patch-muted: #606060;
+  --patch-faint: #686868;
+  --patch-primary: #171717;
+  --patch-accent: #171717;
+  --patch-accent-hover: #333333;
+  --patch-accent-ink: #fcfcfc;
+  --patch-accent-text: #353535;
+  --patch-accent-soft: rgb(0 0 0 / 5%);
+  --patch-accent-rgb: 23, 23, 23;
   --patch-amber: #8a5a00;
   --patch-amber-rgb: 191, 135, 0;
   --patch-red: #b42318;
@@ -66,7 +66,7 @@
   --patch-del-bg: #fdecee;
   --patch-del-text: #5c1220;
   --patch-del-mark: #b42318;
-  --patch-user-bubble: #e3f7ef;
+  --patch-user-bubble: #ededed;
   --patch-code-bg: #0d1117;
   --patch-shadow: 0 10px 24px rgb(22 27 34 / 14%);
 }
@@ -79,8 +79,8 @@
   --bs-secondary-bg: var(--patch-raised);
   --bs-tertiary-bg: var(--patch-raised);
   --bs-border-color: var(--patch-border);
-  --bs-border-radius: 4px;
-  --bs-border-radius-sm: 2px;
+  --bs-border-radius: 6px;
+  --bs-border-radius-sm: 4px;
   --bs-border-radius-lg: 8px;
   --bs-primary: var(--patch-accent);
   --bs-primary-rgb: var(--patch-accent-rgb);
@@ -99,7 +99,7 @@
 
 :root[data-bs-theme='light'] {
   color-scheme: light;
-  --bs-link-color-rgb: 10, 116, 83;
+  --bs-link-color-rgb: 53, 53, 53;
 }
 
 html,
@@ -127,7 +127,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #262e3a;
+  background: var(--patch-border-strong);
   border-radius: 2px;
 }
 
@@ -198,12 +198,12 @@ body {
 /* Bootstrap components in the Patch palette */
 .btn {
   --bs-btn-font-weight: 500;
-  --bs-btn-border-radius: 4px;
+  --bs-btn-border-radius: 6px;
   --bs-btn-focus-shadow-rgb: var(--patch-accent-rgb);
 }
 
 .btn-sm {
-  --bs-btn-border-radius: 2px;
+  --bs-btn-border-radius: 4px;
 }
 
 .btn-primary {
@@ -304,9 +304,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: 6px;
   border: none;
-  border-radius: 2px;
+  border-radius: 6px;
   background: none;
   color: var(--patch-muted);
   text-decoration: none;
@@ -335,11 +335,11 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: 40px 1fr 24px;
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
   height: 100vh;
 }
 
-/* Header: brand and project tabs, model and modes in the middle, actions on the right */
+/* Header: navigation, session breadcrumb and quiet actions. Model/mode controls live in the composer. */
 .app-header {
   position: relative;
   z-index: 30;
@@ -348,7 +348,7 @@ body {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 12px;
   background: var(--patch-bg);
   border-bottom: 1px solid var(--patch-border);
   user-select: none;
@@ -360,6 +360,9 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  width: 220px;
+  flex-shrink: 0;
+  justify-content: space-between;
 }
 
 .brand {
@@ -367,8 +370,7 @@ body {
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  padding-right: 8px;
-  border-right: 1px solid var(--patch-border);
+  padding-right: 12px;
 }
 
 .brand-icon {
@@ -379,9 +381,9 @@ body {
 .brand-name {
   color: var(--patch-primary);
   font-family: var(--bs-font-monospace);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.06em;
 }
 
 .header-divider {
@@ -391,14 +393,59 @@ body {
   background: var(--patch-border);
 }
 
-/* Open projects as tabs; the active one has a surface and an underline. */
+/* Open projects in the left navigation. */
+.workspace-navigation {
+  padding: 8px 0 18px;
+  border-bottom: 1px solid var(--patch-border);
+  margin-bottom: 16px;
+  max-height: 30%;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.workspace-label {
+  display: block;
+  padding: 0 10px 8px;
+  color: var(--patch-faint);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.session-heading {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding-left: 8px;
+}
+
+.session-project {
+  color: var(--patch-muted);
+}
+
+.session-heading .sym {
+  color: var(--patch-faint);
+  font-size: 14px;
+}
+
+.session-title,
+.session-project {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-title {
+  font-weight: 500;
+}
+
 .project-tabs {
   display: flex;
-  align-self: stretch;
-  align-items: center;
-  gap: 2px;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
   scrollbar-width: none;
 }
 
@@ -407,8 +454,9 @@ body {
   flex-shrink: 0;
   align-self: stretch;
   align-items: center;
-  margin: 6px 0 -1px;
-  border-bottom: 2px solid transparent;
+  min-height: 36px;
+  margin: 0;
+  border-radius: 6px;
   color: var(--patch-muted);
   transition: background-color 0.15s;
 }
@@ -419,7 +467,6 @@ body {
 }
 
 .project-tab.active {
-  border-bottom-color: var(--patch-primary);
   background: var(--patch-raised);
   color: var(--patch-text);
 }
@@ -428,14 +475,32 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 100%;
+  min-height: 36px;
+  flex: 1;
+  min-width: 0;
   border: none;
   background: none;
   color: inherit;
   padding: 0 8px;
-  font-family: var(--bs-font-monospace);
+  font-family: var(--bs-font-sans-serif);
   font-size: 12px;
   font-weight: 500;
+}
+
+.project-tab button > span:not(.sym) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tab-add {
+  align-self: flex-start;
+  margin: 4px 0 0 4px;
+}
+
+.project-tab-add > span:not(.sym) {
+  margin-left: 8px;
+  font-size: 12px;
 }
 
 .project-tab .sym {
@@ -447,6 +512,7 @@ body {
 }
 
 .project-tab button.project-tab-close {
+  flex: 0 0 auto;
   padding: 0 8px 0 0;
   color: var(--patch-muted);
 }
@@ -484,7 +550,8 @@ body {
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .model-pill,
@@ -493,10 +560,10 @@ body {
   align-items: center;
   gap: 6px;
   margin: 0;
-  padding: 4px 8px;
-  border: 1px solid var(--patch-border);
-  border-radius: 2px;
-  background: var(--patch-surface);
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
   cursor: pointer;
   transition:
     background-color 0.15s,
@@ -520,12 +587,12 @@ body {
 
 .model-select {
   appearance: none;
-  max-width: 180px;
+  max-width: 200px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--patch-text);
-  font-family: var(--bs-font-monospace);
+  font-family: var(--bs-font-sans-serif);
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
@@ -560,8 +627,8 @@ body {
   align-items: center;
   padding: 2px;
   border: 1px solid var(--patch-border);
-  border-radius: 2px;
-  background: var(--patch-lowest);
+  border-radius: 6px;
+  background: transparent;
 }
 
 .mode-option {
@@ -573,8 +640,8 @@ body {
   border-radius: 2px;
   background: none;
   color: var(--patch-muted);
-  font-family: var(--bs-font-monospace);
-  font-size: 10px;
+  font-family: var(--bs-font-sans-serif);
+  font-size: 11px;
   font-weight: 500;
   line-height: 14px;
 }
@@ -605,8 +672,8 @@ body {
 
 .plan-pill > span {
   color: var(--patch-muted);
-  font-family: var(--bs-font-monospace);
-  font-size: 10px;
+  font-family: var(--bs-font-sans-serif);
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -657,12 +724,17 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  flex: 0 0 256px;
+  flex: 0 0 244px;
+  min-width: 0;
   min-height: 0;
-  padding: 6px 4px;
+  padding: 12px;
   background: var(--patch-surface);
   border-right: 1px solid var(--patch-border);
   user-select: none;
+}
+
+.sidebar[hidden] {
+  display: none;
 }
 
 .sidebar-main {
@@ -676,15 +748,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px 6px;
-  border-bottom: 1px solid rgb(from var(--patch-border) r g b / 60%);
+  padding: 18px 8px 4px;
 }
 
 .sidebar-heading {
   margin: 0;
-  color: var(--patch-text);
-  font-size: 14px;
-  font-weight: 600;
+  color: var(--patch-muted);
+  font-size: 12px;
+  font-weight: 500;
   line-height: 20px;
 }
 
@@ -698,18 +769,18 @@ body {
 }
 
 .sidebar-saved {
-  color: var(--patch-accent);
+  color: var(--patch-faint);
 }
 
 .sidebar-filter {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 8px 4px 0;
-  padding: 4px 8px;
-  border: 1px solid var(--patch-border);
-  border-radius: 2px;
-  background: var(--patch-raised);
+  margin: 8px 0 0;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--patch-bg);
   transition: border-color 0.15s;
 }
 
@@ -742,7 +813,7 @@ body {
   flex: 1;
   min-height: 0;
   margin-top: 8px;
-  padding: 0 4px;
+  padding: 0;
   overflow-y: auto;
 }
 
@@ -751,13 +822,14 @@ body {
 }
 
 .sidebar-group-label {
-  padding: 2px 6px;
+  padding: 10px 8px 4px;
   color: var(--patch-faint);
-  font-family: var(--bs-font-monospace);
+  font-family: var(--bs-font-sans-serif);
   font-size: 10px;
   font-weight: 500;
   line-height: 14px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
+  text-transform: capitalize;
 }
 
 .sidebar-item {
@@ -766,10 +838,9 @@ body {
   gap: 2px;
   width: 100%;
   margin-top: 2px;
-  padding: 6px;
+  padding: 9px 10px;
   border: none;
-  border-left: 2px solid transparent;
-  border-radius: 2px;
+  border-radius: 6px;
   background: none;
   color: var(--patch-muted);
   text-align: left;
@@ -782,8 +853,7 @@ body {
 }
 
 .sidebar-item.active {
-  border-left-color: var(--patch-primary);
-  border-radius: 0 2px 2px 0;
+  border-radius: 6px;
   background: var(--patch-raised);
 }
 
@@ -813,7 +883,7 @@ body {
   flex-shrink: 0;
   padding: 0 4px;
   border-radius: 2px;
-  background: var(--patch-hover);
+  background: transparent;
   color: var(--patch-muted);
   font-family: var(--bs-font-monospace);
   font-size: 10px;
@@ -874,7 +944,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 6px 4px 0;
+  padding: 12px 4px 0;
   border-top: 1px solid var(--patch-border);
 }
 
@@ -883,9 +953,9 @@ body {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 6px 12px;
+  padding: 9px 10px;
   border: 1px solid var(--patch-border);
-  border-radius: 2px;
+  border-radius: 6px;
   background: var(--patch-raised);
   color: var(--patch-text);
   transition: background-color 0.15s;
@@ -899,7 +969,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--bs-font-monospace);
+  font-family: var(--bs-font-sans-serif);
   font-size: 12px;
   font-weight: 500;
 }
@@ -958,7 +1028,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  min-width: 360px;
+  min-width: 0;
   background: var(--patch-lowest);
 }
 
@@ -969,7 +1039,7 @@ body {
 }
 
 .chat-scroll {
-  padding: 16px 24px 24px;
+  padding: 28px 32px 32px;
 }
 
 /* Welcome */
@@ -977,10 +1047,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 860px;
+  max-width: 720px;
   margin: 0 auto;
   text-align: center;
-  padding: 12vh 0 2rem;
+  padding: 10vh 0 2rem;
 }
 
 .brand-mark {
@@ -1003,8 +1073,19 @@ body {
 
 .welcome h1 {
   margin: 1rem 0 0.35rem;
-  font-weight: 650;
+  font-size: 20px;
+  font-weight: 500;
   letter-spacing: -0.01em;
+}
+
+.welcome-wordmark {
+  margin-bottom: 16px;
+  color: var(--patch-text);
+  font-family: var(--bs-font-monospace);
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.08em;
 }
 
 .welcome > p {
@@ -1023,10 +1104,10 @@ body {
 
 .tips {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.6rem;
   width: 100%;
-  max-width: 640px;
+  max-width: 480px;
   margin: 1.25rem 0;
   padding: 0;
   list-style: none;
@@ -1034,10 +1115,9 @@ body {
 }
 
 .tips li {
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--patch-border);
-  border-radius: 4px;
-  background: var(--patch-surface);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--patch-border);
+  background: transparent;
   font-size: 0.92em;
 }
 
@@ -1047,6 +1127,7 @@ body {
   flex-direction: column;
   gap: 14px;
   max-width: 768px;
+  margin: 0 auto;
 }
 
 /* A long chat has hundreds of thousands of nodes. Items off screen are skipped for layout and paint, so the item being
@@ -1090,7 +1171,7 @@ body {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 2px;
+  border-radius: 6px;
 }
 
 .avatar-user {
@@ -1103,9 +1184,9 @@ body {
 }
 
 .avatar-assistant {
-  border: 1px solid rgba(var(--patch-accent-rgb), 0.4);
-  background: rgba(var(--patch-accent-rgb), 0.2);
-  color: var(--patch-accent);
+  border: 1px solid var(--patch-border);
+  background: var(--patch-surface);
+  color: var(--patch-text);
 }
 
 .message {
@@ -1118,8 +1199,8 @@ body {
 
 .message.user .bubble {
   padding: 12px;
-  border: 1px solid var(--patch-border);
-  border-radius: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: var(--patch-user-bubble);
   box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
   color: var(--patch-text);
@@ -1278,7 +1359,7 @@ body {
 .tool-box {
   min-width: 0;
   border: 1px solid var(--patch-border);
-  border-radius: 2px;
+  border-radius: 6px;
   background: var(--patch-surface);
   font-family: var(--bs-font-monospace);
   font-size: 11px;
@@ -1457,7 +1538,7 @@ body {
 .tool-card.awaiting .tool-box {
   overflow: hidden;
   border-radius: 4px;
-  box-shadow: var(--patch-shadow);
+  box-shadow: none;
 }
 
 .tool-card.awaiting .tool-box:not(.command-box) > .tool-header {
@@ -1497,9 +1578,12 @@ body {
   line-height: 14px;
 }
 
-.diff-added,
+.diff-added {
+  color: var(--patch-add-mark);
+}
+
 .diff-removed {
-  color: inherit;
+  color: var(--patch-del-mark);
 }
 
 .status-pill {
@@ -1730,18 +1814,19 @@ body {
 
 /* Composer: a dock at the bottom of the chat */
 .composer {
-  padding: 12px;
-  background: linear-gradient(to top, var(--patch-bg), var(--patch-bg) 50%, transparent);
+  padding: 12px 32px 16px;
+  background: var(--patch-lowest);
 }
 
 .composer-box {
   position: relative;
-  max-width: 920px;
-  padding: 10px;
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 14px;
   border: 1px solid var(--patch-border);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--patch-surface);
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 30%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
   transition: border-color 0.15s;
 }
 
@@ -1752,13 +1837,13 @@ body {
 .composer-input {
   display: block;
   width: 100%;
-  min-height: 36px;
+  min-height: 52px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--patch-text);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 14px;
+  line-height: 22px;
   resize: none;
   outline: none;
 }
@@ -1767,14 +1852,39 @@ body {
   color: var(--patch-faint);
 }
 
+.composer-controls {
+  flex: 1;
+  min-width: 0;
+}
+
+.composer-controls .header-controls > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.composer-hint {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--patch-faint);
+  font-size: 10px;
+}
+
 .composer-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid rgb(from var(--patch-border) r g b / 50%);
+  margin-top: 8px;
+}
+
+.composer-attach {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
 }
 
 .composer-left,
@@ -1783,10 +1893,17 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
+}
+
+.composer-left {
+  flex: 1 1 420px;
+  flex-wrap: nowrap;
 }
 
 .composer-right {
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .composer-attachments {
@@ -1794,6 +1911,11 @@ body {
   flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+  margin-top: 8px;
+}
+
+.composer-attachments:empty {
+  display: none;
 }
 
 .composer-chip {
@@ -1803,7 +1925,7 @@ body {
   max-width: 260px;
   padding: 2px 8px;
   border: 1px solid var(--patch-border);
-  border-radius: 2px;
+  border-radius: 6px;
   background: var(--patch-raised);
   color: var(--patch-primary);
   font-family: var(--bs-font-monospace);
@@ -1890,12 +2012,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 4px 12px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 2px;
+  border-radius: 6px;
   background: var(--patch-accent);
   color: var(--patch-accent-ink);
-  font-family: var(--bs-font-monospace);
+  font-family: var(--bs-font-sans-serif);
   font-size: 11px;
   font-weight: 600;
   line-height: 16px;
@@ -1961,12 +2083,12 @@ body {
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 12px;
   border-top: 1px solid var(--patch-border);
-  background: var(--patch-lowest);
+  background: var(--patch-bg);
   color: var(--patch-muted);
   font-family: var(--bs-font-monospace);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 16px;
   user-select: none;
 }
@@ -1974,7 +2096,7 @@ body {
 .status-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -2046,7 +2168,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  width: 320px;
+  width: 340px;
   min-width: 0;
   background: var(--patch-surface);
   border-left: 1px solid var(--patch-border);
@@ -2589,4 +2711,56 @@ body {
 .app-toast {
   margin: 0;
   box-shadow: var(--patch-shadow);
+}
+
+/* Keep the prompt and panel usable at the desktop window's minimum width. */
+@media (max-width: 1100px) {
+  .sidebar {
+    flex-basis: 210px;
+  }
+
+  .header-left {
+    width: 186px;
+  }
+
+  .chat-scroll {
+    padding: 20px 16px;
+  }
+
+  .composer {
+    padding: 12px 16px;
+  }
+
+  .status-center,
+  .app-footer .status-group > .status-item:not(.status-branch):not(.status-cost) {
+    display: none;
+  }
+}
+
+@media (max-width: 800px) {
+  .sidebar {
+    flex-basis: 180px;
+    padding: 8px;
+  }
+
+  .header-left {
+    width: 156px;
+  }
+
+  .session-project,
+  .session-heading > .sym {
+    display: none;
+  }
+
+  .header-actions {
+    gap: 0;
+  }
+
+  .composer-box {
+    padding: 10px;
+  }
+
+  .welcome-wordmark {
+    font-size: 40px;
+  }
 }

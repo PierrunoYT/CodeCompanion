@@ -57,6 +57,7 @@ export function matchFiles(files: string[], query: string, limit = MAX_SUGGESTIO
 
 export class Composer {
   readonly element: HTMLElement;
+  readonly controls = h('div', { class: 'composer-controls' });
   private readonly input: HTMLTextAreaElement;
   private readonly sendButton: HTMLButtonElement;
   private readonly stopButton: HTMLButtonElement;
@@ -79,7 +80,7 @@ export class Composer {
     this.input = h('textarea', {
       class: 'composer-input',
       rows: 2,
-      placeholder: 'Describe a task or question... (Enter to send, @ to mention a file)',
+      placeholder: 'Ask anything, or describe what you want to build…',
       'aria-label': 'Message',
       'aria-autocomplete': 'list',
       oninput: () => {
@@ -117,7 +118,7 @@ export class Composer {
     this.attachButton = h(
       'button',
       {
-        class: 'icon-button',
+        class: 'icon-button composer-attach',
         title: 'Attach images',
         'aria-label': 'Attach images',
         onclick: () => void this.attach(),
@@ -133,12 +134,22 @@ export class Composer {
         { class: 'composer-box' },
         this.suggestions,
         this.input,
+        this.attachmentList,
         h(
           'div',
           { class: 'composer-row' },
-          h('div', { class: 'composer-left' }, this.attachButton, this.attachmentList),
+          h('div', { class: 'composer-left' }, this.attachButton, this.controls),
           h('div', { class: 'composer-right' }, this.tokenCount, this.resumeButton, this.stopButton, this.sendButton),
         ),
+      ),
+      h(
+        'div',
+        { class: 'composer-hint' },
+        'Enter to send',
+        h('span', { 'aria-hidden': 'true' }, '·'),
+        'Shift+Enter for a new line',
+        h('span', { 'aria-hidden': 'true' }, '·'),
+        '@ to mention a file',
       ),
     );
     this.updateTokens();

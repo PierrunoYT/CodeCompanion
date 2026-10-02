@@ -41,6 +41,21 @@ export class App {
   private indexTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly drafts = new Map<string, ReturnType<Composer['getDraft']>>();
   private readonly projectTabs = h('nav', { class: 'project-tabs', 'aria-label': 'Open projects' });
+  private readonly sessionProject = h('span', { class: 'session-project' });
+  private readonly sessionTitle = h('span', { class: 'session-title' });
+  private readonly sidebarButton = h(
+    'button',
+    {
+      class: 'icon-button',
+      title: 'Show or hide the sidebar',
+      'aria-expanded': 'true',
+      onclick: () => {
+        this.sidebar.element.hidden = !this.sidebar.element.hidden;
+        this.sidebarButton.setAttribute('aria-expanded', String(!this.sidebar.element.hidden));
+      },
+    },
+    sym('left_panel_close'),
+  );
 
   private readonly transcript = new TranscriptView({
     decide: (id, decision) => void api.invoke('chat:decide', id, decision),
@@ -219,6 +234,15 @@ export class App {
   }
 
   private layout(): HTMLElement {
+    this.composer.controls.replaceChildren(this.chatControls());
+    this.sidebar.element.prepend(
+      h(
+        'div',
+        { class: 'workspace-navigation' },
+        h('span', { class: 'workspace-label' }, 'Projects'),
+        this.projectTabs,
+      ),
+    );
     return h(
       'div',
       { class: 'app' },
@@ -231,40 +255,12 @@ export class App {
           h(
             'span',
             { class: 'brand' },
-            sym('terminal', 'brand-icon'),
-            h('span', { class: 'brand-name', role: 'img', 'aria-label': 'Patch' }, 'Patch AI'),
+            h('span', { class: 'brand-mark', 'aria-hidden': 'true' }),
+            h('span', { class: 'brand-name', role: 'img', 'aria-label': 'Patch' }, 'patch'),
           ),
-          this.projectTabs,
+          this.sidebarButton,
         ),
-        h(
-          'div',
-          { class: 'header-controls' },
-          h(
-            'label',
-            { class: 'model-pill', title: 'Model for this chat' },
-            h('span', { class: 'live-dot', 'aria-hidden': 'true' }),
-            this.modelSelect,
-            sym('expand_more', 'model-caret'),
-          ),
-          h(
-            'div',
-            { class: 'mode-toggle', role: 'group', 'aria-label': 'Approval mode' },
-            this.askButton,
-            this.autoButton,
-          ),
-          h(
-            'div',
-            {
-              class: 'plan-pill',
-              title: 'Plan mode: before multi-step changes, the assistant shows its plan for approval',
-              onclick: (event: Event) => {
-                if (event.target !== this.planSwitch) this.planSwitch.click();
-              },
-            },
-            h('span', { 'aria-hidden': 'true' }, 'Plan Mode'),
-            this.planSwitch,
-          ),
-        ),
+        h('div', { class: 'session-heading' }, this.sessionProject, sym('chevron_right'), this.sessionTitle),
         h(
           'div',
           { class: 'header-actions' },
@@ -320,6 +316,32 @@ export class App {
     );
   }
 
+  private chatControls(): HTMLElement {
+    return h(
+      'div',
+      { class: 'header-controls' },
+      h(
+        'label',
+        { class: 'model-pill', title: 'Model for this chat' },
+        this.modelSelect,
+        sym('expand_more', 'model-caret'),
+      ),
+      h('div', { class: 'mode-toggle', role: 'group', 'aria-label': 'Approval mode' }, this.askButton, this.autoButton),
+      h(
+        'div',
+        {
+          class: 'plan-pill',
+          title: 'Plan mode: before multi-step changes, the assistant shows its plan for approval',
+          onclick: (event: Event) => {
+            if (event.target !== this.planSwitch) this.planSwitch.click();
+          },
+        },
+        h('span', { 'aria-hidden': 'true' }, 'Plan Mode'),
+        this.planSwitch,
+      ),
+    );
+  }
+
   private renderAll(): void {
     this.chatScroll.replaceChildren(this.welcome, this.transcript.element, this.transcript.announcer);
     this.transcript.render(this.chat.transcript);
@@ -351,6 +373,8 @@ export class App {
   }
 
   private renderHeader(): void {
+    this.sessionProject.textContent = this.project?.name ?? 'Workspace';
+    this.sessionTitle.textContent = this.chat.transcript.length > 0 ? this.chat.title : 'New session';
     // The project menu's button names the open project for screen readers (its tab shows the name on screen).
     this.projectButton.replaceChildren(
       sym('tune'),
@@ -440,13 +464,9 @@ export class App {
       if (generation !== this.welcomeGeneration) return;
       setChildren(
         this.welcome,
-        h('span', { class: 'brand-mark large', 'aria-hidden': 'true' }),
+        h('div', { class: 'welcome-wordmark', 'aria-hidden': 'true' }, 'patch'),
         h('h1', { class: 'h4' }, 'Open a project to start'),
-        h(
-          'p',
-          { class: 'text-body-secondary' },
-          'Patch works inside a project folder: it reads and edits files there and runs commands in it.',
-        ),
+        h('p', { class: 'text-body-secondary' }, 'Your next idea starts here. Choose a folder to work in.'),
         h(
           'button',
           { class: 'btn btn-primary', onclick: () => void this.chooseProject() },
@@ -468,7 +488,7 @@ export class App {
       provider === 'anthropic' ? !this.settings.secrets.anthropicApiKey : !this.settings.secrets.openaiApiKey;
     setChildren(
       this.welcome,
-      h('span', { class: 'brand-mark large', 'aria-hidden': 'true' }),
+      h('div', { class: 'welcome-wordmark', 'aria-hidden': 'true' }, 'patch'),
       h('h1', { class: 'h4' }, this.project.name),
       h('p', { class: 'text-body-secondary small font-monospace' }, this.project.path),
       missingKey
@@ -488,8 +508,8 @@ export class App {
           'li',
           {},
           this.settings.approvalMode === 'ask'
-            ? 'You approve each file change and command before it runs.'
-            : 'Auto mode is on: changes and commands run without asking.',
+            ? 'Ask mode · Review changes and commands before they run.'
+            : 'Auto mode · Changes and commands run without asking.',
         ),
         !this.settings.secrets.openaiApiKey
           ? h('li', {}, 'Add an OpenAI key in settings to enable semantic code search.')
@@ -633,6 +653,7 @@ export class App {
         'button',
         { class: 'icon-button project-tab-add', title: 'Open Repository', onclick: () => void this.chooseProject() },
         sym('add'),
+        h('span', {}, 'Open project'),
       ),
     );
   }

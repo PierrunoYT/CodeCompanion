@@ -9,9 +9,11 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under _Other model id…_ that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
 4. Type `@` to mention a project file: pick it from the list (arrow keys and `Enter`, or click) and it becomes a chip under the message. Mentioned files are sent as `@path` at the start of the message, so the assistant knows which files you mean; it still reads them with its tools. The composer shows a rough token count of the message.
 
-Each chat keeps the model it started with. The model picker in the header (or **Settings → Model**) chooses the model for a new chat; once the chat has started, the picker shows its model and is locked until you start a new chat.
+Each chat keeps the model it started with. The model picker inside the message composer (or **Settings → Model**) chooses the model for a new chat; once the chat has started, the picker shows its model and is locked until you start a new chat.
 
-The window has the chat list (**Sessions**) on the left, the chat in the middle and the side panel on the right. The header holds the open projects as tabs (`+` opens another), the model picker, the **Ask** / **Auto-Approve** switch, the **Plan Mode** switch and, on the right: Compact chat, Export chat, Send feedback (opens a new GitHub issue in your browser; nothing is sent by the app), Chat history, the side panel button, the project menu and Settings. The status bar at the bottom shows `Git: <branch>` (with `*` when there are uncommitted changes), whether `AGENTS.md` is loaded, the chat's model (**Engine**), how full the context is against the model's context window (e.g. `48k / 1M`; `—` until the first request and after compacting), the code index (**Index: 100% (Ready)** when built, **off** without an OpenAI key), the chat's token total and its estimated cost.
+The paperclip, model and mode controls, and Send share a compact toolbar below the message, wrapping in narrower chat panes. Attached images and mentioned files appear as removable chips above the toolbar; an empty draft reserves no space for chips.
+
+The OpenCode Desktop-inspired window uses neutral light/dark surfaces, project navigation and the chat list (**Sessions**) on the left, a centered chat in the middle, and the side panel on the right. **Open project** adds a folder to the sidebar; each project's close button appears on hover or keyboard focus. **New Chat** sits above Sessions. The header's sidebar button shows or hides the left navigation, and its breadcrumb names the project and current session. Model selection, **Ask** / **Auto-Approve**, and **Plan Mode** live inside the message composer. The header's right-hand actions are Compact chat, Export chat, Send feedback (opens a new GitHub issue in your browser; nothing is sent by the app), Chat history, the side panel button, the project menu and Settings. The status bar shows the branch, loaded instructions, model, context, index state, tokens and estimated cost; secondary details are hidden in narrow windows.
 
 In the chat, each tool call is a row with the tool's name, its target and its result ("2 lines", "exit 0"), how long it ran, and Undo and Open-in-editor buttons where they apply; click a row to see its diff or output.
 
@@ -70,7 +72,7 @@ Every approved file edit keeps a copy of the file as it was. The edit's card in 
 
 ### Ask first or Auto
 
-**Settings → Approvals**, or the **Ask** / **Auto-Approve** switch in the header, chooses between:
+**Settings → Approvals**, or the **Ask** / **Auto-Approve** switch in the composer, chooses between:
 
 - **Ask before edits and commands** (default): as above.
 - **Run edits and commands without asking** (Auto): nothing waits for you. Commands run in your shell with your permissions, so use it only for work you would let anyone on your keyboard do. The first switch to Auto after starting the app shows a confirmation dialog.
@@ -81,7 +83,7 @@ Even in Auto mode, a fetch or browser redirect to another host is blocked; the a
 
 ### Plan mode
 
-**Settings → Plan mode** ("Propose a plan before multi-step changes"), or the **Plan Mode** switch in the header, asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
+**Settings → Plan mode** ("Propose a plan before multi-step changes"), or the **Plan Mode** switch in the composer, asks the assistant to show its plan before it changes files or runs commands on a task with several steps. The plan appears as an approval card with the steps written out.
 
 - **Approve** lets the work begin. The assistant then carries the plan out, and later edits and commands follow the usual approval rules (they still ask in Ask mode, and run directly in Auto mode).
 - **Decline with a note** sends the note back, and the assistant revises the plan instead of starting.

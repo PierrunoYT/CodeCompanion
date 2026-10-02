@@ -10,6 +10,16 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Secret redaction of tool results: private keys, cloud and Git host tokens, JWTs, quoted credential values and `.env`-style secret lines become `[REDACTED:_____]` before the model, the transcript or the saved chat see them; `write_file`, `edit_file` and `apply_patch` refuse text containing the placeholder.
+- Protected files: edits to `.env` files, keys, `.git`, editor and agent folders, shell start-up files and databases always ask for approval, also in Auto mode (`mustAsk` on tools).
+- Permission rules (Settings → "Permission rules (JSON)"): `allow`, `reject`, `ask` or `delegate` to an external program, matched by glob on the tool name and input fields, first match wins, optional `subagent`/`thread` context. Saving an `allow` or `delegate` rule asks for confirmation.
+- `apply_patch`: Codex-format multi-file add, update, move and delete in one approval, all-or-nothing, with one combined diff.
+- `glob` tool for finding files by name pattern; `grep` now returns at most 100 matches, 10 per file and 200 characters per line.
+- Parallel execution of consecutive read-only tool calls (`parallelSafe`), and a system prompt line asking for independent reads in one turn.
+- `todo_list` tool: a per-chat checklist shown on its card.
+- `finder` (small model) and `oracle` read-only subagents next to `task`; the subagents can also use `glob`.
+- `fetch_url` returns long pages in parts (`offset`), caches pages for 15 minutes (`force_refetch`) and takes an `objective` that lists the matching lines of a long page first.
+
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.
 - Workspace tools for reading, searching and editing files, running foreground and background commands, fetching pages, web search and optional semantic code search.
 - Approval cards with command and diff previews, feedback when declining, Ask first and Auto modes, and global and per-project command and network allow-lists.

@@ -44,13 +44,15 @@ Bump the version in package.json, add the CHANGELOG section, then tag v<version>
 
 By default the assistant asks before it changes anything. A card appears in the chat showing what it wants to do, with **Approve** and **Decline** buttons.
 
-| It wants to…                                             | What you see     |
-| -------------------------------------------------------- | ---------------- |
-| Edit or create a file (`edit_file`, `write_file`)        | The diff         |
-| Run a command (`run_command`)                            | The command text |
-| Fetch a page or use the browser (`fetch_url`, `browser`) | The URL          |
+| It wants to…                                                    | What you see     |
+| --------------------------------------------------------------- | ---------------- |
+| Edit or create files (`edit_file`, `write_file`, `apply_patch`) | The diff         |
+| Run a command (`run_command`)                                   | The command text |
+| Fetch a page or use the browser (`fetch_url`, `browser`)        | The URL          |
 
-Reading files, listing folders, searching the code and web search never ask.
+Reading files, listing folders, finding files by name, searching the code, the todo list and web search never ask.
+
+**Protected files** always ask, even in Auto mode: `.env` files (but not `.env.example`), keys and certificates (`*.pem`, `*.key`, `id_rsa`, …), `.ssh`, `.aws` and similar folders, `.git`, editor and agent folders (`.vscode`, `.idea`, `.cursor`, `.claude`), shell start-up files (`.bashrc`, `.zshrc`, …), databases (`*.sqlite`, `*.db`) and system folders. This applies to `edit_file`, `write_file` and every path in an `apply_patch`.
 
 Very large diffs are shown only in part: the first 2,000 lines. The approval card then says so in a yellow warning, because approving applies the whole change, including the part you cannot see. Decline and ask for smaller edits if you want to review everything. Long command output shows its last 20,000 characters, with a note that the start was left out.
 
@@ -129,6 +131,35 @@ api.example.com
 - `localhost` allows `http://localhost:3000/`. `example.com` does **not** allow `www.example.com`; list each subdomain.
 - Approved hosts can receive whatever the assistant sends them, and this is not a network sandbox: page subresources and Google search are not filtered. Keep projects with secrets out of chats that read untrusted pages.
 
+### Permission rules
+
+**Settings → Permission rules (JSON)** takes a list of rules that decide a tool call before the usual approval. The first rule that matches wins; a call that matches none follows the normal rules.
+
+```json
+[
+  {
+    "tool": "run_command",
+    "matches": { "command": "git push*" },
+    "action": "reject",
+    "message": "Do not push; ask me."
+  },
+  { "tool": "run_command", "matches": { "command": ["npm test*", "npm run lint*"] }, "action": "allow" },
+  { "tool": "mcp_docs_*", "action": "allow" },
+  { "tool": ["write_file", "edit_file"], "matches": { "path": "src/legacy/*" }, "action": "ask" },
+  { "tool": "fetch_url", "action": "delegate", "to": "C:\\tools\\check-url.exe" }
+]
+```
+
+- `tool` and each `matches` value are globs (`*` is any text, `?` one character); a list means "any of these". `matches` compares fields of the call: `command` for `run_command`, `path` for the file tools, `url` for `fetch_url` and `browser`.
+- `allow` runs the call without asking. `reject` never runs it and tells the assistant your `message`. `ask` shows the approval card even in Auto mode. `delegate` starts the program in `to` (no shell), writes `{"tool", "input", "context"}` as JSON to its standard input and reads `allow`, `reject` or `ask` from its output; a program that fails, times out after 15 seconds or answers anything else rejects the call.
+- `"context": "subagent"` (or `"thread"`) limits a rule to calls made by subagents (or by the chat itself).
+- An `allow` rule beats the protected-files and MCP approval, so keep it narrow. Saving an `allow` or `delegate` rule asks for confirmation, as switching to Auto mode does.
+- A command allowed with `allow` is not checked for shell operators: `git status*` also matches `git status; rm -rf .`. Prefer the "Commands allowed without asking" list for commands.
+
+### Hidden secrets
+
+Before the assistant sees a tool result (a file it read, command output, a fetched page), private keys, cloud and Git host tokens, JWTs and values of credential-named variables (`password = "…"`, `API_KEY=…` lines) are replaced by `[REDACTED:_____]`. The same text is shown in the chat and saved with it. The assistant cannot write the placeholder into a file: `write_file`, `edit_file` and `apply_patch` refuse it, so a secret is never overwritten by the placeholder. Redaction recognises common formats only.
+
 ## MCP servers
 
 Model Context Protocol servers give the assistant extra tools (a database, an issue tracker, documentation search, and so on). Add them in **Settings → MCP servers (JSON)** as a JSON list. A server either runs as a program on your computer (`stdio`) or is reached over HTTP (`http`):
@@ -151,9 +182,13 @@ Model Context Protocol servers give the assistant extra tools (a database, an is
 - `env` values and `headers` are stored encrypted, like API keys, and are not shown again. When you reopen Settings, each one appears with an empty value (`"SOME_TOKEN": ""`): leave it empty to keep the stored value, type a new value to replace it, or delete the line to remove it. Renaming a server drops its stored values, so enter them again after a rename.
 - A stdio server starts in the project that is open when it connects, runs with your permissions, and keeps running until you change its settings or quit Patch.
 
-## Research subagent
+## Subagents and the todo list
 
-For broad questions ("find every caller of this function", "summarize how settings are saved"), the assistant can hand the research to a **subagent** with the `task` tool. The subagent has its own context, so the main chat stays small, and it can only read: it lists folders, reads and searches files and loads project skills, but cannot edit files, run commands or use the web, so it never needs an approval. Its progress appears on the tool card while it works, its answer comes back to the assistant, and its tokens count toward the chat's totals. It stops after 25 steps. A file only the subagent read still has to be read by the assistant before it can be edited.
+For broad questions ("find every caller of this function", "summarize how settings are saved"), the assistant can hand the research to a **subagent** with the `task` tool. The subagent has its own context, so the main chat stays small, and it can only read: it lists folders, finds files, reads and searches files and loads project skills, but cannot edit files, run commands or use the web, so it never needs an approval. Its progress appears on the tool card while it works, its answer comes back to the assistant, and its tokens count toward the chat's totals. It stops after 25 steps. A file only the subagent read still has to be read by the assistant before it can be edited.
+
+Two more read-only subagents work the same way: `finder` answers "where is X" questions on the provider's small model (the chat's own model on a custom endpoint), which is faster and cheaper, and `oracle` gives a second opinion on a hard problem (a bug, a design, a plan) on the chat's model. When the assistant asks for several read-only things in one turn (reads, searches, subagents), they run at the same time.
+
+For a multi-step task the assistant may keep a **todo list** (`todo_list`): the steps it plans, with the one it is working on marked. The whole list shows on the tool card each time it changes. It is kept in memory for the chat only and starts empty when a saved chat is reopened.
 
 ## Stop and Resume
 

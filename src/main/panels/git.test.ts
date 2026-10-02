@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { simpleGit } from 'simple-git';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { GitFile } from '@shared/panels';
-import { filterNames, GitService, hardenedConfig } from './git';
+import { filterNames, GitService, hardenedConfig, isRepoAboveHome } from './git';
 
 const tempFolderInsideRepo = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: tmpdir() }).status === 0;
 
@@ -327,5 +327,28 @@ describe('filterNames and hardenedConfig', () => {
       'filter.evil.process=',
       'filter.evil.required=false',
     ]);
+  });
+});
+
+describe('isRepoAboveHome', () => {
+  const home = join(tmpdir(), 'home', 'user');
+
+  it('rejects a repository at the home folder or above it for a project inside it', () => {
+    expect(isRepoAboveHome(home, join(home, 'code', 'app'), home)).toBe(true);
+    expect(isRepoAboveHome(join(home, '..'), join(home, 'AppData', 'Temp', 'p'), home)).toBe(true);
+  });
+
+  it('accepts the project being the repository root, even the home folder', () => {
+    expect(isRepoAboveHome(home, home, home)).toBe(false);
+  });
+
+  it('accepts repositories below the home folder or elsewhere', () => {
+    expect(isRepoAboveHome(join(home, 'code'), join(home, 'code', 'app'), home)).toBe(false);
+    expect(isRepoAboveHome(join(tmpdir(), 'work'), join(tmpdir(), 'work', 'app'), home)).toBe(false);
+    expect(isRepoAboveHome(join(home, 'code'), join(home, 'code-other'), home)).toBe(false);
+  });
+
+  it('compares git-style forward-slash paths', () => {
+    expect(isRepoAboveHome(home.replaceAll('\\', '/'), join(home, 'app'), home)).toBe(true);
   });
 });

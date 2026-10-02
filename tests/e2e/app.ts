@@ -45,6 +45,9 @@ export async function launchApp(
     env: {
       ...process.env,
       PATCH_USER_DATA: userData,
+      // Test projects live in the temp folder; git must not treat them as part of a repository above it (say, an
+      // accidental one in the home folder), whose `git status` would scan the whole profile on every refresh.
+      GIT_CEILING_DIRECTORIES: tmpdir(),
       // Invisible windows that never take focus, so a test run does not flash windows over your work.
       // Set E2E_SHOW_WINDOW=1 to watch the tests.
       ...(process.env.E2E_SHOW_WINDOW ? {} : { PATCH_E2E_QUIET: '1' }),

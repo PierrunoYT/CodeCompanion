@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git';
 import { parseNumstat, type GitFile, type GitStatus } from '@shared/panels';
@@ -31,6 +33,22 @@ export function filterNames(configListing: string): string[] {
     .map((line) => /^filter\.(.+)\.[^.]+$/.exec(line.trim())?.[1])
     .filter((name): name is string => Boolean(name));
   return [...new Set(names)];
+}
+
+// A repository whose root is the user's home folder or a folder above it (often left by an accidental `git init`)
+// is not the project's repository: `git status` there scans the whole profile, which can take minutes and gigabytes
+// of memory. A project inside such a repository is shown as not a repository, unless the project is its root.
+export function isRepoAboveHome(topLevel: string, projectRoot: string, home: string): boolean {
+  const normalize = (path: string) => {
+    const full = resolve(path);
+    return process.platform === 'win32' ? full.toLowerCase() : full;
+  };
+  const top = normalize(topLevel);
+  const contains = (path: string) => {
+    const rel = relative(top, normalize(path));
+    return !rel.startsWith('..') && !isAbsolute(rel);
+  };
+  return top !== normalize(projectRoot) && contains(home);
 }
 
 // New files larger than this are not counted for the line counts in the Git panel.
@@ -226,7 +244,8 @@ export class GitService {
 
   private async isRepo(): Promise<boolean> {
     try {
-      return (await (await this.repo()).revparse(['--show-toplevel'])).length > 0;
+      const topLevel = await (await this.repo()).revparse(['--show-toplevel']);
+      return topLevel.length > 0 && !isRepoAboveHome(topLevel, this.workspace.root, homedir());
     } catch {
       return false;
     }

@@ -18,3 +18,6 @@ out/
 
 # Orb portal metadata
 .amp/portals/*
+
+# Reference copy of ampx, not part of Patch
+ampx/

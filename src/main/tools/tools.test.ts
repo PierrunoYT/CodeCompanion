@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { globTool } from './glob';
 import { applyEdit, editFileTool, grepTool, listDirectoryTool, readFileTool, writeFileTool } from './files';
 import { browserTool } from './browser';
 import { availableTools } from './registry';
@@ -559,5 +560,57 @@ describe('protected files', () => {
       expect(tool.mustAsk!(input('.git/config') as never, context)).toBe(true);
       expect(tool.mustAsk!(input('src/app.ts') as never, context)).toBe(false);
     }
+  });
+});
+
+describe('glob', () => {
+  beforeEach(() => {
+    mkdirSync(join(root, 'src', 'deep'), { recursive: true });
+    writeFileSync(join(root, 'src', 'deep', 'util.test.ts'), '');
+    writeFileSync(join(root, 'src', 'app.test.ts'), '');
+    writeFileSync(join(root, 'README.md'), '');
+  });
+
+  const names = async (input: object) => ((await call(globTool, input)).content as string).split('\n');
+
+  it('matches by name at any depth and skips ignored files', async () => {
+    expect(await names({ pattern: '*.test.ts' })).toEqual(['src/app.test.ts', 'src/deep/util.test.ts']);
+    expect(await names({ pattern: '*.log' })).toEqual(['No files match.']);
+  });
+
+  it('supports **, ? and alternatives against the whole path', async () => {
+    expect(await names({ pattern: 'src/**/*.ts' })).toEqual(['src/app.test.ts', 'src/app.ts', 'src/deep/util.test.ts']);
+    expect(await names({ pattern: 'src/*.ts' })).toEqual(['src/app.test.ts', 'src/app.ts']);
+    expect(await names({ pattern: '{README,src/app}.{md,ts}' })).toEqual(['README.md', 'src/app.ts']);
+    expect(await names({ pattern: 'src/ap?.ts' })).toEqual(['src/app.ts']);
+  });
+
+  it('searches inside a folder and pages long results', async () => {
+    expect(await names({ pattern: '*.ts', path: 'src/deep' })).toEqual(['src/deep/util.test.ts']);
+    const page = await names({ pattern: '*.ts', limit: 1, offset: 1 });
+    expect(page[0]).toBe('src/app.ts');
+    expect(page[1]).toContain('Use offset=2');
+  });
+});
+
+describe('grep limits', () => {
+  it('shows at most 10 matches per file and 200 characters per line', async () => {
+    writeFileSync(join(root, 'many.txt'), Array.from({ length: 30 }, (_, i) => `hit ${i}`).join('\n'));
+    writeFileSync(join(root, 'wide.txt'), `hit ${'x'.repeat(500)}`);
+    const text = (await call(grepTool, { pattern: '^hit ' })).content as string;
+    expect(text.split('\n').filter((line) => line.startsWith('many.txt:'))).toHaveLength(10);
+    expect(text).toContain('more in: many.txt');
+    const wide = text.split('\n').find((line) => line.startsWith('wide.txt:'))!;
+    expect(wide.length).toBeLessThan(230);
+    expect(wide.endsWith('…')).toBe(true);
+  });
+
+  it('stops at 100 matches in total', async () => {
+    for (let i = 0; i < 20; i++) {
+      writeFileSync(join(root, `f${i}.txt`), Array.from({ length: 10 }, () => 'needle').join('\n'));
+    }
+    const text = (await call(grepTool, { pattern: 'needle' })).content as string;
+    expect(text.split('\n').filter((line) => line.includes(':'))).toHaveLength(100);
+    expect(text).toContain('Stopped at 100 matches');
   });
 });

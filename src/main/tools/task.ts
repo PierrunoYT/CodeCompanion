@@ -29,10 +29,10 @@ export function subagentConversation(
 }
 
 // load_skill only reads project skill files, and the subagent gets the parent's prompt, which lists the skills.
-const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'grep', 'search_code', 'load_skill']);
+const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'grep', 'glob', 'search_code', 'load_skill']);
 
 const SUBAGENT_PREAMBLE = `You are a read-only research subagent. Another agent delegated one question to you.
-- You can only read files, list directories, grep and use semantic code search. You cannot edit files, run commands, use the browser or fetch pages, and you have no web access.
+- You can only read files, list directories, find files by name, grep and use semantic code search. You cannot edit files, run commands, use the browser or fetch pages, and you have no web access.
 - Do not try tools you were not given; a missing tool means you cannot do that, so answer from what you can read.
 - Answer the delegated question directly. Your last message, the one with no tool call, is the only thing the other agent receives, so include the paths and line numbers it needs.
 - Do not start the work yourself and do not propose a plan for it. Report what you found.`;
@@ -46,7 +46,7 @@ export function createTaskTool(options: TaskToolOptions): AgentTool {
   return defineTool({
     name: 'task',
     description:
-      'Delegate a research question to a read-only subagent that has its own context window. It can read files, list directories, grep and use semantic code search in the current project, but cannot edit files, run commands or use the web. Give it a self-contained question and the paths or symbols to start from; its answer arrives as your tool result. A file it reads does not count as read by you: read it yourself before editing it. Use it for broad surveys (find every caller, summarize a subsystem) so your own context stays small.',
+      'Delegate a research question to a read-only subagent that has its own context window. It can read files, list directories, find files by name, grep and use semantic code search in the current project, but cannot edit files, run commands or use the web. Give it a self-contained question and the paths or symbols to start from; its answer arrives as your tool result. A file it reads does not count as read by you: read it yourself before editing it. Use it for broad surveys (find every caller, summarize a subsystem) so your own context stays small.',
     schema: z.object({
       task: z.string().describe('A self-contained research question, with concrete starting points (paths, symbols).'),
     }),

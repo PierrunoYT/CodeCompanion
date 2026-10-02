@@ -1,6 +1,7 @@
 import type { ToolSpec } from '../llm/types';
 import { applyPatchTool } from './apply_patch';
 import { browserTool } from './browser';
+import { globTool } from './glob';
 import { editFileTool, grepTool, listDirectoryTool, readFileTool, writeFileTool } from './files';
 import { proposePlanTool } from './plan';
 import { commandOutputTool, runCommandTool } from './shell';
@@ -12,6 +13,7 @@ const CORE_TOOLS: AgentTool[] = [
   readFileTool,
   listDirectoryTool,
   grepTool,
+  globTool,
   editFileTool,
   writeFileTool,
   applyPatchTool,

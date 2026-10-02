@@ -9,6 +9,10 @@ import { containsRedaction } from './redact';
 import { defineTool, MAX_OUTPUT_CHARS, ToolError, type ToolContext } from './types';
 
 const DEFAULT_READ_LINES = 2000;
+// Search results stay small enough to read: a few matches per file spread over many files beat one noisy file.
+const GREP_MAX_MATCHES = 100;
+const GREP_MAX_PER_FILE = 10;
+const GREP_MAX_LINE_CHARS = 200;
 
 export const readFileTool = defineTool({
   name: 'read_file',
@@ -121,17 +125,34 @@ export const grepTool = defineTool({
     const files = statSync(target).isDirectory() ? await context.workspace.listFiles(target) : [target];
 
     const matches: string[] = [];
+    const crowded: string[] = [];
     for (const file of files) {
-      if (context.signal.aborted || matches.length >= 200) break;
+      if (context.signal.aborted || matches.length >= GREP_MAX_MATCHES) break;
       if ((await fileSize(file)) > MAX_READ_BYTES || (await isBinaryFile(file))) continue;
       const lines = (await readFile(file, 'utf8')).split(/\r?\n/);
+      let inFile = 0;
+      let skipped = 0;
       lines.forEach((line, index) => {
-        if (matches.length < 200 && regex.test(line)) {
-          matches.push(`${context.workspace.relative(file)}:${index + 1}: ${line.trim().slice(0, 300)}`);
+        if (matches.length >= GREP_MAX_MATCHES || !regex.test(line)) return;
+        if (inFile >= GREP_MAX_PER_FILE) {
+          skipped++;
+          return;
         }
+        inFile++;
+        const text = line.trim();
+        const clipped = text.length > GREP_MAX_LINE_CHARS ? `${text.slice(0, GREP_MAX_LINE_CHARS)}…` : text;
+        matches.push(`${context.workspace.relative(file)}:${index + 1}: ${clipped}`);
       });
+      if (skipped > 0) crowded.push(context.workspace.relative(file));
     }
-    const note = matches.length >= 200 ? '\n(Stopped at 200 matches; narrow the pattern or path.)' : '';
+    const notes: string[] = [];
+    if (matches.length >= GREP_MAX_MATCHES) {
+      notes.push(`Stopped at ${GREP_MAX_MATCHES} matches; narrow the pattern or path.`);
+    }
+    if (crowded.length > 0) {
+      notes.push(`Showing the first ${GREP_MAX_PER_FILE} matches per file; more in: ${crowded.join(', ')}.`);
+    }
+    const note = notes.length > 0 ? `\n(${notes.join(' ')})` : '';
     return {
       content: (matches.join('\n') || 'No matches.') + note,
       summary: `Searched for /${pattern}/ (${matches.length} matches)`,

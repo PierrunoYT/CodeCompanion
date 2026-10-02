@@ -263,6 +263,7 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
       limit: z.number().int().min(1).max(20).optional().describe('Number of snippets (default 8).'),
     }),
     requiresApproval: false,
+    parallelSafe: true,
     async run({ query, limit = 8 }, context) {
       await index.update(context.signal, ({ embedded, total }) =>
         context.onProgress(`Indexing project: ${embedded}/${total} chunks\n`),

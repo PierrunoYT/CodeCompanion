@@ -51,6 +51,7 @@ export function createTaskTool(options: TaskToolOptions): AgentTool {
       task: z.string().describe('A self-contained research question, with concrete starting points (paths, symbols).'),
     }),
     requiresApproval: false,
+    parallelSafe: true,
     run: async ({ task }, context) => runSubagent(options, task, context),
   });
 }

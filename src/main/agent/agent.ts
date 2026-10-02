@@ -256,7 +256,26 @@ export class Agent {
     const heldForPlan = planCall ? calls.filter((call) => call !== planCall) : [];
     const ordered = planCall ? [planCall, ...heldForPlan] : calls;
 
+    // Consecutive read-only calls wait in `batch` and run together. Any other call (or a call that is skipped) runs
+    // after the batch has finished, so side effects keep their order and results keep the order of the calls.
+    let batch: ToolCall[] = [];
+    const flush = async () => {
+      const group = batch;
+      batch = [];
+      const outcomes = await Promise.all(group.map((call) => this.runTool(tools, call, signal)));
+      for (const outcome of outcomes) {
+        results.push(outcome.result);
+        if (outcome.declinedWithoutFeedback) stop = true;
+      }
+    };
+
     for (const call of ordered) {
+      const runs = !signal.aborted && !planCall && !stop && !truncated;
+      if (runs && tools.find((tool) => tool.name === call.name)?.parallelSafe) {
+        batch.push(call);
+        continue;
+      }
+      await flush();
       if (signal.aborted) {
         results.push({ id: call.id, content: 'Not run: the user stopped the task.', isError: true });
         continue;
@@ -287,6 +306,7 @@ export class Agent {
       results.push(outcome.result);
       if (outcome.declinedWithoutFeedback) stop = true;
     }
+    await flush();
     return { results, stop };
   }
 

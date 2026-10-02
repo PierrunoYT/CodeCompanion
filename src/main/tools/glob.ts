@@ -55,6 +55,7 @@ export const globTool = defineTool({
     offset: z.number().int().min(0).optional().describe('Files to skip, to page through a long result.'),
   }),
   requiresApproval: false,
+  parallelSafe: true,
   async run({ pattern, path = '.', limit = DEFAULT_LIMIT, offset = 0 }, context) {
     const base = context.workspace.resolve(path);
     if (!statSync(base).isDirectory()) throw new ToolError(`Not a directory: ${path}`);

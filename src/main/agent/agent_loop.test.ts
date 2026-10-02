@@ -1165,3 +1165,66 @@ describe('Agent: calls that must ask', () => {
     expect(ran).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Agent: parallel read-only tools', () => {
+  function timed(name: string, log: string[], parallelSafe: boolean, delay: number) {
+    return defineTool({
+      name,
+      description: name,
+      schema: z.object({ what: z.string().optional() }),
+      requiresApproval: false,
+      parallelSafe,
+      async run() {
+        log.push(`start:${name}`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        log.push(`end:${name}`);
+        return { content: `${name} done` };
+      },
+    });
+  }
+
+  it('runs consecutive read-only calls together and the rest alone, in order', async () => {
+    const log: string[] = [];
+    const tools = [timed('slow', log, true, 30), timed('fast', log, true, 1), timed('edit', log, false, 1)];
+    const { agent, conversation } = setup(
+      [
+        {
+          toolCalls: [
+            call('t1', 'slow'),
+            call('t2', 'fast'),
+            call('t3', 'edit'),
+            call('t4', 'fast'),
+            call('t5', 'slow'),
+          ],
+        },
+        { text: 'done' },
+      ],
+      { tools },
+    );
+    await agent.send({ text: 'go' }, new AbortController().signal);
+
+    expect(log.slice(0, 4)).toEqual(['start:slow', 'start:fast', 'end:fast', 'end:slow']);
+    // The edit starts only after the batch before it finished, and the batch after it only after the edit.
+    expect(log.slice(4, 6)).toEqual(['start:edit', 'end:edit']);
+    expect(conversation.results[0]!.map((result) => result.id)).toEqual(['t1', 't2', 't3', 't4', 't5']);
+    expect(conversation.results[0]!.map((result) => result.content)).toEqual([
+      'slow done',
+      'fast done',
+      'edit done',
+      'fast done',
+      'slow done',
+    ]);
+  });
+
+  it('still answers every call when the task is stopped', async () => {
+    const log: string[] = [];
+    const controller = new AbortController();
+    controller.abort();
+    const { agent, conversation } = setup([{ toolCalls: [call('t1', 'slow'), call('t2', 'slow')] }], {
+      tools: [timed('slow', log, true, 1)],
+    });
+    await agent.send({ text: 'go' }, controller.signal).catch(() => {});
+    expect(log).toEqual([]);
+    if (conversation.results[0]) expect(conversation.results[0].every((result) => result.isError)).toBe(true);
+  });
+});

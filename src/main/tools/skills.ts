@@ -98,6 +98,7 @@ export const loadSkillTool: AgentTool = defineTool({
     'Load a project skill: a markdown file with instructions for a recurring task in this project. The available skills and what they are for are listed in your system prompt; load one before doing work it covers.',
   schema: z.object({ name: z.string().describe('The skill name, as listed in the system prompt.') }),
   requiresApproval: false,
+  parallelSafe: true,
   run: async ({ name }, context) => {
     const content = readSkill(context.workspace, name);
     return { content, summary: `Loaded skill ${name}` };

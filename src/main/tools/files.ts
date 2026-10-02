@@ -32,6 +32,7 @@ export const readFileTool = defineTool({
       ),
   }),
   requiresApproval: false,
+  parallelSafe: true,
   async run({ path, offset = 1, limit = DEFAULT_READ_LINES, char_offset = 0 }, context) {
     const file = context.workspace.resolve(path);
     if (!existsSync(file)) throw new ToolError(`File not found: ${path}`);
@@ -84,6 +85,7 @@ export const listDirectoryTool = defineTool({
     recursive: z.boolean().optional().describe('List all files below the directory (up to 500).'),
   }),
   requiresApproval: false,
+  parallelSafe: true,
   async run({ path = '.', recursive = false }, context) {
     const dir = context.workspace.resolve(path);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) throw new ToolError(`Not a directory: ${path}`);
@@ -114,6 +116,7 @@ export const grepTool = defineTool({
     ignore_case: z.boolean().optional(),
   }),
   requiresApproval: false,
+  parallelSafe: true,
   async run({ pattern, path = '.', ignore_case = false }, context) {
     let regex: RegExp;
     try {

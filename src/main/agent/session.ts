@@ -14,7 +14,7 @@ import type { ApprovalMode } from '@shared/settings';
 import type { CompletionClient, Conversation, SerializedConversation } from '../llm/types';
 import type { AgentTool, EditUndo, ToolContext } from '../tools/types';
 import { compactionPrompt } from '../llm/compaction';
-import { Agent, type DroppedFieldError } from './agent';
+import { Agent, type AgentOptions, type DroppedFieldError } from './agent';
 
 export interface SavedChat {
   version: 1;
@@ -52,6 +52,7 @@ export interface ChatSessionOptions {
   resumable?: boolean;
   approvalMode: () => ApprovalMode;
   isPreApproved?: (toolName: string, input: unknown) => boolean;
+  decidePermission?: AgentOptions['decidePermission'];
   toolContext: (base: Pick<ToolContext, 'signal' | 'readFiles' | 'onProgress'>) => ToolContext;
   smallModel: (conversation: Conversation) => CompletionClient | null;
   onDroppedFields?: (error: DroppedFieldError) => void;
@@ -101,6 +102,7 @@ export class ChatSession {
       tools: options.tools,
       approvalMode: options.approvalMode,
       isPreApproved: options.isPreApproved,
+      decidePermission: options.decidePermission,
       requestApproval: (id, signal) => this.waitForApproval(id, signal),
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
       onCheckpoint: () => this.options.onChange(true, true),

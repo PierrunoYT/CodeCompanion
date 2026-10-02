@@ -38,6 +38,21 @@ export interface McpServerView {
   headerKeys: string[];
 }
 
+// One rule of the permissions setting. The first rule that matches a tool call decides it; with no match the tool's
+// own approval rules apply. `tool` and the `matches` values are globs (`*` any text, `?` one character), an array
+// means "any of these". `matches` compares input fields of the call, e.g. {"command": "git push*"}.
+export interface PermissionRule {
+  tool: string | string[];
+  matches?: Record<string, string | string[]>;
+  // allow: run without asking. reject: never run (the model sees `message`). ask: always ask, even in Auto mode.
+  // delegate: the program in `to` gets {tool,input,context} as JSON on stdin and prints allow, reject or ask.
+  action: 'allow' | 'reject' | 'ask' | 'delegate';
+  message?: string;
+  to?: string;
+  // Only calls made by the chat itself or only by its subagents.
+  context?: 'thread' | 'subagent';
+}
+
 export interface Settings {
   model: string;
   // How much the model thinks before acting (current Claude models and OpenAI via the Responses API).
@@ -60,6 +75,8 @@ export interface Settings {
   googleSearchEngineId: string;
   // Model Context Protocol servers. Their tools are offered to the agent with approval required, like file edits.
   mcpServers: McpServerConfig[];
+  // Rules that allow, reject or force approval of tool calls (see PermissionRule). The first match wins.
+  permissionRules: PermissionRule[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -75,6 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxIndexedFiles: 2000,
   googleSearchEngineId: '',
   mcpServers: [],
+  permissionRules: [],
 };
 
 export type SecretName = 'anthropicApiKey' | 'openaiApiKey' | 'googleApiKey';
@@ -131,6 +149,57 @@ export function parseMcpServers(text: string): McpServerConfig[] {
 export function sanitizeMcpServers(servers: unknown): McpServerConfig[] {
   if (!Array.isArray(servers)) return [];
   return servers.filter((entry) => mcpServerError(entry) === null) as McpServerConfig[];
+}
+
+const globs = (value: unknown): boolean =>
+  typeof value === 'string' || (Array.isArray(value) && value.every((item) => typeof item === 'string'));
+
+function permissionRuleError(entry: unknown): string | null {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return 'every entry must be an object';
+  const rule = entry as Record<string, unknown>;
+  if (!globs(rule.tool) || rule.tool === '' || (Array.isArray(rule.tool) && rule.tool.length === 0))
+    return '"tool" must be a glob or a list of globs';
+  if (!['allow', 'reject', 'ask', 'delegate'].includes(rule.action as string))
+    return '"action" must be allow, reject, ask or delegate';
+  if (rule.matches !== undefined) {
+    const matches = rule.matches;
+    if (typeof matches !== 'object' || matches === null || Array.isArray(matches))
+      return '"matches" must be an object of globs';
+    if (!Object.values(matches).every(globs)) return '"matches" values must be globs or lists of globs';
+  }
+  if (rule.action === 'delegate' && (typeof rule.to !== 'string' || !rule.to.trim()))
+    return 'delegate rules need "to", the program to ask';
+  if (rule.message !== undefined && typeof rule.message !== 'string') return '"message" must be text';
+  if (rule.to !== undefined && typeof rule.to !== 'string') return '"to" must be text';
+  if (rule.context !== undefined && rule.context !== 'thread' && rule.context !== 'subagent')
+    return '"context" must be thread or subagent';
+  return null;
+}
+
+// Parses the JSON the settings dialog collects for permission rules, throwing a readable error when unusable.
+export function parsePermissionRules(text: string): PermissionRule[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`Permission rules must be valid JSON: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
+  if (!Array.isArray(parsed)) throw new Error('Permission rules must be a JSON array of rule objects.');
+  for (const [index, entry] of parsed.entries()) {
+    const problem = permissionRuleError(entry);
+    if (problem) throw new Error(`Permission rules: entry ${index + 1}: ${problem}`);
+  }
+  return parsed as PermissionRule[];
+}
+
+// Drops rules that cannot work (e.g. from a hand-edited settings file) instead of failing to start.
+export function sanitizePermissionRules(rules: unknown): PermissionRule[] {
+  if (!Array.isArray(rules)) return [];
+  return rules.filter((entry) => permissionRuleError(entry) === null) as PermissionRule[];
 }
 
 // What the renderer sees. Secrets never leave the main process; the UI only learns whether each one is set.

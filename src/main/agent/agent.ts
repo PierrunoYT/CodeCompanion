@@ -5,6 +5,7 @@ import type { Conversation, ToolCall, ToolResult, UserInput } from '../llm/types
 import { redactSecrets } from '../tools/redact';
 import { toToolSpecs } from '../tools/registry';
 import { ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolPreview } from '../tools/types';
+import type { PermissionDecision } from './permissions';
 import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 
 // Safety net against a model that never stops calling tools.
@@ -32,6 +33,9 @@ export interface AgentOptions {
   approvalMode: () => ApprovalMode;
   // True for a call the user allowed in advance (see the allowedCommands setting); it then skips the approval card.
   isPreApproved?: (toolName: string, input: unknown) => boolean;
+  // A permission rule's verdict on a call (see the permissionRules setting): allow skips the approval card, ask
+  // always shows it, reject answers the model without running the tool. Null leaves the tool's own rules in force.
+  decidePermission?: (toolName: string, input: Record<string, unknown>) => Promise<PermissionDecision | null>;
   requestApproval: (id: string, signal: AbortSignal) => Promise<ApprovalDecision>;
   toolContext: (signal: AbortSignal, onProgress: (text: string) => void) => ToolContext;
   // Called after every tool-result batch is appended to the conversation, so a crash mid-task can be resumed
@@ -348,12 +352,22 @@ export class Agent {
     const onProgress = (text: string) => emit({ type: 'tool-progress', id: eventId, text });
     const context = this.options.toolContext(signal, onProgress);
 
-    const needsApproval =
-      tool.alwaysAsk ||
-      mustAsk(tool, input, context) ||
-      (tool.requiresApproval &&
-        this.options.approvalMode() === 'ask' &&
-        !this.options.isPreApproved?.(tool.name, input));
+    const rule = await this.options.decidePermission?.(tool.name, input);
+    if (rule?.action === 'reject') {
+      const content = rule.message?.trim()
+        ? `Blocked by a permission rule: ${rule.message.trim()}`
+        : 'Blocked by a permission rule. Do not retry this call; ask the user how to proceed.';
+      emit({ type: 'tool-start', id: eventId, name: tool.name, awaitingApproval: false });
+      emit({ type: 'tool-end', id: eventId, status: 'error', summary: `${tool.name} blocked`, output: content });
+      return { result: { id: call.id, content, isError: true } };
+    }
+    const needsApproval = rule
+      ? rule.action === 'ask'
+      : tool.alwaysAsk ||
+        mustAsk(tool, input, context) ||
+        (tool.requiresApproval &&
+          this.options.approvalMode() === 'ask' &&
+          !this.options.isPreApproved?.(tool.name, input));
     let preview: ToolPreview | undefined;
     if (tool.preview) {
       try {

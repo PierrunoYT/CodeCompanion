@@ -4,7 +4,7 @@ import { describeIndexStatus } from '@shared/index_status';
 import type { IndexStatus, McpStatus } from '@shared/ipc';
 import type { ProjectInfo, ProjectSettings } from '@shared/project';
 import type { SecretName, Settings, SettingsView } from '@shared/settings';
-import { parseMcpServers, type McpServerView } from '@shared/settings';
+import { parseMcpServers, parsePermissionRules, type McpServerView } from '@shared/settings';
 import { h, icon } from '../dom';
 
 function dialog(title: string, body: HTMLElement, footer: HTMLElement): HTMLDialogElement {
@@ -191,6 +191,12 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     h('div', { class: 'd-flex align-items-center gap-2' }, indexText, reindex),
   );
 
+  const permissionRules = h('textarea', {
+    class: 'form-control font-monospace',
+    rows: 4,
+    value: settings.permissionRules.length > 0 ? JSON.stringify(settings.permissionRules, null, 2) : '',
+    placeholder: '[{"tool":"run_command","matches":{"command":"git push*"},"action":"reject","message":"no pushing"}]',
+  });
   const mcpServers = h('textarea', {
     class: 'form-control font-monospace',
     rows: 4,
@@ -254,6 +260,11 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
       allowedNetworkHosts,
       'Exact URL hostnames, one per line, used in "Ask" mode. Subdomains must be listed separately.',
     ),
+    field(
+      'Permission rules (JSON)',
+      permissionRules,
+      'Rules decide tool calls before the normal approval: action "allow", "reject", "ask" (also in Auto mode) or "delegate" (a program in "to" answers allow, reject or ask). "tool" and the "matches" values are globs on the tool name and its input, e.g. {"tool":"run_command","matches":{"command":"git push*"},"action":"reject"}. The first matching rule wins. Allow and delegate rules ask for confirmation when saved.',
+    ),
     h('h3', { class: 'h6 text-body-secondary mt-4' }, 'Other'),
     field('Theme', theme),
     field('Editor command', editor, 'Opens files from the chat, e.g. code, cursor, subl.'),
@@ -301,6 +312,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
         editorCommand: editor.value.trim(),
         maxIndexedFiles: Number(maxFiles.value),
         mcpServers: parseMcpServers(mcpServers.value),
+        permissionRules: parsePermissionRules(permissionRules.value),
       });
       element.close();
     } catch (err) {

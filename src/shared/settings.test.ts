@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseMcpServers, sanitizeMcpServers } from './settings';
+import { parseMcpServers, parsePermissionRules, sanitizeMcpServers, sanitizePermissionRules } from './settings';
 
 describe('parseMcpServers', () => {
   it('accepts valid stdio and http servers', () => {
@@ -52,5 +52,35 @@ describe('sanitizeMcpServers', () => {
   it('rejects non-arrays', () => {
     expect(sanitizeMcpServers(undefined)).toEqual([]);
     expect(sanitizeMcpServers({})).toEqual([]);
+  });
+});
+
+describe('parsePermissionRules', () => {
+  it('accepts valid rules and empty text', () => {
+    expect(parsePermissionRules('')).toEqual([]);
+    const rules = [
+      { tool: 'run_command', matches: { command: ['git push*', 'rm *'] }, action: 'reject', message: 'no' },
+      { tool: ['a', 'b'], action: 'delegate', to: 'check', context: 'subagent' },
+    ];
+    expect(parsePermissionRules(JSON.stringify(rules))).toEqual(rules);
+  });
+
+  it.each([
+    ['not json', '{'],
+    ['not an array', '{}'],
+    ['bad action', '[{"tool":"x","action":"maybe"}]'],
+    ['missing tool', '[{"action":"allow"}]'],
+    ['delegate without program', '[{"tool":"x","action":"delegate"}]'],
+    ['bad matches', '[{"tool":"x","action":"ask","matches":{"a":1}}]'],
+    ['bad context', '[{"tool":"x","action":"ask","context":"main"}]'],
+  ])('rejects %s', (_name, text) => {
+    expect(() => parsePermissionRules(text)).toThrow();
+  });
+
+  it('drops unusable stored rules', () => {
+    expect(sanitizePermissionRules([{ tool: 'x', action: 'ask' }, { action: 'ask' }, 5])).toEqual([
+      { tool: 'x', action: 'ask' },
+    ]);
+    expect(sanitizePermissionRules('nope')).toEqual([]);
   });
 });

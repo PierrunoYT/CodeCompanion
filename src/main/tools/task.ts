@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ChatEvent, UsageTotals } from '@shared/chat';
 import type { Conversation, SerializedConversation, UserInput } from '../llm/types';
-import { Agent, SUBAGENT_MAX_TURNS } from '../agent/agent';
+import { Agent, SUBAGENT_MAX_TURNS, type AgentOptions } from '../agent/agent';
 import { defineTool, ToolError, truncateOutput, type AgentTool, type ToolContext } from './types';
 
 export interface TaskToolOptions {
@@ -13,6 +13,8 @@ export interface TaskToolOptions {
   tools: () => AgentTool[];
   // Adds the subagent's token usage to the chat totals, so the status bar and cost estimate include delegated work.
   recordUsage?: (usage: UsageTotals) => void;
+  // Permission rules for the subagent's own tool calls (rules with context "subagent" apply).
+  decidePermission?: AgentOptions['decidePermission'];
 }
 
 // An empty conversation on the parent chat's own model and API, for one subagent run. The parent's compaction state
@@ -62,6 +64,7 @@ async function runSubagent(options: TaskToolOptions, task: string, context: Tool
     // Read-only tools never ask for approval; the subagent cannot escalate. The fallback declines, so even an
     // unexpected approval request cannot turn into a silent side effect.
     approvalMode: () => 'auto' as const,
+    decidePermission: options.decidePermission,
     requestApproval: () => Promise.resolve({ approved: false }),
     // Own read set: a file the subagent read is not a file the parent has read, so the read-before-edit guard holds.
     toolContext: (signal, onProgress) => ({ ...context, signal, onProgress, readFiles: new Set() }),

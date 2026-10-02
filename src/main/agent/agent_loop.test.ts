@@ -1076,6 +1076,68 @@ describe('Agent: secret redaction', () => {
   });
 });
 
+describe('Agent: permission rules', () => {
+  const run = vi.fn();
+  const guarded = defineTool({
+    name: 'edit',
+    description: 'edit',
+    schema: z.object({ what: z.string() }),
+    requiresApproval: true,
+    async run() {
+      run();
+      return { content: 'ok' };
+    },
+  });
+  const calls = [{ toolCalls: [call('t1', 'edit', { what: 'x' })] }, { text: 'done' }];
+
+  it('rejects without running the tool and tells the model why', async () => {
+    run.mockClear();
+    const { agent, conversation, events, requestApproval } = setup(calls, {
+      tools: [guarded],
+      agentOptions: { decidePermission: async () => ({ action: 'reject', message: 'no edits today' }) },
+    });
+    await agent.send({ text: 'go' }, new AbortController().signal);
+    expect(run).not.toHaveBeenCalled();
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(conversation.results[0]![0]).toMatchObject({
+      isError: true,
+      content: expect.stringContaining('no edits today'),
+    });
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'error', summary: 'edit blocked' });
+  });
+
+  it('allow skips the approval card in Ask mode', async () => {
+    run.mockClear();
+    const { agent, requestApproval } = setup(calls, {
+      tools: [guarded],
+      mode: 'ask',
+      agentOptions: { decidePermission: async () => ({ action: 'allow' }) },
+    });
+    await agent.send({ text: 'go' }, new AbortController().signal);
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('ask shows the card in Auto mode, and no decision keeps the tool rules', async () => {
+    run.mockClear();
+    const asking = setup(calls, {
+      tools: [guarded],
+      mode: 'auto',
+      agentOptions: { decidePermission: async () => ({ action: 'ask' }) },
+    });
+    await asking.agent.send({ text: 'go' }, new AbortController().signal);
+    expect(asking.requestApproval).toHaveBeenCalledTimes(1);
+
+    const none = setup(calls, {
+      tools: [guarded],
+      mode: 'ask',
+      agentOptions: { decidePermission: async () => null },
+    });
+    await none.agent.send({ text: 'go' }, new AbortController().signal);
+    expect(none.requestApproval).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Agent: calls that must ask', () => {
   it('asks in Auto mode when the tool says this call needs it', async () => {
     const ran = vi.fn();

@@ -62,6 +62,19 @@ describe('changesToConfirm', () => {
     expect(changesToConfirm(current, { mcpServers: [] }, false)).toEqual([]);
   });
 
+  it('asks before adding a rule that allows calls or delegates them, not for other rules', () => {
+    const allow = { tool: 'run_command', action: 'allow' as const };
+    const delegate = { tool: ['fetch_url'], action: 'delegate' as const, to: 'check' };
+    const reject = { tool: 'run_command', action: 'reject' as const };
+    expect(changesToConfirm(current, { permissionRules: [reject, { tool: '*', action: 'ask' }] }, false)).toEqual([]);
+    expect(changesToConfirm(current, { permissionRules: [allow, delegate] }, false)).toEqual([
+      'Allow run_command without asking (permission rule).',
+      'Let the program "check" decide calls to fetch_url (permission rule).',
+    ]);
+    const withAllow: Settings = { ...current, permissionRules: [allow] };
+    expect(changesToConfirm(withAllow, { permissionRules: [allow] }, false)).toEqual([]);
+  });
+
   it('lists every change in one confirmation', () => {
     expect(changesToConfirm(current, { approvalMode: 'auto', editorCommand: 'vim' }, false)).toHaveLength(2);
   });

@@ -22,6 +22,21 @@ export function changesToConfirm(current: Settings, patch: Partial<Settings>, au
       if (what) changes.push(`${what} MCP server "${server.name}": ${commandLine(server)}`);
     }
   }
+
+  // Rules that let tool calls run without asking, or hand the decision to a program, are as sensitive as Auto mode.
+  if (Array.isArray(patch.permissionRules)) {
+    const known = new Set(current.permissionRules.map((rule) => JSON.stringify(rule)));
+    for (const rule of patch.permissionRules) {
+      if (rule.action !== 'allow' && rule.action !== 'delegate') continue;
+      if (known.has(JSON.stringify(rule))) continue;
+      const tools = [rule.tool].flat().join(', ');
+      changes.push(
+        rule.action === 'allow'
+          ? `Allow ${tools} without asking (permission rule).`
+          : `Let the program "${rule.to}" decide calls to ${tools} (permission rule).`,
+      );
+    }
+  }
   return changes;
 }
 

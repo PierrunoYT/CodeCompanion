@@ -6,6 +6,7 @@ import { mergeAllowLists } from '@shared/project';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
 import { isNetworkUrlAllowed } from './agent/allowed_network_hosts';
+import { decidePermission } from './agent/permissions';
 import type { DroppedFieldError } from './agent/agent';
 import { buildSystemPrompt, promptListsSkills } from './agent/system_prompt';
 import { ChatSession, type SavedChat } from './agent/session';
@@ -273,6 +274,8 @@ export class ChatManager {
       system,
       tools: sessionTools,
       recordUsage: (usage) => session.recordUsage(usage),
+      decidePermission: (name, input) =>
+        decidePermission(this.deps.settings.get().permissionRules, name, input, 'subagent'),
     });
 
     const session: ChatSession = new ChatSession({
@@ -293,6 +296,8 @@ export class ChatManager {
       pendingNotes: saved?.pendingNotes,
       resumable: saved?.resumable,
       approvalMode: () => this.deps.settings.get().approvalMode,
+      decidePermission: (name, input) =>
+        decidePermission(this.deps.settings.get().permissionRules, name, input, 'thread'),
       isPreApproved: (toolName, input) => {
         // The global lists plus this project's own, read on every call so a change applies at once.
         const settings = this.deps.settings.get();

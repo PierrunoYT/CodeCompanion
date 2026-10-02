@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events';
 import {
   DEFAULT_SETTINGS,
   sanitizeMcpServers,
+  sanitizePermissionRules,
+  parsePermissionRules,
   SECRET_NAMES,
   parseMcpServers,
   type McpServerConfig,
@@ -76,6 +78,7 @@ export class SettingsStore extends EventEmitter {
     // User-entered server config is validated up front so the dialog can show the problem; a silent drop would
     // hide typos.
     if ('mcpServers' in known) this.validateMcpServers(known.mcpServers);
+    if ('permissionRules' in known) parsePermissionRules(JSON.stringify(known.permissionRules));
     const next = sanitize({ ...this.settings, ...known });
     if ('mcpServers' in known) this.storeMcpSecrets(next.mcpServers);
     next.mcpServers = next.mcpServers.map(({ env: _env, headers: _headers, ...server }) => server);
@@ -220,5 +223,6 @@ function sanitize(settings: Settings): Settings {
   result.maxIndexedFiles = Math.max(1, Math.floor(result.maxIndexedFiles));
   result.model = result.model.trim() || DEFAULT_SETTINGS.model;
   result.mcpServers = sanitizeMcpServers(result.mcpServers);
+  result.permissionRules = sanitizePermissionRules(result.permissionRules);
   return result;
 }

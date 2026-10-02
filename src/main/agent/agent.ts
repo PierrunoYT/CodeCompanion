@@ -350,6 +350,7 @@ export class Agent {
 
     const needsApproval =
       tool.alwaysAsk ||
+      mustAsk(tool, input, context) ||
       (tool.requiresApproval &&
         this.options.approvalMode() === 'ask' &&
         !this.options.isPreApproved?.(tool.name, input));
@@ -424,6 +425,15 @@ export class Agent {
       });
       return { result: { id: call.id, content: expected ? message : `Error: ${message}`, isError: true } };
     }
+  }
+}
+
+// A tool can ask even in Auto mode for a particular call. A check that cannot be made counts as no.
+function mustAsk(tool: AgentTool, input: Record<string, unknown>, context: ToolContext): boolean {
+  try {
+    return tool.mustAsk?.(input, context) ?? false;
+  } catch {
+    return false;
   }
 }
 

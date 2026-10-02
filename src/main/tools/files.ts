@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { createTwoFilesPatch } from 'diff';
 import { z } from 'zod';
 import { detectEol, fileSize, isBinaryFile, MAX_READ_BYTES, sha256, withLineNumbers } from './text_files';
+import { isGuardedPath } from './guard';
 import { containsRedaction } from './redact';
 import { defineTool, MAX_OUTPUT_CHARS, ToolError, type ToolContext } from './types';
 
@@ -147,6 +148,7 @@ export const writeFileTool = defineTool({
     content: z.string().describe('The complete file content.'),
   }),
   requiresApproval: true,
+  mustAsk: ({ path }, context) => isProtected(path, context),
   async preview({ path, content }, context) {
     refuseRedacted(content);
     const file = context.workspace.resolve(path);
@@ -187,6 +189,7 @@ export const editFileTool = defineTool({
     replace_all: z.boolean().optional().describe('Replace every occurrence instead of requiring a unique match.'),
   }),
   requiresApproval: true,
+  mustAsk: ({ path }, context) => isProtected(path, context),
   async preview(input, context) {
     const file = context.workspace.resolve(input.path);
     const rel = context.workspace.relative(file);
@@ -235,6 +238,11 @@ function splitsSurrogatePair(text: string, offset: number): boolean {
   const before = text.charCodeAt(offset - 1);
   const after = text.charCodeAt(offset);
   return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
+}
+
+// Protected files (keys, .env, .git, editor and shell config) are asked about even in Auto mode.
+function isProtected(path: string, context: ToolContext): boolean {
+  return isGuardedPath(context.workspace.relative(context.workspace.resolve(path)));
 }
 
 // Tool results hide secrets behind a placeholder. Writing it back would replace the real value with the placeholder.

@@ -550,3 +550,14 @@ describe('redacted placeholders', () => {
     expect(existsSync(join(root, 'new.txt'))).toBe(false);
   });
 });
+
+describe('protected files', () => {
+  it('make edits ask even in Auto mode', () => {
+    const input = (path: string) => ({ path, content: 'x', old_string: 'a', new_string: 'b' });
+    for (const tool of [writeFileTool, editFileTool]) {
+      expect(tool.mustAsk!(input('.env') as never, context)).toBe(true);
+      expect(tool.mustAsk!(input('.git/config') as never, context)).toBe(true);
+      expect(tool.mustAsk!(input('src/app.ts') as never, context)).toBe(false);
+    }
+  });
+});

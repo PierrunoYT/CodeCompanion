@@ -74,6 +74,8 @@ export interface AgentTool<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.
   requiresApproval: boolean;
   // Still asks in Auto mode. MCP tools run programs the user configured, so they are never pre-approved.
   alwaysAsk?: boolean;
+  // Asks for approval in Auto mode too when this particular call needs it (e.g. an edit to a protected file).
+  mustAsk?(input: z.infer<S>, context: ToolContext): boolean;
   preview?(input: z.infer<S>, context: ToolContext): Promise<ToolPreview>;
   run(input: z.infer<S>, context: ToolContext): Promise<ToolOutput>;
 }

@@ -3,9 +3,21 @@ name: Release
 # Push a tag such as v0.1.0 to build the installers and attach them to a GitHub release. Linux and macOS packages
 # are experimental until they have been tested by hand (see the GitHub issue for that); the Windows installer is
 # the supported release.
+#
+# Every other run is a dry run: started by hand, or by a change to this workflow or package.json (which holds the
+# packaging config). It runs the same tests and builds the same installers, uploaded as run artifacts, but the Windows
+# installer is unsigned, the tag check is skipped and nothing is released.
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: ['.github/workflows/release.yml', 'package.json']
+  pull_request:
+    paths: ['.github/workflows/release.yml', 'package.json']
+  workflow_dispatch:
+
+env:
+  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
 # Build jobs run third-party install scripts, so they only get a read token. The release job is the one that writes.
 permissions:
@@ -26,7 +38,7 @@ jobs:
       # The Windows installer is the supported release and must be signed, so its leg stops before installing anything
       # when the signing secrets are missing.
       - name: Require signing credentials
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.IS_RELEASE == 'true'
         shell: bash
         run: |
           if [ -z "$WIN_CSC_LINK" ] || [ -z "$WIN_CSC_KEY_PASSWORD" ]; then
@@ -53,6 +65,7 @@ jobs:
       - run: node node_modules/electron/install.js
 
       - name: Check the tag matches the package version
+        if: env.IS_RELEASE == 'true'
         shell: bash
         run: |
           version="v$(node -p "require('./package.json').version")"
@@ -90,14 +103,19 @@ jobs:
 
       # Local builds may be unsigned, but a Windows release must never silently fall back to an unsigned artifact.
       - name: Build the Windows installer
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.IS_RELEASE == 'true'
         run: npx electron-builder --win --publish never --config.forceCodeSigning=true
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
+      # A dry run proves the installer builds; it gets no signing secrets, so it cannot be mistaken for a release.
+      - name: Build the unsigned Windows installer (dry run)
+        if: runner.os == 'Windows' && env.IS_RELEASE != 'true'
+        run: npx electron-builder --win --publish never
+
       - name: Verify release signatures
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.IS_RELEASE == 'true'
         shell: pwsh
         run: |
           foreach ($path in @('dist/win-unpacked/Patch.exe', 'dist/Patch-Installer.exe')) {
@@ -135,10 +153,11 @@ jobs:
             dist/*.deb
 
   # Runs even when a build leg failed, so an experimental Linux or macOS failure cannot hold back the supported Windows
-  # installer. The release still requires the Windows installer (checked below) and is skipped if the run is cancelled.
+  # installer. The release still requires the Windows installer (checked below) and is skipped if the run is cancelled
+  # or is a dry run.
   release:
     needs: build
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

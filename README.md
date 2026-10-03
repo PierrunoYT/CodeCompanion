@@ -60,7 +60,7 @@ Then:
 
 Recent projects are ordered by the latest open, including folders opened within the same millisecond.
 
-To build an installer: `npm run dist` (on Windows, `dist/Patch-Installer.exe`; the unpacked app is `dist/win-unpacked/Patch.exe`; a DMG on macOS; an AppImage and deb on Linux, where the deb installs the command `patch-app`). Local `pack` and `dist` commands never publish; releases are published by the tag-triggered release workflow. The Windows installer is the supported download. Linux and macOS packages are built by CI so they can be tried, but they are experimental. The Linux packages have passed a scripted check, not yet use on a real desktop, and the macOS app has not been run outside the tests.
+To build an installer: `npm run dist` (on Windows, `dist/Patch-Installer.exe`; the unpacked app is `dist/win-unpacked/Patch.exe`; a DMG on macOS; an AppImage and deb on Linux, where the deb installs the command `patch-app`). Local `pack` and `dist` commands never publish; releases are published by the tag-triggered release workflow. The Windows installer is the supported download. Linux and macOS packages are built by CI so they can be tried, but they are experimental. CI starts the installed Linux deb, the AppImage and the macOS app from its DMG and checks they open a project and run a terminal command, but nobody has used them on a real desktop yet, and a downloaded copy of the unsigned macOS app has not been tried.
 
 For development in Amp orbs, the repository includes setup and resume scripts to prepare and reuse dependencies. See [orb setup](docs/DEVELOPMENT.md#amp-orbs) for requirements and headless test commands.
 

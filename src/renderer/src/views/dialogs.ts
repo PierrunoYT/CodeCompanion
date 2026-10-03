@@ -149,6 +149,12 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     h('option', { value: 'auto', selected: settings.approvalMode === 'auto' }, 'Run edits and commands without asking'),
   );
   const planMode = h('input', { type: 'checkbox', class: 'form-check-input', checked: settings.planMode });
+  const keepCacheWarm = h('input', {
+    type: 'checkbox',
+    class: 'form-check-input',
+    checked: settings.keepCacheWarm,
+    'aria-label': 'Keep the prompt cache warm while a chat is idle',
+  });
   const allowedCommands = h('textarea', {
     class: 'form-control font-monospace',
     rows: 4,
@@ -345,6 +351,16 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
       'The assistant shows what it intends to do as an approval card before changing files or running commands. The card still appears in Auto mode. Approving lets the work begin; declining with a note sends that note back, and declining with nothing stops the task.',
     ),
     field(
+      'Prompt cache',
+      h(
+        'div',
+        { class: 'form-check' },
+        keepCacheWarm,
+        h('label', { class: 'form-check-label' }, 'Keep the prompt cache warm while a chat is idle'),
+      ),
+      'Claude chats only. After an answer, Patch re-sends the chat about every 4 minutes for up to an hour, without generating anything, so a reply after a pause reads the cache instead of writing the whole chat again. Each keep-alive costs a cache read (about $0.02 for a 100k-token chat on Claude Opus 5.5) and counts toward the chat cost.',
+    ),
+    field(
       'Commands allowed without asking',
       allowedCommands,
       'One per line, used in "Ask" mode. "npm test" also allows "npm test -- foo". Commands with ; & | > < ` $ ( ) { } or a line break are always asked about. File edits are always asked about.',
@@ -400,6 +416,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
         subagentEffort: subagentEffort.value as SubagentEffortChoice,
         approvalMode: approval.value as Settings['approvalMode'],
         planMode: planMode.checked,
+        keepCacheWarm: keepCacheWarm.checked,
         allowedCommands: allowedCommands.value.trim(),
         allowedNetworkHosts: allowedNetworkHosts.value.trim(),
         theme: theme.value as Settings['theme'],

@@ -370,6 +370,7 @@ export class ChatManager {
         return { ...base, workspace, shell, browser, codeSearch: codeSearch?.search ?? null, webSearch };
       },
       smallModel: (conversation) => this.deps.llm.smallModel(conversation),
+      keepCacheWarm: () => this.deps.settings.get().keepCacheWarm,
       onDroppedFields: this.deps.onDroppedFields,
       onEditApplied: this.deps.edits ? (toolId, edit) => this.deps.edits!.record(session.id, toolId, edit) : undefined,
       onEvent: (event) => this.deps.emit(event, session.id),

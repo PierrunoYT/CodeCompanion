@@ -72,6 +72,10 @@ export interface Settings {
   // Plan mode: the agent proposes a plan as an approval card before working through multi-step changes. The card is
   // shown even in Auto mode, so a plan is never treated as approved without the user seeing it.
   planMode: boolean;
+  // While a Claude chat is idle, re-send its last request with max_tokens 0 about every 4 minutes, for up to an hour,
+  // so the prompt cache does not expire between turns. Each keep-alive costs a cache read; off by default because
+  // it sends requests the user did not start.
+  keepCacheWarm: boolean;
   // Commands that run without approval in 'ask' mode, one per line; a line also allows the command with arguments
   // ("npm test" allows "npm test -- foo"). Commands with shell operators (; & | > < ` $() are never allowed this way.
   allowedCommands: string;
@@ -97,6 +101,7 @@ export const DEFAULT_SETTINGS: Settings = {
   subagentEffort: DEFAULT_SUBAGENT_EFFORT,
   approvalMode: 'ask',
   planMode: false,
+  keepCacheWarm: false,
   allowedCommands: '',
   allowedNetworkHosts: '',
   theme: 'dark',

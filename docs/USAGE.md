@@ -236,6 +236,7 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 - **Subagent model** (same as the chat by default, or mid-size, or small): the model `task` uses. It never moves `task` to a model that costs more than the chat's (a chat on the small model keeps it). `oracle` stays on the chat's model. `finder` stays on the small model.
 - **Subagent effort** (match the chat by default, or lower for lookups): lower runs `finder` at low and `task` at medium. `oracle` keeps the chat's effort.
 - **Plan mode**: see [Plan mode](#plan-mode) above.
+- **Prompt cache** (off by default, Claude chats only): keeps the chat's prompt cache warm while you are away. Claude keeps a cached prompt for 5 minutes, so a reply after a longer pause writes the whole chat to the cache again (about $0.50 for a 100k-token chat on Claude Opus 5.5). With this on, Patch re-sends the chat about every 4 minutes after an answer, for up to an hour, without generating anything; each of these costs a cache read (about $0.02 for the same chat) and counts toward the chat's cost. It stops when you send the next message, compact the chat, close it, or when one fails. It sends requests you did not start, which is why it is off by default.
 - **MCP servers**: see [MCP servers](#mcp-servers) above.
 - **Theme**: dark or light.
 - **Editor command**: what the **Open in editor** link on a tool card runs, e.g. `code`, `cursor` or `subl`.

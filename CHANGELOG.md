@@ -10,6 +10,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Settings → Prompt cache: "Keep the prompt cache warm while a chat is idle" (off by default, Claude chats only). After an answer, Patch re-sends the chat about every 4 minutes for up to an hour with `max_tokens: 0`, so a reply after a pause reads the cache instead of writing the whole chat again. Each keep-alive costs a cache read and counts toward the chat cost ([#77](https://github.com/PierrunoYT/patch/issues/77)).
 - Chat usage counts model requests (`requests`), including retries and subagent calls. The agent benchmark records that count next to assistant text messages.
 - A new chat's system prompt includes a project map two folders deep, with file counts and entry points (`package.json` main and script names, plus `pyproject.toml`, `Cargo.toml`, and `go.mod` when present). It is capped at 2,500 characters and stored with the chat. In very large folders the file counts stop after 20,000 entries and are shown as lower bounds, so starting a chat stays fast.
 - Settings → Subagent model (`same`, `mid`, `small`) chooses the model for `task`; it never picks a model that costs more than the chat's. `oracle` stays on the chat model, and `finder` stays on the small model. Settings → Subagent effort (`match` or `scaled`) can run `finder` at low effort and `task` at medium. Both default to today's behavior.

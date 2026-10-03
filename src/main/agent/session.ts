@@ -13,6 +13,7 @@ import type { UndoResult } from '@shared/ipc';
 import type { ApprovalMode } from '@shared/settings';
 import type { CompletionClient, Conversation, SerializedConversation } from '../llm/types';
 import type { AgentTool, EditUndo, ToolContext } from '../tools/types';
+import { appLog } from '../app_log';
 import { compactionPrompt } from '../llm/compaction';
 import { Agent, type AgentOptions, type DroppedFieldError } from './agent';
 
@@ -34,6 +35,11 @@ export interface SavedChat {
   // False for custom OpenAI-compatible endpoints, whose prices are unknown. Missing in chats saved by older versions.
   officialPricing?: boolean;
 }
+
+// The provider keeps a cache entry 5 minutes after the request that last read or wrote it started; a keep-alive a
+// minute early leaves room for a slow network. KEEP_ALIVE_MAX of them cover about an hour of idle time.
+const KEEP_ALIVE_INTERVAL_MS = 4 * 60_000;
+const KEEP_ALIVE_MAX = 14;
 
 export interface ChatSessionOptions {
   id?: string;
@@ -62,6 +68,8 @@ export interface ChatSessionOptions {
   // immediate is true when a task just finished, so the chat can be saved right away.
   // checkpoint is true for a crash-resume checkpoint after a tool batch: only the chat file needs writing.
   onChange: (immediate: boolean, checkpoint?: boolean) => void;
+  // Settings → Prompt cache: keep the provider's prompt cache alive while the chat is idle.
+  keepCacheWarm?: () => boolean;
 }
 
 // One chat: its model conversation, transcript, pending approvals and the files read in it.
@@ -81,6 +89,10 @@ export class ChatSession {
   // (during a model request, or before the tool calls of the last answer were saved) offers Resume when reopened.
   private running = false;
   private stopRequested = false;
+  // Keep-alive requests while the chat is idle (Settings → Prompt cache). See scheduleKeepAlive.
+  private keepAliveTimer: NodeJS.Timeout | null = null;
+  private keepAliveController: AbortController | null = null;
+  private keepAlivesLeft = 0;
   private updatedAt: string;
   // Things that happened to the project outside the conversation, for the model's next message.
   private readonly notes: string[];
@@ -208,6 +220,7 @@ export class ChatSession {
   }
 
   private async run(work: (signal: AbortSignal) => Promise<boolean>): Promise<void> {
+    this.stopKeepAlive();
     const controller = new AbortController();
     this.controller = controller;
     this.stopRequested = false;
@@ -231,13 +244,64 @@ export class ChatSession {
       this.rejectPendingApprovals();
       if (stopped) this.setResumable(true);
       this.emit({ type: 'busy', busy: false });
+      this.keepAlivesLeft = KEEP_ALIVE_MAX;
+      this.scheduleKeepAlive();
     }
+  }
+
+  // While the chat is idle, re-send its last request (no output) shortly before the provider's 5-minute cache entry
+  // expires, so a reply after a pause reads the cache instead of writing the whole chat again. At most KEEP_ALIVE_MAX
+  // times after an answer (about an hour). Stops for good on the next run, compaction, a failure or dispose.
+  private scheduleKeepAlive(): void {
+    const conversation = this.options.conversation;
+    if (this.disposed || this.busy || this.keepAlivesLeft <= 0) return;
+    if (!this.options.keepCacheWarm?.() || !conversation.keepCacheWarm || !conversation.lastRequestStartedAt) return;
+    const due = conversation.lastRequestStartedAt + KEEP_ALIVE_INTERVAL_MS - Date.now();
+    this.keepAliveTimer = setTimeout(() => void this.keepAlive(), Math.max(0, due));
+    this.keepAliveTimer.unref?.();
+  }
+
+  private async keepAlive(): Promise<void> {
+    this.keepAliveTimer = null;
+    if (this.disposed || this.busy || !this.options.keepCacheWarm?.()) return;
+    this.keepAlivesLeft--;
+    const controller = new AbortController();
+    this.keepAliveController = controller;
+    try {
+      const usage = await this.options.conversation.keepCacheWarm?.(controller.signal);
+      if (!usage || controller.signal.aborted) return;
+      this.recordUsage({
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cacheReadTokens: usage.cacheReadTokens,
+        cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+        requests: 1,
+      });
+      this.options.onChange(false);
+      this.scheduleKeepAlive();
+    } catch {
+      // No retries: a failed keep-alive only means the next reply may write the cache again.
+      if (!controller.signal.aborted)
+        appLog.warn('chat', 'A prompt cache keep-alive failed; stopping them for this chat.');
+    } finally {
+      if (this.keepAliveController === controller) this.keepAliveController = null;
+    }
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveTimer) clearTimeout(this.keepAliveTimer);
+    this.keepAliveTimer = null;
+    this.keepAliveController?.abort();
+    this.keepAliveController = null;
+    this.keepAlivesLeft = 0;
   }
 
   // Replaces the older turns, in what is sent to the model, by a summary written by the small model. The stored
   // history is not changed. Nothing is done when there is too little history to be worth it.
   async compact(): Promise<void> {
     if (this.busy) throw new Error('The assistant is still working. Stop it or wait for it to finish.');
+    // What is sent changes, so the entry being kept warm is no longer the one the next request needs.
+    this.stopKeepAlive();
     const { conversation } = this.options;
     const plan = conversation.planCompaction();
     if (!plan) {
@@ -291,6 +355,7 @@ export class ChatSession {
 
   dispose(): void {
     this.disposed = true;
+    this.stopKeepAlive();
     this.titleController?.abort();
     this.stop();
   }

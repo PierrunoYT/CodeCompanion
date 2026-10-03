@@ -102,6 +102,11 @@ export interface Conversation {
   planCompaction(): CompactionPlan | null;
   // From now on the summary is sent in place of the messages before `keepFrom`. Nothing stored is changed.
   applyCompaction(summary: string, keepFrom: number): void;
+  // Re-sends the last request without generating anything, so the provider's prompt cache stays alive while the chat
+  // is idle. Returns the usage, or null when there is nothing to keep warm. Providers without cache control omit it.
+  keepCacheWarm?(signal: AbortSignal): Promise<TurnResult['usage'] | null>;
+  // When the last request to the model started (Date.now()), for timing the keep-alive. Unset before the first.
+  readonly lastRequestStartedAt?: number;
   // True when the history ends with tool calls that never got their results — a task the app interrupted.
   // addUserMessage() repairs such a history with synthetic results, so the next request is valid again.
   hasPendingToolCalls(): boolean;

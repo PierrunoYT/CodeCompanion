@@ -95,6 +95,8 @@ export class AnthropicConversation implements Conversation {
   private readonly messages: MessageParam[];
   private compaction: CompactionState | null;
   private toolNamesHash: number | null = null;
+  private lastRequest: Pick<TurnRequest, 'system' | 'tools'> | null = null;
+  lastRequestStartedAt?: number;
   private systemHash: number | null = null;
 
   constructor(
@@ -184,7 +186,9 @@ export class AnthropicConversation implements Conversation {
     let jsonRetries = 0;
     let continuations = 0;
 
+    this.lastRequest = { system: request.system, tools: request.tools };
     while (true) {
+      this.lastRequestStartedAt = Date.now();
       const params = this.buildParams(request);
       params.messages = [...params.messages, ...pending];
       const stream = this.client.beta.messages.stream(params, { signal: request.signal });
@@ -251,6 +255,42 @@ export class AnthropicConversation implements Conversation {
       messages: this.messages,
       ...(this.compaction ? { compaction: this.compaction } : {}),
     };
+  }
+
+  // A cache read with no output: the last request again, with max_tokens 0 and without streaming. The API rejects a
+  // request that ends with the assistant's reply, so a placeholder user message ends it; it is read but never
+  // answered. The breakpoint sits on the reply's last block, the last part the next real request shares, instead of
+  // the top-level automatic one, which would key the cache to the placeholder.
+  async keepCacheWarm(signal: AbortSignal): Promise<TurnResult['usage'] | null> {
+    if (!this.lastRequest || this.hasPendingToolCalls()) return null;
+    const params = this.buildParams(this.lastRequest);
+    const messages = structuredClone(params.messages);
+    const last = messages.at(-1);
+    if (last?.role !== 'assistant' || !Array.isArray(last.content)) return null;
+    const index = last.content.findLastIndex(
+      (block) => block.type !== 'thinking' && block.type !== 'redacted_thinking',
+    );
+    if (index < 0) return null;
+    last.content[index] = { ...last.content[index], cache_control: { type: 'ephemeral' } } as never;
+    messages.push({ role: 'user', content: 'keep-alive' });
+    const { cache_control: _automatic, stream: _stream, ...rest } = params;
+    this.lastRequestStartedAt = Date.now();
+    const message = await this.client.beta.messages.create(
+      { ...rest, messages, max_tokens: 0, stream: false },
+      { signal },
+    );
+    const usage = {
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+      cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
+    };
+    appLog.info('llm', 'anthropic keep-alive', {
+      cacheRead: usage.cacheReadTokens,
+      cacheWrite: usage.cacheWriteTokens,
+      input: usage.inputTokens,
+    });
+    return usage;
   }
 
   private logCache(

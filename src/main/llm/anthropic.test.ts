@@ -61,6 +61,66 @@ describe('AnthropicConversation', () => {
     expect(result.contextTokens).toBe(17);
   });
 
+  it('keeps the cache warm by re-sending the last request without output, ending with a placeholder', async () => {
+    server.queueSse(anthropicStream([{ type: 'text', text: 'Here is the answer.' }], 'end_turn'));
+    server.queueJson(200, {
+      id: 'msg_keep',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-5-5',
+      content: [],
+      stop_reason: 'max_tokens',
+      stop_sequence: null,
+      usage: { input_tokens: 11, output_tokens: 0, cache_read_input_tokens: 8466, cache_creation_input_tokens: 4 },
+    });
+    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+    });
+    const signal = new AbortController().signal;
+    // Nothing to keep warm before the first request.
+    expect(await conversation.keepCacheWarm(signal)).toBeNull();
+    conversation.addUserMessage({ text: 'hi' });
+    await conversation.runTurn(request());
+
+    const usage = await conversation.keepCacheWarm(signal);
+    expect(usage).toEqual({ inputTokens: 11, outputTokens: 0, cacheReadTokens: 8466, cacheWriteTokens: 4 });
+
+    const turn = server.requests[0]!.body;
+    const keep = server.requests[1]!.body;
+    // The same prefix as the real request (tools, system, thinking, effort, betas), so it reads the same entries.
+    for (const field of ['model', 'tools', 'system', 'thinking', 'output_config', 'context_management', 'fallbacks']) {
+      expect(keep[field]).toEqual(turn[field]);
+    }
+    // No output and no stream; the API rejects a request ending with the assistant reply, so a placeholder ends it,
+    // and the breakpoint is on the reply instead of the top-level automatic one, which would key on the placeholder.
+    expect(keep.max_tokens).toBe(0);
+    expect(keep.stream).toBe(false);
+    expect(keep.cache_control).toBeUndefined();
+    const messages = keep.messages as Array<{ role: string; content: unknown }>;
+    expect(messages.at(-1)).toEqual({ role: 'user', content: 'keep-alive' });
+    const reply = messages.at(-2) as { role: string; content: Array<Record<string, unknown>> };
+    expect(reply.role).toBe('assistant');
+    expect(reply.content.at(-1)).toMatchObject({ type: 'text', cache_control: { type: 'ephemeral' } });
+    // The stored history is unchanged: no placeholder and no breakpoint left behind.
+    expect(JSON.stringify(conversation.serialize().messages)).not.toContain('keep-alive');
+    expect(JSON.stringify(conversation.serialize().messages)).not.toContain('cache_control');
+  });
+
+  it('does not keep the cache warm while tool calls are waiting for their results', async () => {
+    server.queueSse(
+      anthropicStream([{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: { path: 'a.ts' } }], 'tool_use'),
+    );
+    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+    });
+    conversation.addUserMessage({ text: 'Read a.ts' });
+    await conversation.runTurn(request());
+    expect(await conversation.keepCacheWarm(new AbortController().signal)).toBeNull();
+    expect(server.requests).toHaveLength(1);
+  });
+
   it('sends current-model features: adaptive thinking, effort, compaction, fallback, caching, eager tool input', async () => {
     server.queueSse(anthropicStream([{ type: 'text', text: 'ok' }], 'end_turn'));
     const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {

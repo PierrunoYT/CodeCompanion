@@ -11,8 +11,7 @@ import { openInEditor, pickImages, saveTextFile } from './files';
 import { handle, send } from './ipc';
 import { LlmService } from './llm';
 import { signInWithChatGpt, signOutChatGpt } from './llm/codex_auth';
-import { createOpenAIClient } from './llm/openai';
-import { CodeIndex, openAIEmbedder, searchCodeTool } from './search/code_index';
+import { CodeIndex, openRouterEmbedder, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { RendererErrorReporter } from './renderer_errors';
@@ -122,12 +121,12 @@ function start(): void {
   settings.on('change', refreshMcp);
 
   const indexFor = (workspace: Workspace): CodeIndex | null => {
-    // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
-    const key = settings.getSecret('openaiApiKey');
+    // Embeddings go through OpenRouter, so semantic search is offered only when that key is set.
+    const key = settings.getSecret('openrouterApiKey');
     if (!key) return null;
     let index = codeIndexes.get(workspace.root);
     if (!index) {
-      const embedder = openAIEmbedder(createOpenAIClient(key, settings.get().openaiBaseUrl));
+      const embedder = openRouterEmbedder(key);
       index = new CodeIndex(workspace, embedder, join(userData, 'indexes'), () => settings.get().maxIndexedFiles);
       codeIndexes.set(workspace.root, index);
     }
@@ -148,7 +147,7 @@ function start(): void {
     const project = projects.current();
     if (!project) return { index: null, reason: 'Open a project first.' };
     const index = indexFor(new Workspace(project.path));
-    return index ? { index } : { index: null, reason: 'Set an OpenAI API key to enable code indexing.' };
+    return index ? { index } : { index: null, reason: 'Set an OpenRouter API key to enable code indexing.' };
   };
 
   const manager = new ChatManager({

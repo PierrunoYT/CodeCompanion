@@ -35,7 +35,12 @@ describe('SettingsStore', () => {
   it('starts from defaults', () => {
     const store = new SettingsStore(file, reversingCipher);
     expect(store.get()).toEqual(DEFAULT_SETTINGS);
-    expect(store.view().secrets).toEqual({ anthropicApiKey: false, openaiApiKey: false, googleApiKey: false });
+    expect(store.view().secrets).toEqual({
+      anthropicApiKey: false,
+      openaiApiKey: false,
+      openrouterApiKey: false,
+      googleApiKey: false,
+    });
     expect(store.get().allowedNetworkHosts).toBe('');
   });
 

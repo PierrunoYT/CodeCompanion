@@ -95,9 +95,9 @@ export const DEFAULT_SETTINGS: Settings = {
   permissionRules: [],
 };
 
-export type SecretName = 'anthropicApiKey' | 'openaiApiKey' | 'googleApiKey';
+export type SecretName = 'anthropicApiKey' | 'openaiApiKey' | 'openrouterApiKey' | 'googleApiKey';
 
-export const SECRET_NAMES: SecretName[] = ['anthropicApiKey', 'openaiApiKey', 'googleApiKey'];
+export const SECRET_NAMES: SecretName[] = ['anthropicApiKey', 'openaiApiKey', 'openrouterApiKey', 'googleApiKey'];
 
 // Validates one entry of the MCP servers setting; returns an error message or null when it is usable.
 function mcpServerError(entry: unknown): string | null {

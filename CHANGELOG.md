@@ -48,6 +48,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Changed
 
+- Semantic code search embeds the project with Voyage `voyage-code-4` through OpenRouter instead of OpenAI `text-embedding-3-small`. It needs the new **OpenRouter API key** setting instead of the OpenAI key; queries and code chunks are sent with Voyage's `query` and `document` input types. Existing indexes are rebuilt with the new model on the next search.
 - Redesign the workspace with an OpenCode Desktop-inspired neutral palette in both themes, project navigation and New Chat at the top of the sidebar, a sidebar toggle, session breadcrumbs, a centered transcript, quieter tool cards, and a rounded prompt with model, approval and plan controls plus keyboard hints.
 - The assistant changes files only with its edit tools, not with shell commands, so every change shows a diff, can be approved and can be undone. Before, it sometimes rewrote several files with a PowerShell or `sed` command (#45).
 - Redesign the interface around the Patch brand: charcoal surfaces and the mint logo color in both themes, a logo mark and quiet icon buttons in the header, project tabs, a single rounded composer box with the send button inside, card-style tool calls, a centered welcome screen with tip cards, and restyled dialogs, code blocks and scrollbars. Text still meets WCAG AA contrast in both themes.

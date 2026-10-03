@@ -21,7 +21,7 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 - Decline with a note ("use pnpm instead") and the assistant adjusts
 - Optional **Plan mode**: before multi-step changes, the assistant shows its plan as an approval card, also in Auto mode
 - **Undo** on the card of any approved file edit puts the file back (or deletes a file the assistant created), as long as the file is still as the edit left it; the assistant is told and has to read the file again
-- Semantic code search over the project (needs an OpenAI key for embeddings, which can be added mid-chat); Settings shows whether the project is indexed (with progress while it builds) and can reindex it
+- Semantic code search over the project (needs an OpenRouter key: files are embedded with Voyage `voyage-code-4` through OpenRouter; the key can be added mid-chat); Settings shows whether the project is indexed (with progress while it builds) and can reindex it
 - Built-in browser the assistant uses to check web apps: console output and screenshots
 - Interactive terminal and a Git panel next to the chat: changed files with line counts, a hunk-by-hunk diff preview, discard (one file or all), AI-written commit messages (**Generate**), and **Commit & Push**
 - Mention project files with `@` in the message box; tool calls in the chat show how long they took

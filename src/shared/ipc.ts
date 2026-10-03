@@ -17,7 +17,7 @@ export interface AppInfo {
 }
 
 export interface IndexStatus {
-  // False when there is no project open or no OpenAI key (embeddings need one).
+  // False when there is no project open or no OpenRouter key (embeddings need one).
   available: boolean;
   reason?: string;
   indexed: boolean;

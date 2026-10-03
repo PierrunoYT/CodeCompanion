@@ -517,8 +517,8 @@ export class App {
             ? 'Ask mode · Review changes and commands before they run.'
             : 'Auto mode · Changes and commands run without asking.',
         ),
-        !this.settings.secrets.openaiApiKey
-          ? h('li', {}, 'Add an OpenAI key in settings to enable semantic code search.')
+        !this.settings.secrets.openrouterApiKey
+          ? h('li', {}, 'Add an OpenRouter key in settings to enable semantic code search.')
           : null,
       ),
       h(

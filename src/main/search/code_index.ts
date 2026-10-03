@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { EMBEDDING_MODEL } from '@shared/models';
+import { EMBEDDING_BASE_URL, EMBEDDING_MODEL } from '@shared/models';
 import { readJson, writeJson } from '../storage/json_file';
 import { fileSize, isBinaryFile } from '../tools/text_files';
 import { defineTool, type AgentTool, type CodeSearch } from '../tools/types';
@@ -14,9 +14,12 @@ const INDEX_VERSION = 1;
 const MAX_FILE_BYTES = 256 * 1024;
 const EMBED_BATCH = 64;
 
+// Retrieval models embed a search query and the text it should find differently.
+export type EmbeddingInput = 'query' | 'document';
+
 export interface Embedder {
   readonly model: string;
-  embed(texts: string[], signal?: AbortSignal): Promise<number[][]>;
+  embed(texts: string[], input: EmbeddingInput, signal?: AbortSignal): Promise<number[][]>;
 }
 
 interface IndexedChunk {
@@ -89,7 +92,7 @@ export class CodeIndex implements CodeSearch {
 
   async search(query: string, limit: number, signal: AbortSignal): Promise<SearchHit[]> {
     await this.update(signal);
-    const [queryVector] = await this.embedder.embed([query], signal);
+    const [queryVector] = await this.embedder.embed([query], 'query', signal);
     if (!queryVector) throw new Error('The embedding service returned no vector for the query.');
     const q = normalize(Float32Array.from(queryVector));
 
@@ -182,6 +185,7 @@ export class CodeIndex implements CodeSearch {
       const batch = work.slice(i, i + EMBED_BATCH);
       const vectors = await this.embedder.embed(
         batch.map((item) => item.chunk.text),
+        'document',
         signal,
       );
       batch.forEach((item, j) => {
@@ -278,19 +282,31 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
   });
 }
 
-export function openAIEmbedder(client: {
-  embeddings: {
-    create(
-      body: { model: string; input: string[] },
-      options?: { signal?: AbortSignal },
-    ): Promise<{ data: Array<{ embedding: number[]; index: number }> }>;
-  };
-}): Embedder {
+// Embeds through OpenRouter's OpenAI-style embeddings endpoint. input_type lets Voyage prefix queries and documents
+// for retrieval. Errors name the status and OpenRouter's message, never the key.
+export function openRouterEmbedder(
+  apiKey: string,
+  baseUrl = EMBEDDING_BASE_URL,
+  fetchImpl: typeof fetch = fetch,
+): Embedder {
   return {
     model: EMBEDDING_MODEL,
-    async embed(texts, signal) {
-      const response = await client.embeddings.create({ model: EMBEDDING_MODEL, input: texts }, { signal });
-      return response.data.sort((a, b) => a.index - b.index).map((item) => item.embedding);
+    async embed(texts, input, signal) {
+      const response = await fetchImpl(`${baseUrl.replace(/\/+$/, '')}/embeddings`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts, input_type: input, encoding_format: 'float' }),
+        signal,
+      });
+      const body = (await response.json().catch(() => null)) as {
+        data?: Array<{ embedding: number[]; index: number }>;
+        error?: { message?: string };
+      } | null;
+      if (!response.ok || !Array.isArray(body?.data)) {
+        const detail = body?.error?.message ? `: ${body.error.message}` : '';
+        throw new Error(`OpenRouter embeddings request failed (${response.status})${detail}`);
+      }
+      return [...body.data].sort((a, b) => a.index - b.index).map((item) => item.embedding);
     },
   };
 }

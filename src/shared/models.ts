@@ -105,7 +105,9 @@ export function formatCost(dollars: number): string {
   return dollars < 0.01 ? '<$0.01' : `$${dollars.toFixed(2)}`;
 }
 
-export const EMBEDDING_MODEL = 'text-embedding-3-small';
+// Semantic code search embeds through OpenRouter with Voyage's code model (1024 dimensions by default).
+export const EMBEDDING_MODEL = 'voyageai/voyage-code-4';
+export const EMBEDDING_BASE_URL = 'https://openrouter.ai/api/v1';
 
 // Prompt size (tokens) from which the app suggests compacting the chat. One value for every model: context windows
 // differ (and are unknown for custom endpoints), so this is a nudge well below the common 200k, not a limit.

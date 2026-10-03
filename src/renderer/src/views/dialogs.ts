@@ -51,7 +51,11 @@ const SECRET_LABELS: Record<SecretName, [string, string]> = {
   anthropicApiKey: ['Anthropic API key', 'Needed for Claude models.'],
   openaiApiKey: [
     'OpenAI API key',
-    'Used for official OpenAI models when you are signed out, for a custom base URL, and for semantic code search (embeddings).',
+    'Used for official OpenAI models when you are signed out, and for a custom base URL.',
+  ],
+  openrouterApiKey: [
+    'OpenRouter API key',
+    'Optional, for semantic code search: project files are embedded with Voyage voyage-code-4 through OpenRouter.',
   ],
   googleApiKey: ['Google API key', 'Optional, for web search. Also set the search engine id below.'],
 };

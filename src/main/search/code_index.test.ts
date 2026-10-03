@@ -4,15 +4,17 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Workspace } from '../tools/workspace';
 import { chunkFile } from './chunker';
-import { CodeIndex, type Embedder } from './code_index';
+import { CodeIndex, openRouterEmbedder, type Embedder, type EmbeddingInput } from './code_index';
 
 // Deterministic stand-in for an embedding model: a bag of hashed words.
 class FakeEmbedder implements Embedder {
   readonly model = 'fake';
   calls: string[][] = [];
+  inputs: EmbeddingInput[] = [];
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], input: EmbeddingInput): Promise<number[][]> {
     this.calls.push(texts);
+    this.inputs.push(input);
     return texts.map((text) => {
       const vector = new Array(64).fill(0);
       for (const word of text.toLowerCase().match(/[a-z]+/g) ?? []) {
@@ -77,6 +79,9 @@ describe('CodeIndex', () => {
     expect(hits[0]).toMatchObject({ path: 'src/auth.ts', startLine: 1 });
     expect(hits[0]!.text).toContain('validateSession');
     expect(index.fileCount).toBe(2);
+    // Chunks are embedded as documents, the search text as a query.
+    expect(embedder.inputs.at(-1)).toBe('query');
+    expect(new Set(embedder.inputs.slice(0, -1))).toEqual(new Set(['document']));
   });
 
   it('reports status and re-embeds everything on rebuild', async () => {
@@ -150,5 +155,54 @@ describe('CodeIndex', () => {
     const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 2);
     await index.update();
     expect(index.fileCount).toBe(1);
+  });
+});
+
+describe('openRouterEmbedder', () => {
+  const respond = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+  it('posts Voyage code embeddings to OpenRouter and returns them in input order', async () => {
+    const requests: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      requests.push({ url, init });
+      return respond(200, {
+        data: [
+          { index: 1, embedding: [0, 1] },
+          { index: 0, embedding: [1, 0] },
+        ],
+      });
+    }) as unknown as typeof fetch;
+    const embedder = openRouterEmbedder('sk-or-test', 'https://router.example/api/v1/', fetchImpl);
+
+    expect(embedder.model).toBe('voyageai/voyage-code-4');
+    expect(await embedder.embed(['first', 'second'], 'document', signal)).toEqual([
+      [1, 0],
+      [0, 1],
+    ]);
+    expect(requests[0]!.url).toBe('https://router.example/api/v1/embeddings');
+    expect((requests[0]!.init.headers as Record<string, string>).authorization).toBe('Bearer sk-or-test');
+    expect(JSON.parse(requests[0]!.init.body as string)).toEqual({
+      model: 'voyageai/voyage-code-4',
+      input: ['first', 'second'],
+      input_type: 'document',
+      encoding_format: 'float',
+    });
+  });
+
+  it("reports OpenRouter's error without the key", async () => {
+    const fetchImpl = (async () =>
+      respond(401, { error: { message: 'No auth credentials found' } })) as unknown as typeof fetch;
+    const failure = openRouterEmbedder('sk-or-secret', undefined, fetchImpl).embed(['x'], 'query', signal);
+    await expect(failure).rejects.toThrow('OpenRouter embeddings request failed (401): No auth credentials found');
+    await expect(failure).rejects.not.toThrow(/sk-or-secret/);
+  });
+
+  it('fails when a successful response has no embeddings', async () => {
+    const fetchImpl = (async () =>
+      respond(200, { error: { message: 'Model is warming up' } })) as unknown as typeof fetch;
+    await expect(openRouterEmbedder('k', undefined, fetchImpl).embed(['x'], 'query', signal)).rejects.toThrow(
+      'OpenRouter embeddings request failed (200): Model is warming up',
+    );
   });
 });

@@ -15,7 +15,13 @@ function credentialView(patch: {
 }): Pick<SettingsView, 'openaiBaseUrl' | 'secrets' | 'chatgpt'> {
   return {
     openaiBaseUrl: patch.openaiBaseUrl ?? '',
-    secrets: { anthropicApiKey: false, openaiApiKey: false, googleApiKey: false, ...patch.secrets },
+    secrets: {
+      anthropicApiKey: false,
+      openaiApiKey: false,
+      openrouterApiKey: false,
+      googleApiKey: false,
+      ...patch.secrets,
+    },
     chatgpt: { signedIn: false, accountLabel: null, ...patch.chatgpt },
   };
 }

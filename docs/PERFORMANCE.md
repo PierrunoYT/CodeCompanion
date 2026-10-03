@@ -358,7 +358,7 @@ Small suite, Claude Sonnet 5.5, 2 runs per task, on the machine above:
   - its own new tests failing on the first run, then fixed;
   - one `edit_file` whose `old_string` did not match.
 - **Cost grows with exploration, not codebase size.** `settings-cap` and `ipc-channel` read the most (about 120–160k cached tokens over 20+ tool calls), but still cost about $0.10–0.12 because almost all of it is cache reads.
-- **Not counted:** the cost column is the Anthropic API only. When an OpenAI key is saved, `search_code` embeds the project for semantic search, which adds a few cents per large run.
+- **Not counted:** the cost column is the Anthropic API only. When an OpenRouter key is saved, `search_code` embeds the project for semantic search, which adds a few cents per large run.
 - **Reading the numbers:** 12 tasks, two runs each, on one model. The benchmark is a regression check for the app (tools, prompts, the agent loop) rather than a measure of model ability. Rerun it after changing the system prompt, tool descriptions or the loop, and compare solved counts, tool calls and cost. Harder, longer tasks (multi-step features, flaky or concurrency bugs, larger refactors) and other models (Opus 5.5, GPT-6) are not covered yet.
 
 ### Edits through the shell (#45, 2026-10-01)

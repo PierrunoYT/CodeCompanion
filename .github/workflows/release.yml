@@ -64,17 +64,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
 
-      # End-to-end tests stay on Windows. They fail on the macOS runners (node-pty cannot spawn a shell) and the
-      # long_run streaming test times out on Linux. A failing Linux or macOS leg only drops its own packages from the
-      # release (see the release job), but there is no point building them from a run that is known to fail.
+      # Ubuntu does not let Chromium use its namespace sandbox, so it needs the setuid helper, set up as the deb
+      # package does. Without it a plain `electron .` start aborts (the single-instance test starts one).
+      - name: Set up Electron's sandbox helper
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      # test:e2e also builds out/, which the installers package. A failing Linux or macOS leg only drops its own
+      # packages from the release (see the release job).
       - name: End-to-end tests
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
         run: npm run test:e2e
 
-      # test:e2e builds out/ on Windows; the other legs skip it, so they need their own build before packaging.
-      - name: Build the app
-        if: runner.os != 'Windows'
-        run: npm run build
+      # Electron needs a display on Linux.
+      - name: End-to-end tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e
 
       # The Linux prebuild does not exist, and a binary compiled for Node would not load in Electron.
       - name: Rebuild node-pty for Electron

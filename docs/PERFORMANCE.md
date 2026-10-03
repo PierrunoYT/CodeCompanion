@@ -325,29 +325,32 @@ PATCH_BENCH_PROFILE=<a Patch profile folder with a saved Anthropic key> npm run 
 
 ### Results
 
+`requests` is the model-call count and `messages` is assistant text; the rows below leave Requests unset because they predate that count.
+
 Small suite, Claude Sonnet 5.5, 2 runs per task, on the machine above:
 
-| Task          | Solved | Time    | Tool calls | Output tokens | Cache read / write (tokens) | Cost         |
-| ------------- | ------ | ------- | ---------- | ------------- | --------------------------- | ------------ |
-| `fix-bugs`    | 2 / 2  | 10–11 s | 7          | 684           | 17.8k / 5.6–5.7k            | $0.024       |
-| `add-feature` | 2 / 2  | 10–14 s | 6–7        | 1.2k          | 11.4k / 5.5–5.7k            | $0.029       |
-| `rename`      | 2 / 2  | 15–17 s | 14         | 1.5k          | 24.0k / 6.6k                | $0.036–0.037 |
-| `question`    | 2 / 2  | 7 s     | 2          | 500–540       | 6.8k / 3.9k                 | $0.016–0.017 |
-| `cli-fix`     | 2 / 2  | 5–7 s   | 3          | 316–317       | 6.6k / 3.8k                 | $0.014       |
+| Task          | Solved | Time    | Tool calls | Requests | Output tokens | Cache read / write (tokens) | Cost         |
+| ------------- | ------ | ------- | ---------- | -------- | ------------- | --------------------------- | ------------ |
+| `fix-bugs`    | 2 / 2  | 10–11 s | 7          | —        | 684           | 17.8k / 5.6–5.7k            | $0.024       |
+| `add-feature` | 2 / 2  | 10–14 s | 6–7        | —        | 1.2k          | 11.4k / 5.5–5.7k            | $0.029       |
+| `rename`      | 2 / 2  | 15–17 s | 14         | —        | 1.5k          | 24.0k / 6.6k                | $0.036–0.037 |
+| `question`    | 2 / 2  | 7 s     | 2          | —        | 500–540       | 6.8k / 3.9k                 | $0.016–0.017 |
+| `cli-fix`     | 2 / 2  | 5–7 s   | 3          | —        | 316–317       | 6.6k / 3.8k                 | $0.014       |
 
 - **Prompt caching works:** uncached input was 8–14 tokens per task; everything else was read from or written to the cache. About 3.8k tokens (system prompt and tools) are written to the cache once per new chat, which is most of the cost of a short task.
 - **Failed tool calls are the model's own checks.** `fix-bugs` had one failed tool call in each run. A rerun that records them showed it was the model's first `npm test`, which exits 1 because the tests fail before the fix. `rename` had one in each of the first two runs and none in the rerun, so its cause was not recorded.
-  Large suite, Claude Sonnet 5.5, 2 runs per task:
 
-| Task               | Solved | Time    | Tool calls | Output tokens | Cache read / write (tokens) | Cost         |
-| ------------------ | ------ | ------- | ---------- | ------------- | --------------------------- | ------------ |
-| `export-bug`       | 2 / 2  | 32–42 s | 5–11       | 1.0–1.7k      | 20k–77k / 9–13k             | $0.036–0.064 |
-| `retry-limit`      | 2 / 2  | 33–35 s | 6          | 1.0k          | 40k / 14k                   | $0.053–0.054 |
-| `ipc-channel`      | 2 / 2  | 45–53 s | 19–22      | 2.7–3.0k      | 121k / 18–20k               | $0.097–0.106 |
-| `rename-constant`  | 2 / 2  | 29–31 s | 3–4        | 0.9k          | 12k–19k / 8k                | $0.032–0.033 |
-| `write-tests`      | 2 / 2  | 72–81 s | 6–8        | 7.4–8.3k      | 43k–47k / 14–16k            | $0.116–0.133 |
-| `question-decline` | 2 / 2  | 13–17 s | 4          | 1.0k          | 38k–52k / 13–17k            | $0.049–0.063 |
-| `settings-cap`     | 2 / 2  | 57–60 s | 24–26      | 3.7–3.8k      | 159k–161k / 21k             | $0.123–0.124 |
+Large suite, Claude Sonnet 5.5, 2 runs per task:
+
+| Task               | Solved | Time    | Tool calls | Requests | Output tokens | Cache read / write (tokens) | Cost         |
+| ------------------ | ------ | ------- | ---------- | -------- | ------------- | --------------------------- | ------------ |
+| `export-bug`       | 2 / 2  | 32–42 s | 5–11       | —        | 1.0–1.7k      | 20k–77k / 9–13k             | $0.036–0.064 |
+| `retry-limit`      | 2 / 2  | 33–35 s | 6          | —        | 1.0k          | 40k / 14k                   | $0.053–0.054 |
+| `ipc-channel`      | 2 / 2  | 45–53 s | 19–22      | —        | 2.7–3.0k      | 121k / 18–20k               | $0.097–0.106 |
+| `rename-constant`  | 2 / 2  | 29–31 s | 3–4        | —        | 0.9k          | 12k–19k / 8k                | $0.032–0.033 |
+| `write-tests`      | 2 / 2  | 72–81 s | 6–8        | —        | 7.4–8.3k      | 43k–47k / 14–16k            | $0.116–0.133 |
+| `question-decline` | 2 / 2  | 13–17 s | 4          | —        | 1.0k          | 38k–52k / 13–17k            | $0.049–0.063 |
+| `settings-cap`     | 2 / 2  | 57–60 s | 24–26      | —        | 3.7–3.8k      | 159k–161k / 21k             | $0.123–0.124 |
 
 - **It follows the repository's rules.** `ipc-channel` added the channel to both the type map and the `INVOKE` list, plus a handler, as `AGENTS.md` requires, in both runs. `retry-limit` fixed the comparison rather than changing `MAX_RETRIES` or the README.
 - **It finds bugs from symptoms.** `export-bug` names no file; both runs found the export file-name function and fixed it so the hidden cases pass too.

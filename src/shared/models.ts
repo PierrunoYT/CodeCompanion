@@ -32,6 +32,44 @@ export const SMALL_MODELS: Record<Provider, string> = {
   openai: 'gpt-6-luna',
 };
 
+// Mid-size model the task subagent can use. Always the chat's own provider.
+export const MID_MODELS: Record<Provider, string> = {
+  anthropic: 'claude-sonnet-5-5',
+  openai: 'gpt-6-sol',
+};
+
+export type SubagentModelChoice = 'same' | 'mid' | 'small';
+
+export const DEFAULT_SUBAGENT_MODEL: SubagentModelChoice = 'same';
+
+// The choice is meant to save money, so it never moves task to a model that costs more than the chat's: a chat on the
+// small model keeps it when "mid" is chosen. Without a known price for both, the chosen model is used.
+export function subagentModelId(provider: Provider, chatModel: string, choice: SubagentModelChoice): string {
+  if (choice === 'same') return chatModel;
+  const chosen = choice === 'mid' ? MID_MODELS[provider] : SMALL_MODELS[provider];
+  const chosenPrice = MODEL_PRICING[chosen];
+  const chatPrice = MODEL_PRICING[chatModel];
+  if (chosenPrice && chatPrice && chosenPrice.input + chosenPrice.output > chatPrice.input + chatPrice.output) {
+    return chatModel;
+  }
+  return chosen;
+}
+
+export type SubagentEffortChoice = 'match' | 'scaled';
+
+export const DEFAULT_SUBAGENT_EFFORT: SubagentEffortChoice = 'match';
+
+export function effortForSubagent(
+  role: 'task' | 'finder' | 'oracle',
+  chatEffort: Effort,
+  choice: SubagentEffortChoice,
+): Effort {
+  if (choice === 'match') return chatEffort;
+  if (role === 'finder') return 'low';
+  if (role === 'task') return 'medium';
+  return chatEffort;
+}
+
 // US dollars per million tokens at the providers' standard list prices (September 2026). Custom ids get no estimate.
 export interface ModelPricing {
   input: number;

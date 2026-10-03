@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { z } from 'zod';
 import { claudeCapabilities, type Effort } from '@shared/models';
+import { appLog } from '../app_log';
 import {
   clip,
   MAX_TEXT_CHARS,
@@ -93,6 +94,8 @@ export class AnthropicConversation implements Conversation {
   private readonly effort: Effort;
   private readonly messages: MessageParam[];
   private compaction: CompactionState | null;
+  private toolNamesHash: number | null = null;
+  private systemHash: number | null = null;
 
   constructor(
     private readonly client: Anthropic,
@@ -223,6 +226,7 @@ export class AnthropicConversation implements Conversation {
         .map((block) => ({ id: block.id, name: block.name, input: block.input }));
 
       this.messages.push(...pending);
+      this.logCache(request, usage);
       return {
         text: text.join('\n\n'),
         toolCalls,
@@ -249,26 +253,51 @@ export class AnthropicConversation implements Conversation {
     };
   }
 
+  private logCache(
+    request: Pick<TurnRequest, 'system' | 'tools'>,
+    usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number },
+  ): void {
+    const toolNamesHash = hashText(request.tools.map((tool) => tool.name).join('\n'));
+    const systemHash = hashText(request.system);
+    const toolsChanged = this.toolNamesHash === toolNamesHash ? 0 : 1;
+    const systemChanged = this.systemHash === systemHash ? 0 : 1;
+    this.toolNamesHash = toolNamesHash;
+    this.systemHash = systemHash;
+    appLog.info('llm', 'anthropic request', {
+      cacheRead: usage.cacheReadTokens,
+      cacheWrite: usage.cacheWriteTokens,
+      input: usage.inputTokens,
+      output: usage.outputTokens,
+      tools: request.tools.length,
+      systemChars: request.system.length,
+      toolsChanged,
+      systemChanged,
+    });
+  }
+
   // Exposed for tests.
   buildParams(request: Pick<TurnRequest, 'system' | 'tools'>): Anthropic.Beta.MessageCreateParamsStreaming {
     const capabilities = claudeCapabilities(this.model);
     const betas: Anthropic.Beta.AnthropicBeta[] = [];
+    const tools: Array<Anthropic.Beta.BetaTool> = request.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: toolInputSchema(tool),
+      // Stream large inputs (file contents) as they are generated. The API no longer validates them, so the
+      // agent validates every input against the tool's schema before running it.
+      eager_input_streaming: true,
+    }));
+    const lastTool = tools.at(-1);
+    if (lastTool) lastTool.cache_control = { type: 'ephemeral' };
 
     const params: Anthropic.Beta.MessageCreateParamsStreaming = {
       model: this.model,
       max_tokens: MAX_OUTPUT_TOKENS,
       stream: true,
-      system: [{ type: 'text', text: request.system }],
+      system: [{ type: 'text', text: request.system, cache_control: { type: 'ephemeral' } }],
       messages: this.requestMessages(),
-      tools: request.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: toolInputSchema(tool),
-        // Stream large inputs (file contents) as they are generated. The API no longer validates them, so the
-        // agent validates every input against the tool's schema before running it.
-        eager_input_streaming: true,
-      })),
-      // Caches the stable prefix (tools, system prompt, earlier turns) between turns.
+      tools,
+      // Tools and system are the stable prefix; this still caches the growing conversation.
       cache_control: { type: 'ephemeral' },
     };
 
@@ -289,6 +318,15 @@ export class AnthropicConversation implements Conversation {
     }
     return params;
   }
+}
+
+function hashText(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function mapStopReason(reason: Anthropic.Beta.BetaStopReason | null): StopReason {

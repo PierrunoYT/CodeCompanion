@@ -50,18 +50,33 @@ describe('SettingsStore', () => {
   });
 
   it('persists updates and ignores unknown keys', () => {
-    new SettingsStore(file, reversingCipher).update({ theme: 'light', bogus: 1 } as never);
+    new SettingsStore(file, reversingCipher).update({
+      theme: 'light',
+      bogus: 1,
+      subagentModel: 'small',
+      subagentEffort: 'scaled',
+    } as never);
     const reloaded = new SettingsStore(file, reversingCipher);
     expect(reloaded.get().theme).toBe('light');
+    expect(reloaded.get().subagentModel).toBe('small');
+    expect(reloaded.get().subagentEffort).toBe('scaled');
     expect(reloaded.get()).not.toHaveProperty('bogus');
   });
 
   it('replaces invalid values with defaults', () => {
     const store = new SettingsStore(file, reversingCipher);
-    store.update({ approvalMode: 'yolo' as never, maxIndexedFiles: -5, model: '  ' });
+    store.update({
+      approvalMode: 'yolo' as never,
+      maxIndexedFiles: -5,
+      model: '  ',
+      subagentModel: 'huge' as never,
+      subagentEffort: 'turbo' as never,
+    });
     expect(store.get().approvalMode).toBe('ask');
     expect(store.get().maxIndexedFiles).toBe(1);
     expect(store.get().model).toBe(DEFAULT_SETTINGS.model);
+    expect(store.get().subagentModel).toBe('same');
+    expect(store.get().subagentEffort).toBe('match');
   });
 
   it('stores secrets encrypted and never exposes them in the view', () => {

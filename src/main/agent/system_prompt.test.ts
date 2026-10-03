@@ -30,12 +30,16 @@ function input(overrides: Partial<SystemPromptInput> = {}): SystemPromptInput {
 }
 
 describe('buildSystemPrompt', () => {
-  it('describes the environment and lists the project top level', () => {
+  it('describes the environment and maps the project', () => {
     const prompt = buildSystemPrompt(input());
     expect(prompt).toContain('Operating system: Windows');
     expect(prompt).toContain('Shell for run_command: PowerShell');
-    expect(prompt).toContain('src/\npackage.json');
+    expect(prompt).toContain('# Project overview\n(1 file)\nsrc/ (0 files)\npackage.json');
+    expect(prompt).not.toContain('top level');
     expect(prompt).not.toContain('node_modules');
+    expect(prompt).toContain(
+      'Send independent read-only calls (read_file, grep, glob, list_directory) together in one turn: they run at the same time and save round trips. Edit a file in a later turn than the one that reads it.',
+    );
   });
 
   it('defers optional tool availability to the current tool list without changing the cached prompt', () => {

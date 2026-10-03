@@ -5,10 +5,12 @@ import { Agent, SUBAGENT_MAX_TURNS, type AgentOptions } from '../agent/agent';
 import { defineTool, ToolError, truncateOutput, type AgentTool, type ToolContext } from './types';
 
 export interface TaskToolOptions {
-  // A fresh conversation per subagent run, on the chat's own model (not the current Settings model).
+  // A fresh conversation per subagent run. Callers choose the model; it stays on the chat's provider.
   createConversation: () => Conversation;
-  // For finder: a fresh conversation on a cheaper, faster model. Without it, finder uses the chat's own model.
+  // For finder: a fresh conversation on a cheaper, faster model. Without it, finder uses createConversation.
   createFinderConversation?: () => Conversation;
+  // For oracle: the chat's own model and effort. Without it, oracle uses createConversation.
+  createOracleConversation?: () => Conversation;
   // The chat's system prompt. A short preamble is added in front so the subagent knows it is read-only.
   system: string;
   // The parent's tool list; only the read-only subset is offered to the subagent.
@@ -101,7 +103,7 @@ export function createOracleTool(options: TaskToolOptions): AgentTool {
     run: async ({ question }, context) =>
       runSubagent(options, question, context, {
         preamble: ORACLE_PREAMBLE,
-        conversation: options.createConversation,
+        conversation: options.createOracleConversation ?? options.createConversation,
         label: 'Oracle',
       }),
   });

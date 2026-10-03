@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptsImages,
   claudeCapabilities,
+  DEFAULT_SUBAGENT_EFFORT,
+  DEFAULT_SUBAGENT_MODEL,
+  effortForSubagent,
   estimateCost,
   formatCost,
   imagesNotSupportedMessage,
+  MID_MODELS,
   MODEL_OPTIONS,
+  SMALL_MODELS,
+  subagentModelId,
 } from './models';
 
 describe('image input', () => {
@@ -85,5 +91,36 @@ describe('formatCost', () => {
   it('shows cents, and a floor for tiny amounts', () => {
     expect(formatCost(0.004)).toBe('<$0.01');
     expect(formatCost(1.234)).toBe('$1.23');
+  });
+});
+
+describe('subagent model and effort', () => {
+  it('keeps the chat model on the same provider until the setting changes', () => {
+    expect(DEFAULT_SUBAGENT_MODEL).toBe('same');
+    expect(MID_MODELS).toEqual({ anthropic: 'claude-sonnet-5-5', openai: 'gpt-6-sol' });
+    expect(subagentModelId('anthropic', 'claude-custom', 'same')).toBe('claude-custom');
+    expect(subagentModelId('openai', 'local-model', 'same')).toBe('local-model');
+    expect(subagentModelId('anthropic', 'claude-opus-5-5', 'mid')).toBe(MID_MODELS.anthropic);
+    expect(subagentModelId('openai', 'gpt-6-astra', 'mid')).toBe(MID_MODELS.openai);
+    expect(subagentModelId('anthropic', 'claude-opus-5-5', 'small')).toBe(SMALL_MODELS.anthropic);
+    expect(subagentModelId('openai', 'gpt-6-astra', 'small')).toBe(SMALL_MODELS.openai);
+  });
+
+  it('never moves task to a model that costs more than the chat', () => {
+    // A chat on the small model keeps it rather than "saving" by moving up to the mid-size model.
+    expect(subagentModelId('anthropic', SMALL_MODELS.anthropic, 'mid')).toBe(SMALL_MODELS.anthropic);
+    expect(subagentModelId('openai', SMALL_MODELS.openai, 'mid')).toBe(SMALL_MODELS.openai);
+    expect(subagentModelId('anthropic', MID_MODELS.anthropic, 'mid')).toBe(MID_MODELS.anthropic);
+  });
+
+  it('matches the chat effort, or lowers finder and task while oracle stays', () => {
+    expect(DEFAULT_SUBAGENT_EFFORT).toBe('match');
+    for (const role of ['task', 'finder', 'oracle'] as const) {
+      expect(effortForSubagent(role, 'xhigh', 'match')).toBe('xhigh');
+    }
+    expect(effortForSubagent('finder', 'max', 'scaled')).toBe('low');
+    expect(effortForSubagent('task', 'max', 'scaled')).toBe('medium');
+    expect(effortForSubagent('oracle', 'max', 'scaled')).toBe('max');
+    expect(effortForSubagent('oracle', 'low', 'scaled')).toBe('low');
   });
 });

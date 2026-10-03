@@ -10,6 +10,9 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Chat usage counts model requests (`requests`), including retries and subagent calls. The agent benchmark records that count next to assistant text messages.
+- A new chat's system prompt includes a project map two folders deep, with file counts and entry points (`package.json` main and script names, plus `pyproject.toml`, `Cargo.toml`, and `go.mod` when present). It is capped at 2,500 characters and stored with the chat. In very large folders the file counts stop after 20,000 entries and are shown as lower bounds, so starting a chat stays fast.
+- Settings → Subagent model (`same`, `mid`, `small`) chooses the model for `task`; it never picks a model that costs more than the chat's. `oracle` stays on the chat model, and `finder` stays on the small model. Settings → Subagent effort (`match` or `scaled`) can run `finder` at low effort and `task` at medium. Both default to today's behavior.
 - `search_code` reranks its best 30 embedding matches with Voyage `rerank-3` through OpenRouter, using the same OpenRouter key, before returning the requested number. If reranking fails, the results come back in embedding order with a note saying why.
 - Sign in with ChatGPT for official OpenAI models. Settings starts a browser login on localhost port 1455, stores the access token, refresh token, and account id with the same encryption as API keys, and sends those chats to the Codex backend when no custom base URL is set. An API key still works after sign-out. A custom base URL still uses that URL and the API key. Semantic search, titles, compaction summaries, and commit messages still need an OpenAI API key.
 - Secret redaction of tool results: private keys, cloud and Git host tokens, JWTs, quoted credential values and `.env`-style secret lines become `[REDACTED:_____]` before the model, the transcript or the saved chat see them; `write_file`, `edit_file` and `apply_patch` refuse text containing the placeholder.
@@ -49,6 +52,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Changed
 
+- Anthropic requests put an ephemeral cache breakpoint on the system prompt and the last tool, as well as the top-level breakpoint. Each completed turn writes cache reads, cache writes, and whether that prefix changed to the local log (counts and hashes only). Extra tools are offered in name order.
 - Semantic code search embeds the project with Voyage `voyage-code-4` through OpenRouter instead of OpenAI `text-embedding-3-small`. It needs the new **OpenRouter API key** setting instead of the OpenAI key; queries and code chunks are sent with Voyage's `query` and `document` input types. Existing indexes are rebuilt with the new model on the next search.
 - Redesign the workspace with an OpenCode Desktop-inspired neutral palette in both themes, project navigation and New Chat at the top of the sidebar, a sidebar toggle, session breadcrumbs, a centered transcript, quieter tool cards, and a rounded prompt with model, approval and plan controls plus keyboard hints.
 - The assistant changes files only with its edit tools, not with shell commands, so every change shows a diff, can be approved and can be undone. Before, it sometimes rewrote several files with a PowerShell or `sed` command (#45).

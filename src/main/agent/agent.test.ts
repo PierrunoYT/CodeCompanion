@@ -928,6 +928,7 @@ describe('agent loop', () => {
       // 7 input + 3 cache reads + 2 cache writes: the size of the prompt that was sent.
       contextTokens: 12,
       longContext: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
+      requests: 1,
     });
     expect(saved.system).toBe('system prompt');
     expect(saved.transcript).toHaveLength(2);
@@ -953,6 +954,39 @@ describe('agent loop', () => {
     expect(session.snapshot().officialPricing).toBe(false);
     const restored = setup([], { provider: 'openai', usage: session.serialize().usage });
     expect(restored.session.snapshot().usage.inputTokens).toBe(14);
+  });
+
+  it('adds subagent requests to the chat totals', () => {
+    const { session } = setup([], {
+      usage: {
+        inputTokens: 1,
+        outputTokens: 2,
+        cacheReadTokens: 3,
+        cacheWriteTokens: 4,
+        requests: 2,
+        contextTokens: 40,
+        longContext: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4 },
+      },
+    });
+    session.recordUsage({ inputTokens: 10, outputTokens: 1, cacheReadTokens: 5 });
+    session.recordUsage({
+      inputTokens: 7,
+      outputTokens: 3,
+      cacheReadTokens: 1,
+      cacheWriteTokens: 2,
+      requests: 4,
+      contextTokens: 99,
+      longContext: { inputTokens: 7, outputTokens: 3, cacheReadTokens: 1, cacheWriteTokens: 2 },
+    });
+    expect(session.snapshot().usage).toEqual({
+      inputTokens: 18,
+      outputTokens: 6,
+      cacheReadTokens: 9,
+      cacheWriteTokens: 6,
+      requests: 6,
+      contextTokens: 40,
+      longContext: { inputTokens: 8, outputTokens: 5, cacheReadTokens: 4, cacheWriteTokens: 6 },
+    });
   });
 
   it('accumulates multiple long requests without mutating earlier snapshots', async () => {

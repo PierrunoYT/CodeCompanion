@@ -46,6 +46,9 @@ export interface UsageTotals {
   cacheReadTokens: number;
   // Optional so chats saved before cache-write accounting remain valid.
   cacheWriteTokens?: number;
+  // Model calls so far, including retries. Not assistant text messages or tool calls.
+  // Optional so chats saved before this field remain valid.
+  requests?: number;
   // Size of the last request's prompt (input, cache reads and cache writes), which is how full the model's context
   // is. Unset before the first request and after a compaction, until the next request reports a new size.
   contextTokens?: number;

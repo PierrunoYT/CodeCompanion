@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { appLog } from '../app_log';
 import { AnthropicCompletionClient, AnthropicConversation, createAnthropicClient } from './anthropic';
 import { anthropicStream, MockApiServer } from './test_server';
 import type { ToolSpec, TurnRequest } from './types';
@@ -75,6 +76,11 @@ describe('AnthropicConversation', () => {
     expect(body.context_management).toEqual({ edits: [{ type: 'compact_20260112' }] });
     expect(body.fallbacks).toBe('default');
     expect(body.cache_control).toEqual({ type: 'ephemeral' });
+    expect(body.system[0]).toEqual({
+      type: 'text',
+      text: 'You are a test.',
+      cache_control: { type: 'ephemeral' },
+    });
     expect(body.temperature).toBeUndefined();
     expect(body.tool_choice).toBeUndefined();
     expect(body.tools[0]).toMatchObject({
@@ -82,6 +88,18 @@ describe('AnthropicConversation', () => {
       eager_input_streaming: true,
       input_schema: { type: 'object', required: ['path'] },
     });
+    expect(body.tools.at(-1).cache_control).toEqual({ type: 'ephemeral' });
+    const marked = conversation.buildParams({
+      system: 'You are a test.',
+      tools: [readFileTool, { name: 'grep', description: 'Search', schema: z.object({ pattern: z.string() }) }],
+    });
+    expect(marked.cache_control).toEqual({ type: 'ephemeral' });
+    expect(marked.tools?.[0]).not.toHaveProperty('cache_control');
+    expect(marked.tools?.at(-1)).toMatchObject({ name: 'grep', cache_control: { type: 'ephemeral' } });
+    const noTools = conversation.buildParams({ system: 'You are a test.', tools: [] });
+    expect(noTools.cache_control).toEqual({ type: 'ephemeral' });
+    expect(noTools.system).toEqual([{ type: 'text', text: 'You are a test.', cache_control: { type: 'ephemeral' } }]);
+    expect(noTools.tools).toEqual([]);
     expect(headers['anthropic-beta']).toContain('compact-2026-01-12');
     expect(headers['anthropic-beta']).toContain('server-side-fallback-2026-07-01');
   });
@@ -263,6 +281,69 @@ describe('AnthropicConversation', () => {
 
     expect(result.stopReason).toBe('refusal');
     expect(result.refusal).toBeTruthy();
+  });
+
+  it('logs cache numbers once per completed turn and only flags a changed prefix', async () => {
+    server.queueJson(529, { type: 'error', error: { type: 'overloaded_error', message: 'Try again' } });
+    server.queueSse(anthropicStream([{ type: 'text', text: 'ok' }], 'end_turn'));
+    server.queueSse(anthropicStream([{ type: 'text', text: 'ok' }], 'end_turn'));
+    server.queueSse(anthropicStream([{ type: 'text', text: 'part' }], 'pause_turn'));
+    server.queueSse(anthropicStream([{ type: 'text', text: 'done' }], 'end_turn'));
+    const info = vi.spyOn(appLog, 'info');
+    try {
+      const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+        model: 'claude-opus-5-5',
+        effort: 'high',
+      });
+      const system = 'secret system prompt';
+      conversation.addUserMessage({ text: 'secret user text' });
+      await expect(conversation.runTurn(request({ system }))).rejects.toThrow(/Try again/);
+      await conversation.runTurn(request({ system }));
+      conversation.addUserMessage({ text: 'next' });
+      await conversation.runTurn(request({ system }));
+      conversation.addUserMessage({ text: 'third' });
+      await conversation.runTurn(request({ system: `${system}!` }));
+
+      const logs = info.mock.calls.filter((call) => call[1] === 'anthropic request');
+      expect(logs).toHaveLength(3);
+      expect(logs[0]).toEqual([
+        'llm',
+        'anthropic request',
+        {
+          cacheRead: 4,
+          cacheWrite: 3,
+          input: 10,
+          output: 7,
+          tools: 1,
+          systemChars: system.length,
+          toolsChanged: 1,
+          systemChanged: 1,
+        },
+      ]);
+      expect(logs[1]?.[2]).toEqual({
+        cacheRead: 4,
+        cacheWrite: 3,
+        input: 10,
+        output: 7,
+        tools: 1,
+        systemChars: system.length,
+        toolsChanged: 0,
+        systemChanged: 0,
+      });
+      expect(logs[2]?.[2]).toEqual({
+        cacheRead: 8,
+        cacheWrite: 6,
+        input: 20,
+        output: 14,
+        tools: 1,
+        systemChars: system.length + 1,
+        toolsChanged: 0,
+        systemChanged: 1,
+      });
+      expect(JSON.stringify(logs)).not.toContain('secret');
+    } finally {
+      info.mockRestore();
+    }
   });
 
   it('propagates API errors', async () => {

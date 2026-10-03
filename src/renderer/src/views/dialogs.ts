@@ -1,5 +1,11 @@
 import { filterChats, type ChatSummary } from '@shared/chat';
-import { formatCost, MODEL_OPTIONS, type Effort } from '@shared/models';
+import {
+  formatCost,
+  MODEL_OPTIONS,
+  type Effort,
+  type SubagentEffortChoice,
+  type SubagentModelChoice,
+} from '@shared/models';
 import { describeIndexStatus } from '@shared/index_status';
 import type { IndexStatus, McpStatus } from '@shared/ipc';
 import type { ProjectInfo, ProjectSettings } from '@shared/project';
@@ -122,6 +128,19 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     ...(['low', 'medium', 'high', 'xhigh', 'max'] as Effort[]).map((level) =>
       h('option', { value: level, selected: level === settings.effort }, level),
     ),
+  );
+  const subagentModel = h(
+    'select',
+    { class: 'form-select' },
+    h('option', { value: 'same', selected: settings.subagentModel === 'same' }, 'Same as chat'),
+    h('option', { value: 'mid', selected: settings.subagentModel === 'mid' }, 'Mid-size'),
+    h('option', { value: 'small', selected: settings.subagentModel === 'small' }, 'Small'),
+  );
+  const subagentEffort = h(
+    'select',
+    { class: 'form-select' },
+    h('option', { value: 'match', selected: settings.subagentEffort === 'match' }, 'Match chat'),
+    h('option', { value: 'scaled', selected: settings.subagentEffort === 'scaled' }, 'Lower for lookups'),
   );
   const approval = h(
     'select',
@@ -304,6 +323,16 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
       effort,
       'How much the model thinks before acting (current Claude and OpenAI models). Higher is slower and costs more.',
     ),
+    field(
+      'Subagent model',
+      subagentModel,
+      'task uses this model. oracle stays on the chat model. finder stays on the small model. A custom OpenAI base URL keeps the chat model.',
+    ),
+    field(
+      'Subagent effort',
+      subagentEffort,
+      'Lower for lookups uses low for finder and medium for task. oracle keeps the chat effort.',
+    ),
     field('Approvals', approval),
     field(
       'Plan mode',
@@ -367,6 +396,8 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
       await actions.update({
         model,
         effort: effort.value as Effort,
+        subagentModel: subagentModel.value as SubagentModelChoice,
+        subagentEffort: subagentEffort.value as SubagentEffortChoice,
         approvalMode: approval.value as Settings['approvalMode'],
         planMode: planMode.checked,
         allowedCommands: allowedCommands.value.trim(),

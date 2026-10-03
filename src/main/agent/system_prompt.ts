@@ -1,8 +1,8 @@
-import { readdirSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename } from 'node:path';
 import type { SkillList } from '../tools/skills';
 import type { Workspace } from '../tools/workspace';
 import type { AgentFile } from './agent_file';
+import { buildProjectMap } from './project_map';
 
 export interface SystemPromptInput {
   workspace: Workspace;
@@ -45,7 +45,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 - When a request is ambiguous and the choice matters, ask the user instead of guessing.
 - Keep the user informed in a few words as you go. When finished, summarize what you changed and how you verified it.`,
 
-    `# Project overview (top level)\n${topLevelListing(input.workspace)}`,
+    `# Project overview\n${buildProjectMap(input.workspace)}`,
   ];
 
   if (input.agentFile) {
@@ -70,19 +70,4 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 
 function platformName(platform: string): string {
   return platform === 'win32' ? 'Windows' : platform === 'darwin' ? 'macOS' : 'Linux';
-}
-
-function topLevelListing(workspace: Workspace): string {
-  try {
-    const entries = readdirSync(workspace.root, { withFileTypes: true })
-      .filter((entry) => !workspace.isIgnored(join(workspace.root, entry.name), entry.isDirectory()))
-      .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
-      .map((entry) => (entry.isDirectory() ? `${entry.name}/` : entry.name));
-    const shown = entries.slice(0, 100);
-    return (
-      shown.join('\n') + (entries.length > shown.length ? `\n(${entries.length - shown.length} more)` : '') || '(empty)'
-    );
-  } catch {
-    return '(could not list the project directory)';
-  }
 }

@@ -673,7 +673,13 @@ describe('Agent: error and limit paths', () => {
     expect(events.map((event) => event.type)).toEqual(['assistant-start', 'assistant-delta', 'assistant-end']);
     expect(eventsOf(events, 'assistant-end')[0]).toEqual({ type: 'assistant-end', id: start!.id });
     expect(conversation.results).toEqual([]);
-    expect(agent.totals).toEqual({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+    expect(agent.totals).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      requests: 1,
+    });
   });
 
   it('keeps the results and usage of earlier turns when a later turn fails', async () => {
@@ -694,7 +700,7 @@ describe('Agent: error and limit paths', () => {
 
     await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toThrow('rate limited');
     expect(conversation.results).toHaveLength(1);
-    expect(agent.totals).toMatchObject({ inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 });
+    expect(agent.totals).toMatchObject({ inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, requests: 2 });
   });
 
   it('does not run tool calls that come with a refusal, and explains the refusal', async () => {
@@ -914,8 +920,8 @@ describe('Agent: retrying transient provider errors', () => {
 
     expect(run).toHaveBeenCalledTimes(1);
     expect(conversation.log).toEqual(['user:go', 'turn', 'results:t1', 'turn', 'turn']);
-    // The failed attempt used no tokens.
-    expect(agent.totals).toMatchObject({ inputTokens: 30, outputTokens: 5 });
+    // The failed attempt used no tokens, but it was still a model call.
+    expect(agent.totals).toMatchObject({ inputTokens: 30, outputTokens: 5, requests: 3 });
   });
 
   it('ends the run without another attempt when the user stops during the wait', async () => {
@@ -995,7 +1001,15 @@ describe('Agent: streaming and usage', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     // contextTokens is the size of the last prompt (20 input + 6 cache reads), not a running total.
-    const expected = { inputTokens: 30, outputTokens: 5, cacheReadTokens: 10, cacheWriteTokens: 1, contextTokens: 26 };
+    // Two model attempts: the tool turn and the final answer.
+    const expected = {
+      inputTokens: 30,
+      outputTokens: 5,
+      cacheReadTokens: 10,
+      cacheWriteTokens: 1,
+      contextTokens: 26,
+      requests: 2,
+    };
     expect(agent.totals).toEqual(expected);
     expect(eventsOf(events, 'usage').map((event) => event.totals.inputTokens)).toEqual([10, 30]);
     // Totals are copies, so callers cannot change the running count.

@@ -166,7 +166,8 @@ jobs:
           dmg=$(ls dist/*.dmg | head -1)
           hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$RUNNER_TEMP/patch-dmg"
           node scripts/smoke-packaged.mjs "$RUNNER_TEMP/patch-dmg/Patch.app/Contents/MacOS/Patch"
-          hdiutil detach "$RUNNER_TEMP/patch-dmg"
+          # A helper the app started (such as the crash reporter) can still hold the volume for a moment.
+          hdiutil detach -force "$RUNNER_TEMP/patch-dmg"
 
       - name: Upload the installers
         uses: actions/upload-artifact@v4

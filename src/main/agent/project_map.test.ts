@@ -58,4 +58,32 @@ describe('buildProjectMap', () => {
     expect(map.length).toBeLessThanOrEqual(2500);
     expect(map.endsWith('(truncated)')).toBe(true);
   });
+
+  it('stops counting below the shown levels once its entry budget is spent, and says the counts are lower bounds', () => {
+    const map = buildProjectMap(
+      workspace((dir) => {
+        for (const name of ['a', 'b', 'c']) {
+          mkdirSync(join(dir, name, 'deep', 'deeper'), { recursive: true });
+          for (let i = 0; i < 5; i++) writeFileSync(join(dir, name, 'deep', 'deeper', `f${i}.ts`), '');
+        }
+      }),
+      5,
+    );
+    // The shown levels are always listed; only the counts below them stop early.
+    expect(map).toContain('a/');
+    expect(map).toContain('deep/');
+    expect(map).toMatch(/\(\d+\+ files\)/);
+  });
+
+  it('trims a folder with thousands of entries in one pass', () => {
+    const ws = workspace((dir) => {
+      mkdirSync(join(dir, 'many'));
+      for (let i = 0; i < 4000; i++) writeFileSync(join(dir, 'many', `file-${i}.txt`), '');
+    });
+    const start = performance.now();
+    const map = buildProjectMap(ws);
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(map.length).toBeLessThanOrEqual(2500);
+    expect(map).toContain('many/ (4000 files)');
+  });
 });

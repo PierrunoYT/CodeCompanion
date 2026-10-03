@@ -3,6 +3,9 @@ import { join } from 'node:path';
 import type { Workspace } from '../tools/workspace';
 
 const MAP_CAP = 2500;
+// The map is built on the main process when a chat starts, so the walk that counts files must stay short even in a
+// huge folder (a home directory, a folder of many repositories). Past this many entries, counts become lower bounds.
+const MAX_ENTRIES_VISITED = 20_000;
 const ENTRY_FILES = ['pyproject.toml', 'Cargo.toml', 'go.mod'] as const;
 const MAX_SCRIPT_NAMES = 12;
 
@@ -13,6 +16,8 @@ interface MapLine {
 
 interface Listed {
   files: number;
+  // True when the walk stopped early somewhere below, so `files` is a lower bound.
+  partial: boolean;
   children: ListedNode[];
 }
 
@@ -20,16 +25,24 @@ interface ListedNode {
   name: string;
   kind: 'dir' | 'file';
   fileCount: number;
+  partial: boolean;
   children: ListedNode[];
+}
+
+interface WalkBudget {
+  left: number;
 }
 
 // Two levels of names, with a file count for every directory that includes files below the listed depth.
 // Built once per chat inside the system prompt, so it stays in the cached prefix.
-export function buildProjectMap(workspace: Workspace): string {
+export function buildProjectMap(workspace: Workspace, maxEntriesVisited = MAX_ENTRIES_VISITED): string {
   try {
-    const listed = readDir(workspace, workspace.root, 0);
+    const listed = readDir(workspace, workspace.root, 0, { left: maxEntriesVisited });
     if (!listed) return '(could not list the project directory)';
-    const lines: MapLine[] = [{ depth: 0, text: filesLabel(listed.files) }, ...flatten(listed.children, 1)];
+    const lines: MapLine[] = [
+      { depth: 0, text: filesLabel(listed.files, listed.partial) },
+      ...flatten(listed.children, 1),
+    ];
     lines.push(...entryLines(workspace).map((text) => ({ depth: 0, text })));
     return limit(lines);
   } catch {
@@ -37,13 +50,16 @@ export function buildProjectMap(workspace: Workspace): string {
   }
 }
 
-function readDir(workspace: Workspace, dir: string, displayDepth: number): Listed | null {
+function readDir(workspace: Workspace, dir: string, displayDepth: number, budget: WalkBudget): Listed | null {
+  // Below the shown levels a folder only adds to a count, so it is skipped once the budget is spent.
+  if (displayDepth > 1 && budget.left <= 0) return { files: 0, partial: true, children: [] };
   let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
-    return displayDepth === 0 ? null : { files: 0, children: [] };
+    return displayDepth === 0 ? null : { files: 0, partial: false, children: [] };
   }
+  budget.left -= entries.length;
   const visible = entries.filter((entry) => {
     if (entry.isSymbolicLink()) return false;
     if (!entry.isDirectory() && !entry.isFile()) return false;
@@ -53,23 +69,26 @@ function readDir(workspace: Workspace, dir: string, displayDepth: number): Liste
 
   const children: ListedNode[] = [];
   let files = 0;
+  let partial = false;
   for (const entry of visible) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      const nested = readDir(workspace, full, displayDepth + 1) ?? { files: 0, children: [] };
+      const nested = readDir(workspace, full, displayDepth + 1, budget) ?? { files: 0, partial: false, children: [] };
       files += nested.files;
+      partial ||= nested.partial;
       children.push({
         name: entry.name,
         kind: 'dir',
         fileCount: nested.files,
+        partial: nested.partial,
         children: displayDepth < 1 ? nested.children : [],
       });
     } else {
       files += 1;
-      children.push({ name: entry.name, kind: 'file', fileCount: 1, children: [] });
+      children.push({ name: entry.name, kind: 'file', fileCount: 1, partial: false, children: [] });
     }
   }
-  return { files, children };
+  return { files, partial, children };
 }
 
 function flatten(nodes: ListedNode[], depth: number): MapLine[] {
@@ -78,14 +97,18 @@ function flatten(nodes: ListedNode[], depth: number): MapLine[] {
   for (const node of nodes) {
     lines.push({
       depth,
-      text: node.kind === 'dir' ? `${indent}${node.name}/ ${filesLabel(node.fileCount)}` : `${indent}${node.name}`,
+      text:
+        node.kind === 'dir'
+          ? `${indent}${node.name}/ ${filesLabel(node.fileCount, node.partial)}`
+          : `${indent}${node.name}`,
     });
     if (node.kind === 'dir' && node.children.length > 0) lines.push(...flatten(node.children, depth + 1));
   }
   return lines;
 }
 
-function filesLabel(count: number): string {
+function filesLabel(count: number, partial = false): string {
+  if (partial) return `(${count}+ files)`;
   return count === 1 ? '(1 file)' : `(${count} files)`;
 }
 
@@ -118,25 +141,25 @@ function entryLines(workspace: Workspace): string[] {
   return parts.length > 0 ? [`Entry points: ${parts.join('; ')}`] : [];
 }
 
+// Drops the deepest lines first, last ones first, until the map fits. One pass over a running length: a folder with
+// thousands of entries must not re-join the text once per dropped line.
 function limit(lines: MapLine[]): string {
-  const kept = [...lines];
-  const body = () => kept.map((line) => line.text).join('\n');
-  let text = body();
-  if (text.length <= MAP_CAP) return text;
-  while (text.length > MAP_CAP) {
-    let index = -1;
-    let deepest = -1;
-    for (let i = 0; i < kept.length; i++) {
-      const depth = kept[i]?.depth ?? -1;
-      if (depth >= deepest && depth > 0) {
-        deepest = depth;
-        index = i;
-      }
+  const kept = lines.map((line) => ({ ...line, keep: true }));
+  let length = kept.reduce((sum, line) => sum + line.text.length + 1, 0) - 1;
+  if (length <= MAP_CAP) return lines.map((line) => line.text).join('\n');
+  const deepest = Math.max(...kept.map((line) => line.depth));
+  for (let depth = deepest; depth > 0 && length > MAP_CAP; depth--) {
+    for (let i = kept.length - 1; i >= 0 && length > MAP_CAP; i--) {
+      const line = kept[i]!;
+      if (line.depth !== depth || !line.keep) continue;
+      line.keep = false;
+      length -= line.text.length + 1;
     }
-    if (index < 0) break;
-    kept.splice(index, 1);
-    text = body();
   }
+  const text = kept
+    .filter((line) => line.keep)
+    .map((line) => line.text)
+    .join('\n');
   const truncated = `${text}\n(truncated)`;
   if (truncated.length <= MAP_CAP) return truncated;
   const room = MAP_CAP - '\n(truncated)'.length;

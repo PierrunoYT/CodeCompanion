@@ -142,6 +142,32 @@ jobs:
           test -n "$node_file"
           echo "packaged pty: $node_file"
 
+      # Install the deb the way a user would (its install script sets up the sandbox helper and AppArmor profile),
+      # then start the installed app and use it: open a project and run a command in the terminal.
+      - name: Smoke-test the installed deb
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          xvfb-run -a node scripts/smoke-packaged.mjs /opt/Patch/patch-app
+
+      # Informational for now: an AppImage cannot carry the setuid sandbox helper.
+      - name: Smoke-test the AppImage
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          appimage=$(ls dist/*.AppImage | head -1)
+          (cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/$appimage" --appimage-extract > /dev/null)
+          xvfb-run -a node scripts/smoke-packaged.mjs "$RUNNER_TEMP/squashfs-root/AppRun"
+
+      # Start the app from the DMG, as a user's first launch would, and use it the same way.
+      - name: Smoke-test the DMG
+        if: runner.os == 'macOS'
+        run: |
+          dmg=$(ls dist/*.dmg | head -1)
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$RUNNER_TEMP/patch-dmg"
+          node scripts/smoke-packaged.mjs "$RUNNER_TEMP/patch-dmg/Patch.app/Contents/MacOS/Patch"
+          hdiutil detach "$RUNNER_TEMP/patch-dmg"
+
       - name: Upload the installers
         uses: actions/upload-artifact@v4
         with:

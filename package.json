@@ -79,7 +79,11 @@
         "deb"
       ],
       "artifactName": "${productName}-${version}.${ext}",
-      "category": "Development"
+      "category": "Development",
+      "executableName": "patch-app"
+    },
+    "deb": {
+      "packageName": "patch-app"
     },
     "win": {
       "icon": "build/icon.ico",

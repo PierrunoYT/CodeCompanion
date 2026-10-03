@@ -334,6 +334,19 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
   });
 }
 
+// OpenRouter's own messages ("User not found" for a deleted key) do not say what to do, so add the next step for a
+// rejected key and for an account out of credits.
+function openRouterError(request: 'embeddings' | 'rerank', status: number, message: string | undefined): Error {
+  const detail = message ? `: ${message}` : '';
+  const hint =
+    status === 401 || status === 403
+      ? ' Check the OpenRouter API key in Settings.'
+      : status === 402
+        ? ' Add credits to the OpenRouter account.'
+        : '';
+  return new Error(`OpenRouter ${request} request failed (${status})${detail}.${hint}`);
+}
+
 // Embeds through OpenRouter's OpenAI-style embeddings endpoint. input_type lets Voyage prefix queries and documents
 // for retrieval. Errors name the status and OpenRouter's message, never the key.
 export function openRouterEmbedder(
@@ -355,8 +368,7 @@ export function openRouterEmbedder(
         error?: { message?: string };
       } | null;
       if (!response.ok || !Array.isArray(body?.data)) {
-        const detail = body?.error?.message ? `: ${body.error.message}` : '';
-        throw new Error(`OpenRouter embeddings request failed (${response.status})${detail}`);
+        throw openRouterError('embeddings', response.status, body?.error?.message);
       }
       return [...body.data].sort((a, b) => a.index - b.index).map((item) => item.embedding);
     },
@@ -384,8 +396,7 @@ export function openRouterReranker(
         error?: { message?: string };
       } | null;
       if (!response.ok || !Array.isArray(body?.results)) {
-        const detail = body?.error?.message ? `: ${body.error.message}` : '';
-        throw new Error(`OpenRouter rerank request failed (${response.status})${detail}`);
+        throw openRouterError('rerank', response.status, body?.error?.message);
       }
       return [...body.results]
         .filter((result) => Number.isInteger(result.index) && typeof result.relevance_score === 'number')

@@ -261,7 +261,9 @@ describe('openRouterReranker', () => {
         status: 402,
       })) as unknown as typeof fetch;
     const failure = openRouterReranker('sk-or-secret', undefined, fetchImpl).rerank('q', ['a'], 1, signal);
-    await expect(failure).rejects.toThrow('OpenRouter rerank request failed (402): Insufficient credits');
+    await expect(failure).rejects.toThrow(
+      'OpenRouter rerank request failed (402): Insufficient credits. Add credits to the OpenRouter account.',
+    );
     await expect(failure).rejects.not.toThrow(/sk-or-secret/);
   });
 });
@@ -302,7 +304,9 @@ describe('openRouterEmbedder', () => {
     const fetchImpl = (async () =>
       respond(401, { error: { message: 'No auth credentials found' } })) as unknown as typeof fetch;
     const failure = openRouterEmbedder('sk-or-secret', undefined, fetchImpl).embed(['x'], 'query', signal);
-    await expect(failure).rejects.toThrow('OpenRouter embeddings request failed (401): No auth credentials found');
+    await expect(failure).rejects.toThrow(
+      'OpenRouter embeddings request failed (401): No auth credentials found. Check the OpenRouter API key in Settings.',
+    );
     await expect(failure).rejects.not.toThrow(/sk-or-secret/);
   });
 

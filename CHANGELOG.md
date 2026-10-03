@@ -72,6 +72,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Fixed
 
+- Code search errors from OpenRouter say what to do next: a rejected key (401/403, such as "User not found") asks to check the OpenRouter API key in Settings, and 402 asks to add credits.
 - `grep` accepts a leading `(?i)`, the inline case-insensitive flag models often write, as `ignore_case` instead of failing with "Invalid group"; other invalid patterns point to `ignore_case`.
 - Sign in with ChatGPT keeps a valid session when two chats refresh at once. A refresh that finishes after sign-out, or after a sign-in to another account, leaves that newer choice in place. Starting sign-in again cancels one that is still waiting, and a callback for a different login does not abort the current one.
 - The Linux deb installs again next to GNU patch: it was named `patch`, like GNU patch's own package, so apt took it for a downgrade of that package and refused, and its install script would have pointed `/usr/bin/patch` at the app. The deb package and the Linux executable are now `patch-app` (`/usr/bin/patch-app`).

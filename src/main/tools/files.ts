@@ -118,11 +118,16 @@ export const grepTool = defineTool({
   requiresApproval: false,
   parallelSafe: true,
   async run({ pattern, path = '.', ignore_case = false }, context) {
+    // Models often write PCRE's leading (?i); JavaScript has no inline flags, so treat it as ignore_case.
+    const inlineIgnoreCase = /^\(\?i\)/.exec(pattern);
+    if (inlineIgnoreCase) pattern = pattern.slice(inlineIgnoreCase[0].length);
     let regex: RegExp;
     try {
-      regex = new RegExp(pattern, ignore_case ? 'i' : '');
+      regex = new RegExp(pattern, ignore_case || inlineIgnoreCase ? 'i' : '');
     } catch (error) {
-      throw new ToolError(`Invalid regular expression: ${(error as Error).message}`);
+      throw new ToolError(
+        `Invalid regular expression: ${(error as Error).message}. Patterns are JavaScript regular expressions; for case-insensitive search set ignore_case instead of an inline flag.`,
+      );
     }
     const target = context.workspace.resolve(path);
     const files = statSync(target).isDirectory() ? await context.workspace.listFiles(target) : [target];

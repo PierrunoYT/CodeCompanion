@@ -325,6 +325,12 @@ describe('file tools', () => {
     const result = await call(grepTool, { pattern: 'const a' });
     expect(result.content).toBe('src/app.ts:1: const a = 1;');
   });
+
+  it('treats a leading (?i) as ignore_case and explains other invalid patterns', async () => {
+    const result = await call(grepTool, { pattern: '(?i)CONST A' });
+    expect(result.content).toBe('src/app.ts:1: const a = 1;');
+    await expect(call(grepTool, { pattern: 'a(?i)b' })).rejects.toThrow(/set ignore_case instead of an inline flag/);
+  });
 });
 
 describe('applyEdit', () => {

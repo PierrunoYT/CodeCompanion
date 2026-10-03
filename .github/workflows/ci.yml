@@ -59,6 +59,14 @@ jobs:
       # npm 11 skips install scripts unless allowed in package.json; make sure the Electron binary is there.
       - run: node node_modules/electron/install.js
 
+      # Ubuntu does not let Chromium use its namespace sandbox, so it needs the setuid helper, set up as the deb
+      # package does. Without it a plain `electron .` start aborts (the single-instance test starts one).
+      - name: Set up Electron's sandbox helper
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
       - run: npm run typecheck
       - run: npm run test:unit
 

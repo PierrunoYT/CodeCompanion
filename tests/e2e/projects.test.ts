@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -16,7 +16,8 @@ describe('multiple open projects', () => {
   let betaId: string;
 
   beforeAll(async () => {
-    root = mkdtempSync(join(tmpdir(), 'patch-projects-'));
+    // The app keeps projects by real path; on macOS the temp folder is under /var, a link to /private/var.
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'patch-projects-')));
     alpha = join(root, 'Alpha');
     beta = join(root, 'Beta');
     for (const path of [alpha, beta]) mkdirSync(path);

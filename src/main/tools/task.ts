@@ -11,10 +11,13 @@ export interface TaskToolOptions {
   createFinderConversation?: () => Conversation;
   // For oracle: the chat's own model and effort. Without it, oracle uses createConversation.
   createOracleConversation?: () => Conversation;
-  // The chat's system prompt. A short preamble is added in front so the subagent knows it is read-only.
+  // The chat's system prompt. The subagent's role (read-only research, search or advice) is added to it.
   system: string;
-  // The parent's tool list; only the read-only subset is offered to the subagent.
+  // The parent's tool list; only the read-only subset can run in the subagent.
   tools: () => AgentTool[];
+  // The chat's own model. A subagent on the same model sends the chat's exact system prompt and tool list, so its
+  // requests start with the prefix the chat already cached instead of writing a new one (#77).
+  chatModel?: string;
   // Adds the subagent's token usage to the chat totals, so the status bar and cost estimate include delegated work.
   recordUsage?: (usage: UsageTotals) => void;
   // Permission rules for the subagent's own tool calls (rules with context "subagent" apply).
@@ -35,9 +38,30 @@ export function subagentConversation(
 // load_skill only reads project skill files, and the subagent gets the parent's prompt, which lists the skills.
 const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'grep', 'glob', 'search_code', 'load_skill']);
 
+// Shown to a subagent that sees the chat's full tool list (same model, shared prompt cache).
+const SHARED_TOOLS_NOTE = `- Your tool list is the main agent's. Only ${[...READ_ONLY_TOOLS].join(', ')} work for you; every other tool returns an error without doing anything.`;
+
+// Stands in for a tool the subagent may not use. Name, description and schema stay byte-identical to the chat's
+// tool, so the request keeps the chat's cached prefix; the real tool is never reachable from the subagent.
+function readOnlyStandIn(tool: AgentTool): AgentTool {
+  return {
+    name: tool.name,
+    description: tool.description,
+    schema: tool.schema,
+    jsonSchema: tool.jsonSchema,
+    requiresApproval: false,
+    parallelSafe: true,
+    run: async () => {
+      throw new ToolError(
+        `${tool.name} is not available to a read-only subagent. Use ${[...READ_ONLY_TOOLS].join(', ')}, or answer with what you found.`,
+      );
+    },
+  };
+}
+
 const SUBAGENT_PREAMBLE = `You are a read-only research subagent. Another agent delegated one question to you.
 - You can only read files, list directories, find files by name, grep and use semantic code search. You cannot edit files, run commands, use the browser or fetch pages, and you have no web access.
-- Do not try tools you were not given; a missing tool means you cannot do that, so answer from what you can read.
+- Use only the read-only tools above; if a task needs anything else, you cannot do that, so answer from what you can read.
 - Answer the delegated question directly. Your last message, the one with no tool call, is the only thing the other agent receives, so include the paths and line numbers it needs.
 - Do not start the work yourself and do not propose a plan for it. Report what you found.`;
 
@@ -122,10 +146,17 @@ async function runSubagent(
   role: SubagentRole = { preamble: SUBAGENT_PREAMBLE, conversation: options.createConversation, label: 'Subagent' },
 ) {
   let partial = '';
+  const conversation = role.conversation();
+  // Caches are per model: only a subagent on the chat's model can reuse the chat's cached tools and system prompt.
+  // It then gets them unchanged, its role goes into its first message, and the tools it may not use are stand-ins.
+  // On another model it keeps the shorter prompt with only the read-only tools.
+  const shared = options.chatModel !== undefined && conversation.model === options.chatModel;
   const agent = new Agent({
-    conversation: role.conversation(),
-    system: `${role.preamble}\n\n${options.system}`,
-    tools: () => options.tools().filter((tool) => READ_ONLY_TOOLS.has(tool.name)),
+    conversation,
+    system: shared ? options.system : `${role.preamble}\n\n${options.system}`,
+    tools: shared
+      ? () => options.tools().map((tool) => (READ_ONLY_TOOLS.has(tool.name) ? tool : readOnlyStandIn(tool)))
+      : () => options.tools().filter((tool) => READ_ONLY_TOOLS.has(tool.name)),
     // Read-only tools never ask for approval; the subagent cannot escalate. The fallback declines, so even an
     // unexpected approval request cannot turn into a silent side effect.
     approvalMode: () => 'auto' as const,
@@ -142,7 +173,9 @@ async function runSubagent(
     },
   });
 
-  const input: UserInput = { text: task };
+  const input: UserInput = {
+    text: shared ? `${role.preamble}\n${SHARED_TOOLS_NOTE}\n\n# Delegated question\n${task}` : task,
+  };
   let outcome: ReturnType<Agent['outcome']>;
   try {
     outcome = (await agent.send(input, context.signal)) ? 'stopped' : agent.outcome();

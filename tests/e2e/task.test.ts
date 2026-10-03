@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -7,7 +7,8 @@ import { launchApp, type RunningApp } from './app';
 import { MockClaude } from './mock_claude';
 
 // The task tool delegates to a read-only subagent: the mock API sees the parent turn, the subagent's turns (a
-// read_file call and its answer) and finally the parent finishing with the subagent's answer in its history.
+// write_file attempt it may not make, a read_file call and its answer) and finally the parent finishing with the
+// subagent's answer in its history.
 describe('subagent task tool end to end', () => {
   let running: RunningApp;
   let claude: MockClaude;
@@ -22,11 +23,18 @@ describe('subagent task tool end to end', () => {
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-e2e'));
 
     // 1. The parent asks the subagent to read the file.
-    // 2./3. The subagent reads it and answers.
-    // 4. The parent reports the answer.
+    // 2. The subagent tries to write it, which a read-only subagent cannot do.
+    // 3./4. The subagent reads it and answers.
+    // 5. The parent reports the answer.
     claude.script(
       {
         blocks: [{ type: 'tool_use', id: 'task-1', name: 'task', input: { task: 'What does file.txt say?' } }],
+        stopReason: 'tool_use',
+      },
+      {
+        blocks: [
+          { type: 'tool_use', id: 'write-1', name: 'write_file', input: { path: 'file.txt', content: 'overwritten' } },
+        ],
         stopReason: 'tool_use',
       },
       {
@@ -71,14 +79,17 @@ describe('subagent task tool end to end', () => {
 
     // The parent's final request contains the subagent's answer as the task result.
     expect(JSON.stringify(claude.agentRequests.at(-1))).toContain('The file says: hello from the project');
-    // Exactly four API turns: parent, subagent read, subagent answer, parent finish.
-    expect(claude.agentRequests).toHaveLength(4);
-    // The subagent's own requests carry only the read-only tools, never write or command tools.
-    const subagentTools = claude.agentRequests[1].tools.map((tool: { name: string }) => tool.name);
-    expect(subagentTools).toContain('read_file');
-    expect(subagentTools).not.toContain('write_file');
-    expect(subagentTools).not.toContain('edit_file');
-    expect(subagentTools).not.toContain('run_command');
+    // Five API turns: parent, subagent write attempt, subagent read, subagent answer, parent finish.
+    expect(claude.agentRequests).toHaveLength(5);
+    // The subagent runs on the chat's model, so it sends the chat's exact tools and system prompt and reads the
+    // prefix the chat already cached; its role is in its first message instead.
+    const [parent, subagent] = claude.agentRequests;
+    expect(JSON.stringify(subagent.tools)).toBe(JSON.stringify(parent.tools));
+    expect(JSON.stringify(subagent.system)).toBe(JSON.stringify(parent.system));
+    expect(JSON.stringify(subagent.messages[0])).toContain('read-only research subagent');
+    // Listing write_file does not let it run: the file is unchanged and the model is told why.
+    expect(readFileSync(join(project, 'file.txt'), 'utf8')).toBe('hello from the project\n');
+    expect(JSON.stringify(claude.agentRequests[2].messages)).toContain('not available to a read-only subagent');
     expect(running.errors).toEqual([]);
   });
 });

@@ -178,6 +178,62 @@ describe('task tool (subagent)', () => {
     expect(conversation.requests[0]?.tools.map((tool) => tool.name)).toEqual(['read_file', 'load_skill']);
   });
 
+  it("on the chat's model, sends the chat's exact prompt and tools so the cached prefix is reused, and runs only read-only tools", async () => {
+    const ran: string[] = [];
+    const writeTool = defineTool({
+      name: 'write_file',
+      description: 'write a file',
+      schema: z.object({ path: z.string(), content: z.string() }),
+      requiresApproval: true,
+      async run() {
+        ran.push('write');
+        return { content: 'written' };
+      },
+    });
+    const parentTools = [readTool, writeTool];
+    const conversation = new ScriptedConversation([
+      { toolCalls: [{ id: 't1', name: 'write_file', input: { path: 'a.ts', content: 'x' } }] },
+      { text: 'I could not write, so here is what I read.' },
+    ]);
+    const taskTool = createTaskTool({
+      createConversation: () => conversation,
+      system: 'system prompt',
+      tools: () => parentTools,
+      chatModel: conversation.model,
+    });
+
+    const output = await taskTool.run({ task: 'Fix a.ts' }, context());
+
+    const request = conversation.requests[0]!;
+    // Byte-identical start of the request: the chat's system prompt and every tool with the same name, description
+    // and schema, in the same order.
+    expect(request.system).toBe('system prompt');
+    expect(request.tools.map((tool) => [tool.name, tool.description, tool.schema])).toEqual(
+      parentTools.map((tool) => [tool.name, tool.description, tool.schema]),
+    );
+    // The role moves into the first message instead.
+    expect(conversation.users[0]?.text).toContain('read-only research subagent');
+    expect(conversation.users[0]?.text).toContain('# Delegated question\nFix a.ts');
+    // The write tool is a stand-in: the real one never runs, and the model is told why.
+    expect(ran).toEqual([]);
+    expect(conversation.toolResults[0]?.[0]).toMatchObject({ isError: true });
+    expect(JSON.stringify(conversation.toolResults[0])).toContain('not available to a read-only subagent');
+    expect(output.content).toContain('I could not write');
+  });
+
+  it('keeps the short read-only prompt on a model other than the chat', async () => {
+    const conversation = new ScriptedConversation([{ text: 'Done.' }]);
+    const taskTool = createTaskTool({
+      createConversation: () => conversation,
+      system: 'system prompt',
+      tools: () => [readTool],
+      chatModel: 'some-other-model',
+    });
+    await taskTool.run({ task: 'Look' }, context());
+    expect(conversation.requests[0]?.system).toContain('read-only research subagent');
+    expect(conversation.users[0]?.text).toBe('Look');
+  });
+
   it('does not count a file the subagent read as read by the parent', async () => {
     const root = mkdtempSync(join(tmpdir(), 'cc-task-'));
     try {
@@ -318,6 +374,40 @@ describe('task tool (subagent)', () => {
     expect(output.isError).toBe(true);
     expect(output.content).toContain('did not finish');
     expect(output.content).not.toContain('Let me check the callers');
+  });
+});
+
+describe('shared prompt cache', () => {
+  it("renders the same Anthropic tools and system blocks as the chat, so the subagent reads the chat's cache", async () => {
+    const writeTool = defineTool({
+      name: 'write_file',
+      description: 'write a file',
+      schema: z.object({ path: z.string(), content: z.string() }),
+      requiresApproval: true,
+      async run() {
+        return { content: 'written' };
+      },
+    });
+    const parentTools = [readTool, writeTool];
+    const scripted = new ScriptedConversation([{ text: 'Done.' }]);
+    await createTaskTool({
+      createConversation: () => scripted,
+      system: 'system prompt',
+      tools: () => parentTools,
+      chatModel: scripted.model,
+    }).run({ task: 'Look' }, context());
+
+    const anthropic = new AnthropicConversation(createAnthropicClient('sk-test', 'http://127.0.0.1:1'), {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+      messages: [],
+      compaction: null,
+    });
+    const prefix = (request: Pick<TurnRequest, 'system' | 'tools'>) => {
+      const params = anthropic.buildParams(request);
+      return JSON.stringify({ tools: params.tools, system: params.system });
+    };
+    expect(prefix(scripted.requests[0]!)).toBe(prefix({ system: 'system prompt', tools: parentTools }));
   });
 });
 

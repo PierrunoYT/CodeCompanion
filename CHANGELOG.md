@@ -68,6 +68,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Fixed
 
+- The terminal panel works on macOS: node-pty's `spawn-helper` is shipped without the execute bit, which made every terminal start fail with `posix_spawnp failed`. A `postinstall` script restores it, so development installs and the packaged app both get it, and CI checks it ([#14](https://github.com/PierrunoYT/patch/issues/14)).
+- CI runs the tests on Linux (under Xvfb) and macOS again, next to Windows. On Linux the end-to-end window is no longer transparent, since X11 stopped painting it and the transcript never updated, and every end-to-end run uses a 1400×1000 window, so a small screen no longer hides the footer's `AGENTS.md` label (which also made a project-switching test fail now and then on Windows) ([#14](https://github.com/PierrunoYT/patch/issues/14)).
 - Keep the composer's paperclip beside the model, approval and plan controls instead of reserving a separate full-width row; attachment chips use a row only when present.
 - A project inside a repository rooted at the home folder or above it (for example from an accidental `git init` there) made every Git refresh run `git status` over the whole user profile, starting git processes of up to 1 GB each. The Git panel now treats such a project as not a repository, and the end-to-end tests stop git from looking above the temp folder.
 - Streaming an answer at the bottom of a very long chat is smooth again: the transcript groups its items into chunks of 50 that the browser skips while off screen, so a 5,000-item chat streams at the same 7 ms median frame as an empty one, instead of 21–28 ms. The performance benchmark now also checks that the view is following the answer (#19).

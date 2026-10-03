@@ -102,7 +102,8 @@ describe('switching between open projects (mock Claude API)', () => {
     await running.page.getByText('Alpha answered.', { exact: true }).waitFor();
     expect(await message().inputValue()).toBe('');
     expect(await attachments().count()).toBe(0);
-    expect(await running.page.locator('.app-footer').getByText('AGENTS.md').isVisible()).toBe(true);
+    // The footer catches up with the switch on its own; wait for it rather than sampling it once.
+    await running.page.locator('.app-footer').getByText('AGENTS.md').waitFor();
     await pasteImage('alpha-shot.png');
     await attachments().filter({ hasText: 'alpha-shot.png' }).waitFor();
 

@@ -11,7 +11,7 @@ npm run dev        # hot-reloading renderer, rebuilds main/preload on change
 
 npm 11 runs dependency install scripts only for packages listed under `allowScripts` in `package.json` (`electron`, `esbuild`). If `node_modules/electron/dist` is missing after installing, run `node node_modules/electron/install.js`.
 
-`node-pty` ships prebuilt binaries for Windows and macOS (x64 and arm64), so no compiler is needed there. On Linux it compiles from source; see the [node-pty prerequisites](https://github.com/microsoft/node-pty#dependencies). A binary compiled for Node will not load in the packaged app, so a Linux package has to be built with `npx @electron/rebuild -f -w node-pty` first. CI does that before `electron-builder` and checks the package contains `pty.node`.
+`node-pty` ships prebuilt binaries for Windows and macOS (x64 and arm64), so no compiler is needed there. Its macOS `spawn-helper` comes without the execute bit, and the package's own install script is not allowed to run, so this project's `postinstall` (`scripts/fix-node-pty.mjs`) restores it; without it every terminal start fails with `posix_spawnp failed`. On Linux it compiles from source; see the [node-pty prerequisites](https://github.com/microsoft/node-pty#dependencies). A binary compiled for Node will not load in the packaged app, so a Linux package has to be built with `npx @electron/rebuild -f -w node-pty` first. CI does that before `electron-builder` and checks the package contains `pty.node`.
 
 ### Amp orbs
 
@@ -49,7 +49,7 @@ Both lifecycle scripts must be executable. They become available to future proje
 
 Set `E2E_SCREENSHOTS=<folder>` when running the end-to-end tests to save screenshots of the main screens.
 
-The end-to-end tests start the real app, but its windows are invisible: `launchApp` sets `PATCH_E2E_QUIET=1`, which makes the window fully transparent, keeps it out of the taskbar and shows it without taking focus (`window.ts`). It also turns off Chromium's slowing of hidden and covered windows (`index.ts`), which otherwise made tests time out now and then when other windows covered the test window. Set `E2E_SHOW_WINDOW=1` to watch a run.
+The end-to-end tests start the real app, but its windows are invisible: `launchApp` sets `PATCH_E2E_QUIET=1`, which makes the window fully transparent (except on Linux, where X11 stops painting a fully transparent window and with it the animation frames the transcript waits for; the tests run under Xvfb there anyway), keeps it out of the taskbar and shows it without taking focus (`window.ts`). `launchApp` also sizes the window to 1400×1000, so the layout does not depend on the screen (Xvfb's default is 640×480, and narrow windows hide parts of the footer). It also turns off Chromium's slowing of hidden and covered windows (`index.ts`), which otherwise made tests time out now and then when other windows covered the test window. Set `E2E_SHOW_WINDOW=1` to watch a run.
 
 The end-to-end harness auto-answers only Patch's native `Confirm settings` message box. Browser `confirm()` dialogs, such as Undo, remain under Playwright's dialog handling; replacing every Electron message box would race those handlers.
 
@@ -81,7 +81,7 @@ The Windows executable, installer, and uninstaller use `build/icon.ico`; macOS u
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request. The `test` job runs on `windows-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e`. Two separate jobs run on `ubuntu-latest`: `format` runs `npm run format:check` and fails when a file is not Prettier-formatted, and `lint` runs `npm run lint` and fails on any ESLint error. Run the same commands locally before pushing (`npm run format` fixes formatting). Windows is the only supported platform. Linux and macOS are not part of the test job: `node-pty` cannot spawn a shell on the macOS runners and the `long_run` end-to-end test times out on Linux. Bringing those tests back is tracked in [#14](https://github.com/PierrunoYT/patch/issues/14).
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request. The `test` job runs on `windows-latest`, `ubuntu-latest` and `macos-latest` with Node 22: `npm ci`, `npm run typecheck`, `npm run test:unit` and `npm run test:e2e` (under `xvfb-run -a` on Linux). Two separate jobs run on `ubuntu-latest`: `format` runs `npm run format:check` and fails when a file is not Prettier-formatted, and `lint` runs `npm run lint` and fails on any ESLint error. Run the same commands locally before pushing (`npm run format` fixes formatting). Windows is the only supported platform, but the tests must pass on all three.
 
 A `package` job builds the Linux (AppImage and deb) and macOS (universal DMG) installers on every pull request and uploads them as artifacts, so a change that stops them building fails CI. It does not run the end-to-end suite and does not mean those builds have been used. Trying the packaged apps by hand is tracked in [#22](https://github.com/PierrunoYT/patch/issues/22).
 

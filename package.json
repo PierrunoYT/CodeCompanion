@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dev": "electron-vite dev",
+    "postinstall": "node scripts/fix-node-pty.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "build": "electron-vite build",
     "start": "electron-vite build && electron-vite preview",

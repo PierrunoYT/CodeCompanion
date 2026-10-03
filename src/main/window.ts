@@ -4,8 +4,11 @@ import { appLog } from './app_log';
 import { devRendererUrl } from './renderer_url';
 
 // Set by the end-to-end tests: the window is fully transparent, has no taskbar entry and never takes focus. It is still
-// shown, so the page renders and animation frames run as they do for a user.
+// shown, so the page renders and animation frames run as they do for a user. On Linux a fully transparent X11 window
+// stops being painted, which stalls animation frames and with them the transcript; tests there run under Xvfb, where
+// nobody sees the window anyway, so it stays opaque.
 const quietTestRun = process.env.PATCH_E2E_QUIET === '1';
+const transparentTestWindow = quietTestRun && process.platform !== 'linux';
 
 export function createMainWindow(onBrowserAttached: (guest: WebContents) => void): BrowserWindow {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
@@ -18,7 +21,8 @@ export function createMainWindow(onBrowserAttached: (guest: WebContents) => void
     minHeight: 500,
     title: 'Patch',
     icon: join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'build'), 'icon.png'),
-    ...(quietTestRun ? { opacity: 0, skipTaskbar: true } : {}),
+    ...(quietTestRun ? { skipTaskbar: true } : {}),
+    ...(transparentTestWindow ? { opacity: 0 } : {}),
     webPreferences: {
       // A test window may sit behind others; it must not be slowed down for it.
       backgroundThrottling: !quietTestRun,

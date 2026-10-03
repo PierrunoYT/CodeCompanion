@@ -39,12 +39,13 @@ jobs:
       - run: npm run lint
 
   test:
-    name: test
-    runs-on: windows-latest
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 25
-    # Linux and macOS are not part of the test job yet: node-pty cannot spawn a shell on the macOS runners and the
-    # long_run streaming test times out on Linux, both of which also fail on upstream main. Tracked as a GitHub issue;
-    # the jobs come back once those are fixed. The package job below still builds both platforms.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -61,7 +62,12 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
 
-      - run: npm run test:e2e
+      - if: runner.os != 'Linux'
+        run: npm run test:e2e
+
+      # Electron needs a display on Linux.
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e
 
   # Proves the installers for the other platforms actually build, including a node-pty binary compiled for Electron
   # on Linux (it ships no Linux prebuild). These builds are not hand-tested; see the experimental note in the docs.
@@ -107,6 +113,10 @@ jobs:
             test -f node_modules/node-pty/build/Release/pty.node
           else
             test -f "node_modules/node-pty/prebuilds/$(node -p process.platform)-$(node -p process.arch)/pty.node"
+          fi
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            test -x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+            test -x node_modules/node-pty/prebuilds/darwin-x64/spawn-helper
           fi
 
       - run: npm run build

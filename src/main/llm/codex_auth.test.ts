@@ -7,11 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { retryDecision } from '../agent/retry';
 import { appLog } from '../app_log';
 import { SettingsStore, type SecretCipher } from '../settings';
-import { CODEX_CALLBACK_PORT, CODEX_REDIRECT_URI, signInWithChatGpt, signOutChatGpt } from './codex_auth';
+import {
+  CODEX_CALLBACK_PORT,
+  CODEX_REDIRECT_URI,
+  ensureFreshCodexSession,
+  signInWithChatGpt,
+  signOutChatGpt,
+} from './codex_auth';
 import { LlmService } from './index';
 import { CODEX_RESPONSES_BASE_URL, chooseOpenAIRoute, codexResponsesBaseUrl } from './openai_route';
 import { MockApiServer } from './test_server';
-import { ChatGptSignInRequiredError, type TurnRequest } from './types';
+import { ChatGptSignInRequiredError, MissingApiKeyError, type TurnRequest } from './types';
 
 const reversingCipher: SecretCipher = {
   isAvailable: () => true,
@@ -121,7 +127,7 @@ describe('ChatGPT Codex login', () => {
     return new SettingsStore(file, reversingCipher);
   }
 
-  it('stores a matching callback, rejects a mismatched one, and sign-out clears the session', async () => {
+  it('stores a matching callback, ignores a mismatched one, and sign-out clears the session', async () => {
     const accessToken = 'codex-access-login-7f3a9c';
     const refreshToken = 'codex-refresh-login-91bc2e';
     tokens.queueJson(200, {
@@ -178,29 +184,48 @@ describe('ChatGPT Codex login', () => {
     expect(readFileSync(file, 'utf8')).not.toContain(refreshToken);
     expect(new SettingsStore(file, reversingCipher).getChatGptSession()?.accessToken).toBe(accessToken);
 
+    const mismatchAccess = 'codex-access-login-after-mismatch';
+    const mismatchRefresh = 'codex-refresh-login-after-mismatch';
+    tokens.queueJson(200, {
+      access_token: mismatchAccess,
+      refresh_token: mismatchRefresh,
+      expires_in: 3600,
+      token_type: 'Bearer',
+      id_token: jwt({ chatgpt_account_id: 'acct-after-mismatch' }),
+    });
     const mismatched = new SettingsStore(join(dir, 'mismatch.json'), reversingCipher);
-    await expect(
-      signInWithChatGpt(mismatched, {
-        tokenUrl,
-        timeoutMs: 5_000,
-        openUrl: async (url) => {
-          const auth = new URL(url);
-          const response = await fetch(
-            `http://127.0.0.1:${CODEX_CALLBACK_PORT}/auth/callback?code=other-code&state=${auth.searchParams.get('state')}no`,
-          );
-          expect(response.status).toBe(400);
-        },
-      }),
-    ).rejects.toThrow(/did not match/);
-    expect(mismatched.getChatGptSession()).toBeNull();
-    expect(tokens.requests).toHaveLength(1);
+    const mismatchView = await signInWithChatGpt(mismatched, {
+      tokenUrl,
+      timeoutMs: 5_000,
+      openUrl: async (url) => {
+        const auth = new URL(url);
+        const state = auth.searchParams.get('state');
+        const stray = await fetch(
+          `http://127.0.0.1:${CODEX_CALLBACK_PORT}/auth/callback?code=other-code&state=${state}no`,
+        );
+        expect(stray.status).toBe(400);
+        expect(tokens.requests).toHaveLength(1);
+        const matching = await fetch(
+          `http://127.0.0.1:${CODEX_CALLBACK_PORT}/auth/callback?code=auth-code-2&state=${state}`,
+        );
+        expect(matching.status).toBe(200);
+      },
+    });
+    expect(mismatchView.chatgpt.signedIn).toBe(true);
+    expect(mismatched.getChatGptSession()).toMatchObject({
+      accessToken: mismatchAccess,
+      refreshToken: mismatchRefresh,
+      accountId: 'acct-after-mismatch',
+    });
+    expect(tokens.requests).toHaveLength(2);
+    expect(form(tokens.requests[1]?.body).get('code')).toBe('auth-code-2');
 
     const abandoned = new SettingsStore(join(dir, 'abandoned.json'), reversingCipher);
     await expect(signInWithChatGpt(abandoned, { tokenUrl, timeoutMs: 200, openUrl: () => undefined })).rejects.toThrow(
       /not finished/,
     );
     expect(abandoned.getChatGptSession()).toBeNull();
-    expect(tokens.requests).toHaveLength(1);
+    expect(tokens.requests).toHaveLength(2);
 
     const signedOut = signOutChatGpt(settings);
     expect(signedOut.chatgpt).toEqual({ signedIn: false, accountLabel: null });
@@ -208,6 +233,48 @@ describe('ChatGPT Codex login', () => {
     expect(JSON.parse(readFileSync(file, 'utf8')).chatgpt).toBeUndefined();
     expect(readFileSync(file, 'utf8')).not.toContain(accessToken);
     expect(readFileSync(file, 'utf8')).not.toContain(refreshToken);
+  });
+
+  it('replaces a sign-in that is still waiting', async () => {
+    const accessToken = 'codex-access-replaced-login';
+    const refreshToken = 'codex-refresh-replaced-login';
+    tokens.queueJson(200, {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_in: 3600,
+      token_type: 'Bearer',
+      id_token: jwt({ email: 'second@example.com', chatgpt_account_id: 'acct-second' }),
+    });
+    const firstStore = new SettingsStore(join(dir, 'first-login.json'), reversingCipher);
+    const secondStore = new SettingsStore(join(dir, 'second-login.json'), reversingCipher);
+    let firstOpened: () => void = () => undefined;
+    const opened = new Promise<void>((resolve) => {
+      firstOpened = resolve;
+    });
+    const first = signInWithChatGpt(firstStore, {
+      tokenUrl,
+      timeoutMs: 60_000,
+      openUrl: () => firstOpened(),
+    });
+    await opened;
+    const firstFailed = expect(first).rejects.toThrow(/replaced by a new attempt/);
+    const second = await signInWithChatGpt(secondStore, {
+      tokenUrl,
+      timeoutMs: 5_000,
+      openUrl: async (url) => {
+        const state = new URL(url).searchParams.get('state');
+        const response = await fetch(
+          `http://127.0.0.1:${CODEX_CALLBACK_PORT}/auth/callback?code=second-code&state=${state}`,
+        );
+        expect(response.status).toBe(200);
+      },
+    });
+    await firstFailed;
+    expect(firstStore.getChatGptSession()).toBeNull();
+    expect(second.chatgpt).toEqual({ signedIn: true, accountLabel: 'second@example.com' });
+    expect(secondStore.getChatGptSession()?.accessToken).toBe(accessToken);
+    expect(tokens.requests).toHaveLength(1);
+    expect(form(tokens.requests[0]?.body).get('code')).toBe('second-code');
   });
 
   it('reports a bind failure and stores nothing when port 1455 is taken', async () => {
@@ -403,7 +470,119 @@ describe('ChatGPT Codex refresh', () => {
     expect(lines).not.toContain(accessToken);
     expect(lines).not.toContain(refreshToken);
   });
+
+  it('refreshes once when two turns ask together', async () => {
+    const refresh1 = 'codex-refresh-shared-1111';
+    const access2 = 'codex-access-shared-2222';
+    const refresh2 = 'codex-refresh-shared-3333';
+    const settings = new SettingsStore(join(dir, 'shared.json'), reversingCipher);
+    settings.setChatGptSession({
+      accessToken: 'codex-access-shared-0000',
+      refreshToken: refresh1,
+      accountId: 'acct-shared',
+      accountLabel: null,
+      expiresAt: Date.now() - 1_000,
+    });
+    tokens.queueJson(200, {
+      access_token: access2,
+      refresh_token: refresh2,
+      expires_in: 3600,
+      token_type: 'Bearer',
+      id_token: jwt({ chatgpt_account_id: 'acct-shared' }),
+    });
+    const tokenUrl = process.env.PATCH_TEST_CODEX_TOKEN_URL ?? '';
+    const [first, second] = await Promise.all([
+      ensureFreshCodexSession(settings, tokenUrl),
+      ensureFreshCodexSession(settings, tokenUrl),
+    ]);
+    expect(tokens.requests).toHaveLength(1);
+    expect(form(tokens.requests[0]?.body).get('refresh_token')).toBe(refresh1);
+    expect(first.accessToken).toBe(access2);
+    expect(second.accessToken).toBe(access2);
+    expect(settings.getChatGptSession()?.refreshToken).toBe(refresh2);
+  });
+
+  it('does not restore a session signed out during refresh, or replace a newer sign-in', async () => {
+    const settings = new SettingsStore(join(dir, 'late.json'), reversingCipher);
+    const stale = {
+      accessToken: 'codex-access-stale-aaaa',
+      refreshToken: 'codex-refresh-stale-bbbb',
+      accountId: 'acct-stale',
+      accountLabel: null,
+      expiresAt: Date.now() - 1_000,
+    };
+    settings.setChatGptSession(stale);
+    let releaseRefresh: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    tokens.queueJsonWhen(gate, 200, {
+      access_token: 'codex-access-late-cccc',
+      refresh_token: 'codex-refresh-late-dddd',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      id_token: jwt({ chatgpt_account_id: 'acct-stale' }),
+    });
+    const tokenUrl = process.env.PATCH_TEST_CODEX_TOKEN_URL ?? '';
+    const refreshing = ensureFreshCodexSession(settings, tokenUrl);
+    await waitFor(() => tokens.requests.length === 1);
+    signOutChatGpt(settings);
+    releaseRefresh();
+    await expect(refreshing).rejects.toBeInstanceOf(MissingApiKeyError);
+    expect(settings.getChatGptSession()).toBeNull();
+
+    settings.setChatGptSession(stale);
+    let releaseFailure: () => void = () => undefined;
+    const failureGate = new Promise<void>((resolve) => {
+      releaseFailure = resolve;
+    });
+    tokens.queueJsonWhen(failureGate, 400, {
+      error: 'invalid_grant',
+      error_description: 'refresh_token_reused',
+    });
+    const failing = ensureFreshCodexSession(settings, tokenUrl);
+    await waitFor(() => tokens.requests.length === 2);
+    const newer = {
+      accessToken: 'codex-access-newer-login',
+      refreshToken: 'codex-refresh-newer-login',
+      accountId: 'acct-newer',
+      accountLabel: 'new@example.com',
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    };
+    settings.setChatGptSession(newer);
+    releaseFailure();
+    await expect(failing).resolves.toMatchObject({ accessToken: newer.accessToken, refreshToken: newer.refreshToken });
+    expect(settings.getChatGptSession()).toMatchObject(newer);
+
+    let releaseSuccess: () => void = () => undefined;
+    const successGate = new Promise<void>((resolve) => {
+      releaseSuccess = resolve;
+    });
+    settings.setChatGptSession({ ...stale, expiresAt: Date.now() - 1_000 });
+    tokens.queueJsonWhen(successGate, 200, {
+      access_token: 'codex-access-should-not-stick',
+      refresh_token: 'codex-refresh-should-not-stick',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      id_token: jwt({ chatgpt_account_id: 'acct-stale' }),
+    });
+    const overwriting = ensureFreshCodexSession(settings, tokenUrl);
+    await waitFor(() => tokens.requests.length === 3);
+    settings.setChatGptSession(newer);
+    releaseSuccess();
+    await expect(overwriting).resolves.toMatchObject({ refreshToken: newer.refreshToken });
+    expect(settings.getChatGptSession()?.refreshToken).toBe(newer.refreshToken);
+    expect(settings.getChatGptSession()?.accessToken).toBe(newer.accessToken);
+  });
 });
+
+async function waitFor(ready: () => boolean): Promise<void> {
+  const started = Date.now();
+  while (!ready()) {
+    if (Date.now() - started > 2_000) throw new Error('timed out waiting for the token request');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 describe('ChatGPT Codex precedence', () => {
   let platform: MockApiServer;

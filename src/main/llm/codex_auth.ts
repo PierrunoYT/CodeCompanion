@@ -114,24 +114,31 @@ function usableAccountId(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-let loginInProgress = false;
-
 export interface CodexLoginOptions {
   openUrl: (url: string) => void | Promise<void>;
   tokenUrl?: string;
   timeoutMs?: number;
 }
 
+interface PendingLogin {
+  cancel: (error: Error) => void;
+  done: Promise<void>;
+}
+
+// The login whose callback server is bound to port 1455, if one is waiting.
+let pendingLogin: PendingLogin | null = null;
+
 // Browser login: open the Codex authorize URL, accept the loopback callback only for this login's state, and
 // exchange the code with this login's PKCE verifier. Nothing is stored here; the caller stores a resolved session.
-export async function runCodexBrowserLogin(options: CodexLoginOptions): Promise<ChatGptSession> {
-  if (loginInProgress) throw new Error('Sign in with ChatGPT is already in progress.');
-  loginInProgress = true;
-  try {
-    return await listenForCodexCallback(options);
-  } finally {
-    loginInProgress = false;
+// A new attempt cancels a login that is still waiting, so closing the browser does not block the button.
+export function runCodexBrowserLogin(options: CodexLoginOptions): Promise<ChatGptSession> {
+  const previous = pendingLogin;
+  if (previous) {
+    pendingLogin = null;
+    previous.cancel(new Error('Sign in with ChatGPT was replaced by a new attempt.'));
+    return previous.done.then(() => runCodexBrowserLogin(options));
   }
+  return listenForCodexCallback(options);
 }
 
 export async function signInWithChatGpt(
@@ -155,6 +162,10 @@ function listenForCodexCallback(options: CodexLoginOptions): Promise<ChatGptSess
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let closeDone: () => void = () => undefined;
+    const done = new Promise<void>((resolveDone) => {
+      closeDone = resolveDone;
+    });
     const server = createServer((request, response) => {
       void onRequest(request, response);
     });
@@ -165,13 +176,17 @@ function listenForCodexCallback(options: CodexLoginOptions): Promise<ChatGptSess
     const settle = (error: Error | null, session?: ChatGptSession) => {
       if (settled) return;
       settled = true;
+      if (pendingLogin?.done === done) pendingLogin = null;
       clearTimeout(timer);
       server.close(() => {
+        closeDone();
         if (error) reject(error);
         else if (session) resolve(session);
         else reject(new Error('Sign in with ChatGPT could not be completed.'));
       });
     };
+
+    pendingLogin = { cancel: (error) => settle(error), done };
 
     const onRequest = async (request: IncomingMessage, response: ServerResponse) => {
       if (settled) {
@@ -192,11 +207,11 @@ function listenForCodexCallback(options: CodexLoginOptions): Promise<ChatGptSess
       const gotState = url.searchParams.get('state') ?? '';
       const code = url.searchParams.get('code') ?? '';
       const oauthError = url.searchParams.get('error') ?? '';
+      // An old tab or another process can hit this port. Answer it and keep waiting for this login.
       if (!sameSecret(gotState, state)) {
         response
           .writeHead(400, { 'content-type': 'text/plain; charset=utf-8' })
           .end('This sign-in did not match the one Patch started.');
-        settle(new Error('Sign in with ChatGPT did not match the login that was started.'));
         return;
       }
       if (oauthError || !code) {
@@ -268,8 +283,12 @@ export async function refreshCodexSession(session: ChatGptSession, tokenUrl: str
   );
 }
 
-// One refresh when the access token is expired or near expiry. A permanent failure clears the session and does
-// not try again. A still-expired replacement is kept for this call; the next call refreshes once more.
+// Callers that refresh the same token share one request. OpenAI accepts a refresh token once.
+let refreshFlight: { token: string; promise: Promise<ChatGptSession> } | null = null;
+
+// One refresh when the access token is expired or near expiry. A permanent failure clears the session only when
+// it still holds the refresh token that failed. A result is saved only in that same case, so a sign-out or a
+// newer sign-in that landed while the request was in flight is left as the user left it.
 export async function ensureFreshCodexSession(
   settings: SettingsStore,
   tokenUrl = codexTokenUrl(),
@@ -277,18 +296,46 @@ export async function ensureFreshCodexSession(
   const session = settings.getChatGptSession();
   if (!session) throw new MissingApiKeyError('openai');
   if (!accessTokenNeedsRefresh(session.expiresAt, Date.now())) return session;
+  if (refreshFlight?.token === session.refreshToken) return refreshFlight.promise;
+
+  const flight = refreshAndStore(settings, session, tokenUrl);
+  refreshFlight = { token: session.refreshToken, promise: flight };
+  try {
+    return await flight;
+  } finally {
+    if (refreshFlight?.promise === flight) refreshFlight = null;
+  }
+}
+
+async function refreshAndStore(
+  settings: SettingsStore,
+  session: ChatGptSession,
+  tokenUrl: string,
+): Promise<ChatGptSession> {
+  const usedRefresh = session.refreshToken;
   try {
     const next = await refreshCodexSession(session, tokenUrl);
+    if (settings.getChatGptSession()?.refreshToken !== usedRefresh) return currentSession(settings);
     settings.setChatGptSession(next);
     return next;
   } catch (error) {
     if (error instanceof CodexAuthError && error.permanent) {
-      settings.setChatGptSession(null);
-      appLog.error('chatgpt', 'ChatGPT sign-in is no longer valid. Sign in again in Settings.');
+      if (settings.getChatGptSession()?.refreshToken === usedRefresh) {
+        settings.setChatGptSession(null);
+        appLog.error('chatgpt', 'ChatGPT sign-in is no longer valid. Sign in again in Settings.');
+      }
+      const current = settings.getChatGptSession();
+      if (current && current.refreshToken !== usedRefresh) return current;
       throw new ChatGptSignInRequiredError();
     }
     throw error;
   }
+}
+
+function currentSession(settings: SettingsStore): ChatGptSession {
+  const current = settings.getChatGptSession();
+  if (!current) throw new MissingApiKeyError('openai');
+  return current;
 }
 
 async function requestToken(

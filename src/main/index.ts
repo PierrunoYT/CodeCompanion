@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, safeStorage, session } from 'electron';
 import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
 import { ToolErrorLog } from './agent/tool_error_log';
@@ -87,6 +87,11 @@ function start(): void {
   const toolErrorLog = new ToolErrorLog(join(userData, 'logs', 'tool-input-errors.jsonl'));
   const llm = new LlmService(settings);
   const browser = new BrowserService(() => send(mainWindow, 'panel:show', 'browser'));
+  session
+    .fromPartition('persist:browser')
+    .webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) =>
+      callback({ cancel: !browser.allowsRequest(details.url) }),
+    );
   const terminal = new TerminalService(
     (data) => send(mainWindow, 'terminal:data', data),
     () => send(mainWindow, 'terminal:exit', null),

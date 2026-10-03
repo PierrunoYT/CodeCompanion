@@ -36,6 +36,14 @@ export class BrowserService implements BrowserController {
     for (const resolve of this.waiters.splice(0)) resolve();
   }
 
+  // Asked by the browser session's request filter for every request, frames and sub-resources included: those never
+  // fire will-navigate, so a project page could otherwise show a file from outside the project in an <iframe> and a
+  // screenshot would hand it to the model. Only file:// is checked; web pages cannot load file:// themselves.
+  allowsRequest(url: string): boolean {
+    if (!/^file:/i.test(url) || !this.isNavigationAllowed) return true;
+    return this.isNavigationAllowed(url);
+  }
+
   get available(): boolean {
     return this.guest !== null && !this.guest.isDestroyed();
   }

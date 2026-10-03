@@ -101,6 +101,22 @@ describe('BrowserService', () => {
     expect(result.error).toBe('load failed');
   });
 
+  it('checks file:// requests against the policy of the page the agent opened', async () => {
+    const service = new BrowserService(() => {});
+    attach(service, new FakeGuest());
+    // Before the agent opens a page, the user browses freely.
+    expect(service.allowsRequest('file:///home/me/.ssh/id_rsa')).toBe(true);
+
+    await service.open('file:///project/page.html', new AbortController().signal, (url) =>
+      url.startsWith('file:///project/'),
+    );
+    expect(service.allowsRequest('file:///project/frame.html')).toBe(true);
+    expect(service.allowsRequest('file:///home/me/.ssh/id_rsa')).toBe(false);
+    expect(service.allowsRequest('FILE:///home/me/.ssh/id_rsa')).toBe(false);
+    // Only file:// is filtered: web pages cannot load files themselves.
+    expect(service.allowsRequest('https://cdn.example/lib.js')).toBe(true);
+  });
+
   it('stops when the chat is stopped', async () => {
     const service = new BrowserService(() => {});
     const guest = new FakeGuest();

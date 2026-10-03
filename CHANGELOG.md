@@ -94,6 +94,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Security
 
+- A page opened by the `browser` tool can no longer show files from outside the project in an `<iframe>` (or any other sub-resource), which a screenshot then handed to the model without an approval card. The browser session now checks every `file://` request against the project, not only top-level navigations ([#63](https://github.com/PierrunoYT/patch/issues/63)).
 - Enforce the browser guest's `persist:browser` partition in the main process, rejecting omitted and different partitions before attachment so a compromised renderer cannot share the app's default session (#34).
 - Update Electron from 44.4.5 to 44.5.1, incorporating upstream ANGLE, Chromium, Dawn and V8 fixes (#33). Existing installations need a rebuilt installer because Patch has no automatic updates.
 - Switching to Auto mode (once per app session), changing the editor command, and adding or changing an MCP server that runs a program now ask for confirmation in a native dialog shown by the main process, so a compromised UI can't apply them silently (#29).

@@ -115,6 +115,41 @@ describe('side panels', () => {
     expect(image.source.data.length).toBeGreaterThan(1000);
   });
 
+  it('does not let a project page show files from outside the project in a frame', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'patch-panels-outside-'));
+    try {
+      writeFileSync(join(outside, 'secret.txt'), 'OUTSIDE-SECRET-42');
+      writeFileSync(join(project, 'inside.txt'), 'INSIDE-CONTENT-7');
+      const secretUrl = pathToFileURL(join(outside, 'secret.txt')).href;
+      writeFileSync(
+        join(project, 'frames.html'),
+        `<!doctype html><title>Frames</title><iframe src="inside.txt"></iframe><iframe src="${secretUrl}"></iframe>`,
+      );
+      const url = pathToFileURL(join(project, 'frames.html')).href;
+      claude.script(
+        { blocks: [{ type: 'tool_use', id: 'toolu_f', name: 'browser', input: { url } }], stopReason: 'tool_use' },
+        { blocks: [{ type: 'text', text: 'Frames checked.' }], stopReason: 'end_turn' },
+      );
+      await running.page.getByLabel('Message', { exact: true }).fill('Open the frames page');
+      await running.page.getByLabel('Message', { exact: true }).press('Enter');
+      await running.page.getByText('Frames checked.', { exact: true }).waitFor({ timeout: 30_000 });
+
+      // Every frame of the browser panel's page, read from the main process.
+      const texts = await running.app.evaluate(async ({ webContents }) => {
+        const guest = webContents.getAllWebContents().find((contents) => contents.getType() === 'webview')!;
+        return Promise.all(
+          guest.mainFrame.framesInSubtree.map((frame) =>
+            frame.executeJavaScript('document.body ? document.body.innerText : ""').catch(() => ''),
+          ),
+        );
+      });
+      expect(texts.join('\n')).toContain('INSIDE-CONTENT-7');
+      expect(texts.join('\n')).not.toContain('OUTSIDE-SECRET-42');
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   it('keeps the browser guest away from Node', async () => {
     const guestGlobals = await running.page.evaluate(() =>
       (document.querySelector('webview') as any).executeJavaScript('typeof require + "/" + typeof process'),

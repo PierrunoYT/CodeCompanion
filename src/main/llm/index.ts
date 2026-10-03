@@ -1,4 +1,4 @@
-import { providerForModel, SMALL_MODELS, type Provider } from '@shared/models';
+import { providerForModel, SMALL_MODELS, type Effort, type Provider } from '@shared/models';
 import type { SettingsStore } from '../settings';
 import { AnthropicCompletionClient, AnthropicConversation, createAnthropicClient } from './anthropic';
 import { CodexAuthedConversation, createCodexOpenAIClient, ensureFreshCodexSession } from './codex_auth';
@@ -28,12 +28,12 @@ const BACKGROUND_RETRIES = 3;
 export class LlmService {
   constructor(private readonly settings: SettingsStore) {}
 
-  createConversation(model = this.settings.get().model): Conversation {
-    return this.build(model, [], this.defaultOpenAIApi());
+  createConversation(model = this.settings.get().model, effort = this.settings.get().effort): Conversation {
+    return this.build(model, [], this.defaultOpenAIApi(), null, effort);
   }
 
-  restoreConversation(saved: SerializedConversation): Conversation {
-    return this.build(saved.model, saved.messages, saved.api ?? 'chat', saved.compaction ?? null);
+  restoreConversation(saved: SerializedConversation, effort = this.settings.get().effort): Conversation {
+    return this.build(saved.model, saved.messages, saved.api ?? 'chat', saved.compaction ?? null, effort);
   }
 
   // Prefers the pinned conversation's provider; falls back to whichever provider has a key.
@@ -86,6 +86,7 @@ export class LlmService {
     messages: unknown[],
     openaiApi: 'chat' | 'responses',
     compaction: CompactionState | null = null,
+    effort: Effort = this.settings.get().effort,
   ): Conversation {
     const settings = this.settings.get();
     if (providerForModel(model) === 'anthropic') {
@@ -93,7 +94,7 @@ export class LlmService {
       if (!key) throw new MissingApiKeyError('anthropic');
       return new AnthropicConversation(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL), {
         model,
-        effort: settings.effort,
+        effort,
         messages: messages as never,
         compaction,
       });
@@ -121,7 +122,7 @@ export class LlmService {
         accessToken: () => tokens.accessToken,
         accountId: () => tokens.accountId,
       });
-      const inner = new OpenAIResponsesConversation(client, model, settings.effort, messages as never, compaction);
+      const inner = new OpenAIResponsesConversation(client, model, effort, messages as never, compaction);
       return new CodexAuthedConversation(inner, async () => {
         const fresh = await ensureFreshCodexSession(this.settings);
         tokens.accessToken = fresh.accessToken;
@@ -132,7 +133,7 @@ export class LlmService {
     return new OpenAIResponsesConversation(
       createOpenAIClient(key, settings.openaiBaseUrl || TEST_OPENAI_BASE_URL),
       model,
-      settings.effort,
+      effort,
       messages as never,
       compaction,
     );

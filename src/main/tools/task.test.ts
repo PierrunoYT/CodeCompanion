@@ -398,4 +398,22 @@ describe('finder and oracle', () => {
     expect(chat.requests[0]!.system).toContain('senior advisor');
     expect(chat.requests[0]!.tools.map((spec) => spec.name)).toEqual(['read_file']);
   });
+
+  it('oracle uses its own conversation when one is given', async () => {
+    const chat = new ScriptedConversation([{ text: 'from the chat factory' }]);
+    const oracle = new ScriptedConversation([{ text: 'Keep the index.' }]);
+    const tool = createOracleTool({
+      createConversation: () => chat,
+      createOracleConversation: () => oracle,
+      system: 'system prompt',
+      tools: () => [readTool],
+    });
+
+    const output = await tool.run(tool.schema!.parse({ question: 'Which index?' }), context());
+
+    expect(output.content).toContain('Keep the index.');
+    expect(output.summary).toBe('Oracle: Which index?');
+    expect(oracle.requests[0]!.system).toContain('senior advisor');
+    expect(chat.turns).toBe(0);
+  });
 });

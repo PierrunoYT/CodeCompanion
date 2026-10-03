@@ -186,7 +186,7 @@ Model Context Protocol servers give the assistant extra tools (a database, an is
 
 For broad questions ("find every caller of this function", "summarize how settings are saved"), the assistant can hand the research to a **subagent** with the `task` tool. The subagent has its own context, so the main chat stays small, and it can only read: it lists folders, finds files, reads and searches files and loads project skills, but cannot edit files, run commands or use the web, so it never needs an approval. Its progress appears on the tool card while it works, its answer comes back to the assistant, and its tokens count toward the chat's totals. It stops after 25 steps. A file only the subagent read still has to be read by the assistant before it can be edited.
 
-Two more read-only subagents work the same way: `finder` answers "where is X" questions on the provider's small model (the chat's own model on a custom endpoint), which is faster and cheaper, and `oracle` gives a second opinion on a hard problem (a bug, a design, a plan) on the chat's model. When the assistant asks for several read-only things in one turn (reads, searches, subagents), they run at the same time.
+Two more read-only subagents work the same way: `finder` answers "where is X" questions on the provider's small model (the chat's own model on a custom endpoint), which is faster and cheaper, and `oracle` gives a second opinion on a hard problem (a bug, a design, a plan) on the chat's model. Settings → Subagent model can run `task` on a mid-size or small model instead (`oracle` stays on the chat model; a custom OpenAI base URL keeps the chat model). Settings → Subagent effort can run `finder` at low effort and `task` at medium. When the assistant asks for several read-only things in one turn (reads, searches, subagents), they run at the same time.
 
 For a multi-step task the assistant may keep a **todo list** (`todo_list`): the steps it plans, with the one it is working on marked. The whole list shows on the tool card each time it changes. It is kept in memory for the chat only and starts empty when a saved chat is reopened.
 
@@ -233,6 +233,8 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 
 - **Model**, and **Other model id…** for a model that is not in the list. A chat keeps the model it started with.
 - **Effort** (low, medium, high by default, xhigh, max): how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
+- **Subagent model** (same as the chat by default, or mid-size, or small): the model `task` uses. `oracle` stays on the chat's model. `finder` stays on the small model.
+- **Subagent effort** (match the chat by default, or lower for lookups): lower runs `finder` at low and `task` at medium. `oracle` keeps the chat's effort.
 - **Plan mode**: see [Plan mode](#plan-mode) above.
 - **MCP servers**: see [MCP servers](#mcp-servers) above.
 - **Theme**: dark or light.

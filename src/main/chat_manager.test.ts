@@ -34,7 +34,7 @@ describe('project chat retention', () => {
     });
     llm = new LlmService(settings);
     events = [];
-    const conversation = (): Conversation => ({
+    const conversation = (..._args: unknown[]): Conversation => ({
       provider: 'anthropic',
       model: 'test',
       addUserMessage() {},
@@ -288,7 +288,7 @@ describe('project chat retention', () => {
     const port = (server.address() as AddressInfo).port;
     let modelStarted!: () => void;
     const modelWaiting = new Promise<void>((resolve) => (modelStarted = resolve));
-    vi.spyOn(llm, 'createConversation').mockImplementation((): Conversation => {
+    vi.spyOn(llm, 'createConversation').mockImplementation((..._args: unknown[]): Conversation => {
       const names = projects.current()!.path === join(root, 'alpha') ? ['alpha1', 'alpha2'] : ['beta'];
       let turns = 0;
       return {
@@ -398,7 +398,7 @@ describe('project chat retention', () => {
     };
     manager.dispose();
     const llm = new LlmService(settings);
-    const conversation = (): Conversation => ({
+    const conversation = (..._args: unknown[]): Conversation => ({
       provider: 'anthropic',
       model: 'test',
       addUserMessage() {},

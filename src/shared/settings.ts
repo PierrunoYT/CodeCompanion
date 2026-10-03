@@ -1,4 +1,11 @@
-import { DEFAULT_MODEL, type Effort } from './models';
+import {
+  DEFAULT_MODEL,
+  DEFAULT_SUBAGENT_EFFORT,
+  DEFAULT_SUBAGENT_MODEL,
+  type Effort,
+  type SubagentEffortChoice,
+  type SubagentModelChoice,
+} from './models';
 
 export type Theme = 'dark' | 'light';
 
@@ -57,6 +64,10 @@ export interface Settings {
   model: string;
   // How much the model thinks before acting (current Claude models and OpenAI via the Responses API).
   effort: Effort;
+  // task only. oracle stays on the chat model; finder stays on the small model.
+  subagentModel: SubagentModelChoice;
+  // match keeps the chat effort. scaled uses low for finder and medium for task; oracle keeps the chat effort.
+  subagentEffort: SubagentEffortChoice;
   approvalMode: ApprovalMode;
   // Plan mode: the agent proposes a plan as an approval card before working through multi-step changes. The card is
   // shown even in Auto mode, so a plan is never treated as approved without the user seeing it.
@@ -82,6 +93,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   model: DEFAULT_MODEL,
   effort: 'high',
+  subagentModel: DEFAULT_SUBAGENT_MODEL,
+  subagentEffort: DEFAULT_SUBAGENT_EFFORT,
   approvalMode: 'ask',
   planMode: false,
   allowedCommands: '',

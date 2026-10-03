@@ -268,7 +268,9 @@ interface Result {
   why: string;
   seconds: number;
   // Assistant messages with text. A turn that only calls tools adds none, so this is not the number of requests.
+  // `requests` is the model-call count.
   messages: number;
+  requests: number;
   toolCalls: number;
   toolErrors: number;
   // Name and card summary of each failed tool call, e.g. a test run that fails before the fix.
@@ -349,6 +351,7 @@ async function runTask(task: Task, rep: number): Promise<Result> {
       why: verdict.why,
       seconds: Math.round(seconds),
       messages: assistants.length,
+      requests: chat.usage.requests ?? 0,
       toolCalls: tools.length,
       toolErrors: tools.filter((item) => item.kind === 'tool' && item.status === 'error').length,
       failedTools: tools.flatMap((item) =>
@@ -372,6 +375,7 @@ async function runTask(task: Task, rep: number): Promise<Result> {
       why: 'run failed',
       seconds: Math.round((Date.now() - started) / 1000),
       messages: 0,
+      requests: 0,
       toolCalls: 0,
       toolErrors: 0,
       failedTools: [],

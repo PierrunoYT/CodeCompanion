@@ -28,13 +28,14 @@ export function availableTools(
   extra: AgentTool[] = [],
   { planMode = false, skills = false }: { planMode?: boolean; skills?: boolean } = {},
 ): AgentTool[] {
+  const extras = [...extra].sort((a, b) => a.name.localeCompare(b.name));
   return [
     ...CORE_TOOLS,
     ...(context.webSearch ? [webSearchTool] : []),
     ...(context.browser ? [browserTool] : []),
     ...(planMode ? [proposePlanTool] : []),
     ...(skills ? [loadSkillTool] : []),
-    ...extra,
+    ...extras,
   ];
 }
 

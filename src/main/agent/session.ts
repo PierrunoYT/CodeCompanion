@@ -136,6 +136,7 @@ export class ChatSession {
     totals.outputTokens += usage.outputTokens;
     totals.cacheReadTokens += usage.cacheReadTokens;
     totals.cacheWriteTokens = (totals.cacheWriteTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
+    totals.requests = (totals.requests ?? 0) + (usage.requests ?? 0);
     if (usage.longContext) {
       const long = totals.longContext ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
       long.inputTokens += usage.longContext.inputTokens;

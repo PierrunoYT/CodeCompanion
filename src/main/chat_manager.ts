@@ -2,7 +2,13 @@ import { platform } from 'node:os';
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, UserMessage } from '@shared/chat';
 import type { UndoResult } from '@shared/ipc';
 import type { UsageTotals } from '@shared/chat';
-import { acceptsImages, imagesNotSupportedMessage, SMALL_MODELS } from '@shared/models';
+import {
+  acceptsImages,
+  effortForSubagent,
+  imagesNotSupportedMessage,
+  SMALL_MODELS,
+  subagentModelId,
+} from '@shared/models';
 import { mergeAllowLists } from '@shared/project';
 import { loadAgentFile } from './agent/agent_file';
 import { isCommandAllowed } from './agent/allowed_commands';
@@ -272,16 +278,35 @@ export class ChatManager {
     };
     // The checklist lives and dies with this chat; subagents do not get it (they only read).
     const todoTool = createTodoTool();
+    // A custom OpenAI-compatible endpoint may not serve any model but the chat's. Subagents stay on this provider.
+    const customOpenAIChat = (): boolean =>
+      conversation.provider === 'openai' &&
+      conversation.serialize().api === 'chat' &&
+      Boolean(this.deps.settings.get().openaiBaseUrl.trim());
     const subagents = {
-      // The chat keeps its own model; a later change in Settings must not move the subagent to another provider.
-      createConversation: () => subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved)),
+      createConversation: () => {
+        const settings = this.deps.settings.get();
+        const effort = effortForSubagent('task', settings.effort, settings.subagentEffort);
+        const model = customOpenAIChat()
+          ? conversation.model
+          : subagentModelId(conversation.provider, conversation.model, settings.subagentModel);
+        return model === conversation.model
+          ? subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved, effort))
+          : this.deps.llm.createConversation(model, effort);
+      },
       // The finder runs on the provider's small model, except on a custom endpoint, which may not serve it.
-      createFinderConversation: () =>
-        conversation.provider === 'openai' &&
-        conversation.serialize().api === 'chat' &&
-        this.deps.settings.get().openaiBaseUrl.trim()
-          ? subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved))
-          : this.deps.llm.createConversation(SMALL_MODELS[conversation.provider]),
+      createFinderConversation: () => {
+        const settings = this.deps.settings.get();
+        const effort = effortForSubagent('finder', settings.effort, settings.subagentEffort);
+        return customOpenAIChat()
+          ? subagentConversation(conversation, (saved) => this.deps.llm.restoreConversation(saved, effort))
+          : this.deps.llm.createConversation(SMALL_MODELS[conversation.provider], effort);
+      },
+      // Oracle stays on the chat model and the chat effort, not the scaled task effort.
+      createOracleConversation: () =>
+        subagentConversation(conversation, (saved) =>
+          this.deps.llm.restoreConversation(saved, this.deps.settings.get().effort),
+        ),
       system,
       tools: sessionTools,
       recordUsage: (usage: UsageTotals) => session.recordUsage(usage),

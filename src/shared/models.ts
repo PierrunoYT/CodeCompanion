@@ -42,10 +42,17 @@ export type SubagentModelChoice = 'same' | 'mid' | 'small';
 
 export const DEFAULT_SUBAGENT_MODEL: SubagentModelChoice = 'same';
 
+// The choice is meant to save money, so it never moves task to a model that costs more than the chat's: a chat on the
+// small model keeps it when "mid" is chosen. Without a known price for both, the chosen model is used.
 export function subagentModelId(provider: Provider, chatModel: string, choice: SubagentModelChoice): string {
-  if (choice === 'mid') return MID_MODELS[provider];
-  if (choice === 'small') return SMALL_MODELS[provider];
-  return chatModel;
+  if (choice === 'same') return chatModel;
+  const chosen = choice === 'mid' ? MID_MODELS[provider] : SMALL_MODELS[provider];
+  const chosenPrice = MODEL_PRICING[chosen];
+  const chatPrice = MODEL_PRICING[chatModel];
+  if (chosenPrice && chatPrice && chosenPrice.input + chosenPrice.output > chatPrice.input + chatPrice.output) {
+    return chatModel;
+  }
+  return chosen;
 }
 
 export type SubagentEffortChoice = 'match' | 'scaled';

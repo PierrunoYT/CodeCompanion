@@ -106,6 +106,13 @@ describe('subagent model and effort', () => {
     expect(subagentModelId('openai', 'gpt-6-astra', 'small')).toBe(SMALL_MODELS.openai);
   });
 
+  it('never moves task to a model that costs more than the chat', () => {
+    // A chat on the small model keeps it rather than "saving" by moving up to the mid-size model.
+    expect(subagentModelId('anthropic', SMALL_MODELS.anthropic, 'mid')).toBe(SMALL_MODELS.anthropic);
+    expect(subagentModelId('openai', SMALL_MODELS.openai, 'mid')).toBe(SMALL_MODELS.openai);
+    expect(subagentModelId('anthropic', MID_MODELS.anthropic, 'mid')).toBe(MID_MODELS.anthropic);
+  });
+
   it('matches the chat effort, or lowers finder and task while oracle stays', () => {
     expect(DEFAULT_SUBAGENT_EFFORT).toBe('match');
     for (const role of ['task', 'finder', 'oracle'] as const) {

@@ -233,7 +233,7 @@ Besides the API keys, approvals and allow-lists described above, **Settings** ha
 
 - **Model**, and **Other model id…** for a model that is not in the list. A chat keeps the model it started with.
 - **Effort** (low, medium, high by default, xhigh, max): how much the model thinks before acting (current Claude and OpenAI models); higher is slower and costs more. Answers show the model's reasoning under a collapsed **Thinking** line.
-- **Subagent model** (same as the chat by default, or mid-size, or small): the model `task` uses. `oracle` stays on the chat's model. `finder` stays on the small model.
+- **Subagent model** (same as the chat by default, or mid-size, or small): the model `task` uses. It never moves `task` to a model that costs more than the chat's (a chat on the small model keeps it). `oracle` stays on the chat's model. `finder` stays on the small model.
 - **Subagent effort** (match the chat by default, or lower for lookups): lower runs `finder` at low and `task` at medium. `oracle` keeps the chat's effort.
 - **Plan mode**: see [Plan mode](#plan-mode) above.
 - **MCP servers**: see [MCP servers](#mcp-servers) above.

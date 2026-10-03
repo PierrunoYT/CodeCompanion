@@ -63,9 +63,9 @@ export async function launchApp(
     if (message.type() === 'error') errors.push(message.text());
   });
   await page.waitForLoadState('domcontentloaded');
-  // The window is sized from the screen, which differs between machines (Xvfb's default is 640x480). Narrow windows
-  // hide parts of the footer, so give every run the same desktop layout.
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1400, 1000));
+  // The window is sized from the screen, which differs between machines (Xvfb's default is 640x480), and macOS keeps
+  // windows within the screen. Narrow windows hide parts of the footer, so give every run the same desktop layout.
+  await page.setViewportSize({ width: 1400, height: 1000 });
   // Answer only Patch's native settings confirmation; browser confirms must remain under Playwright's control.
   // Each one is recorded; a test sets __patchConfirmResponse to 1 to press Cancel.
   await app.evaluate(({ dialog }) => {

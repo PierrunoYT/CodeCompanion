@@ -26,7 +26,7 @@ export function contextWindow(model: string): number | null {
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 
-// Cheap model used for background work: chat titles and search re-ranking.
+// Cheap model used for background work (chat titles, Compact chat summaries, commit messages) and the finder subagent.
 export const SMALL_MODELS: Record<Provider, string> = {
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-6-luna',

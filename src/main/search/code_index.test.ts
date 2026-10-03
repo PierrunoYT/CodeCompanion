@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Workspace } from '../tools/workspace';
 import { chunkFile } from './chunker';
-import { CodeIndex, openRouterEmbedder, type Embedder, type EmbeddingInput } from './code_index';
+import {
+  CodeIndex,
+  openRouterEmbedder,
+  openRouterReranker,
+  type Embedder,
+  type EmbeddingInput,
+  type Reranker,
+} from './code_index';
 
 // Deterministic stand-in for an embedding model: a bag of hashed words.
 class FakeEmbedder implements Embedder {
@@ -155,6 +162,107 @@ describe('CodeIndex', () => {
     const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 2);
     await index.update();
     expect(index.fileCount).toBe(1);
+  });
+});
+
+describe('CodeIndex with a reranker', () => {
+  // Puts the documents that mention `favourite` first, in reverse order of how they arrived.
+  class FakeReranker implements Reranker {
+    readonly model = 'fake-rerank';
+    seen: { query: string; documents: string[]; topN: number } | null = null;
+    fail: Error | null = null;
+
+    async rerank(query: string, documents: string[], topN: number) {
+      this.seen = { query, documents, topN };
+      if (this.fail) throw this.fail;
+      return documents
+        .map((text, index) => ({ index, score: text.includes(this.favourite) ? 0.9 : 0.1 }))
+        .sort((a, b) => b.score - a.score || b.index - a.index)
+        .slice(0, topN);
+    }
+
+    constructor(private readonly favourite: string) {}
+  }
+
+  it('reranks the best embedding matches and keeps the requested number', async () => {
+    const reranker = new FakeReranker('addToCart');
+    const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 1000, reranker);
+
+    const result = await index.searchDetailed('validate session token', 1, signal);
+
+    // The embedding order puts auth.ts first; the reranker prefers cart.ts.
+    expect(result).toMatchObject({ rerankFailure: null, hits: [{ path: 'src/cart.ts', score: 0.9 }] });
+    expect(result.hits).toHaveLength(1);
+    expect(reranker.seen).toMatchObject({ query: 'validate session token', topN: 1 });
+    // Every candidate went to the reranker with its path, not only the requested one.
+    expect(reranker.seen!.documents).toHaveLength(2);
+    expect(reranker.seen!.documents.some((text) => text.startsWith('src/auth.ts\n'))).toBe(true);
+  });
+
+  it('falls back to the embedding order when reranking fails, and says so', async () => {
+    const reranker = new FakeReranker('addToCart');
+    reranker.fail = new Error('OpenRouter rerank request failed (503)');
+    const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 1000, reranker);
+
+    const result = await index.searchDetailed('validate session token', 1, signal);
+
+    expect(result.rerankFailure).toBe('OpenRouter rerank request failed (503)');
+    expect(result.hits.map((hit) => hit.path)).toEqual(['src/auth.ts']);
+  });
+
+  it('passes a stop on instead of falling back', async () => {
+    const controller = new AbortController();
+    const reranker = new FakeReranker('addToCart');
+    const index = new CodeIndex(new Workspace(root), new FakeEmbedder(), indexDir, () => 1000, reranker);
+    await index.update();
+    reranker.fail = new DOMException('aborted', 'AbortError');
+    const pending = index.searchDetailed('validate session token', 1, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+  });
+});
+
+describe('openRouterReranker', () => {
+  it('posts the query and documents to OpenRouter and returns the results best first', async () => {
+    const requests: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      requests.push({ url, init });
+      return new Response(
+        JSON.stringify({
+          model: 'voyageai/rerank-3',
+          results: [
+            { index: 0, relevance_score: 0.2 },
+            { index: 2, relevance_score: 0.95 },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    const reranker = openRouterReranker('sk-or-test', 'https://router.example/api/v1', fetchImpl);
+
+    expect(reranker.model).toBe('voyageai/rerank-3');
+    expect(await reranker.rerank('find carts', ['a', 'b', 'c'], 2, signal)).toEqual([
+      { index: 2, score: 0.95 },
+      { index: 0, score: 0.2 },
+    ]);
+    expect(requests[0]!.url).toBe('https://router.example/api/v1/rerank');
+    expect((requests[0]!.init.headers as Record<string, string>).authorization).toBe('Bearer sk-or-test');
+    expect(JSON.parse(requests[0]!.init.body as string)).toEqual({
+      model: 'voyageai/rerank-3',
+      query: 'find carts',
+      documents: ['a', 'b', 'c'],
+      top_n: 2,
+    });
+  });
+
+  it("reports OpenRouter's error without the key", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ error: { message: 'Insufficient credits' } }), {
+        status: 402,
+      })) as unknown as typeof fetch;
+    const failure = openRouterReranker('sk-or-secret', undefined, fetchImpl).rerank('q', ['a'], 1, signal);
+    await expect(failure).rejects.toThrow('OpenRouter rerank request failed (402): Insufficient credits');
+    await expect(failure).rejects.not.toThrow(/sk-or-secret/);
   });
 });
 

@@ -11,7 +11,7 @@ import { openInEditor, pickImages, saveTextFile } from './files';
 import { handle, send } from './ipc';
 import { LlmService } from './llm';
 import { signInWithChatGpt, signOutChatGpt } from './llm/codex_auth';
-import { CodeIndex, openRouterEmbedder, searchCodeTool } from './search/code_index';
+import { CodeIndex, openRouterEmbedder, openRouterReranker, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { RendererErrorReporter } from './renderer_errors';
@@ -127,7 +127,13 @@ function start(): void {
     let index = codeIndexes.get(workspace.root);
     if (!index) {
       const embedder = openRouterEmbedder(key);
-      index = new CodeIndex(workspace, embedder, join(userData, 'indexes'), () => settings.get().maxIndexedFiles);
+      index = new CodeIndex(
+        workspace,
+        embedder,
+        join(userData, 'indexes'),
+        () => settings.get().maxIndexedFiles,
+        openRouterReranker(key),
+      );
       codeIndexes.set(workspace.root, index);
     }
     return index;

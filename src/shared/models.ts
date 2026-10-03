@@ -108,6 +108,8 @@ export function formatCost(dollars: number): string {
 // Semantic code search embeds through OpenRouter with Voyage's code model (1024 dimensions by default).
 export const EMBEDDING_MODEL = 'voyageai/voyage-code-4';
 export const EMBEDDING_BASE_URL = 'https://openrouter.ai/api/v1';
+// Reorders the best embedding matches before search_code returns them, through the same OpenRouter key.
+export const RERANK_MODEL = 'voyageai/rerank-3';
 
 // Prompt size (tokens) from which the app suggests compacting the chat. One value for every model: context windows
 // differ (and are unknown for custom endpoints), so this is a nudge well below the common 200k, not a limit.

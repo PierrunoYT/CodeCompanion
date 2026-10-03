@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { EMBEDDING_BASE_URL, EMBEDDING_MODEL } from '@shared/models';
+import { EMBEDDING_BASE_URL, EMBEDDING_MODEL, RERANK_MODEL } from '@shared/models';
+import { appLog } from '../app_log';
 import { readJson, writeJson } from '../storage/json_file';
 import { fileSize, isBinaryFile } from '../tools/text_files';
 import { defineTool, type AgentTool, type CodeSearch } from '../tools/types';
@@ -13,6 +14,8 @@ import { chunkFile } from './chunker';
 const INDEX_VERSION = 1;
 const MAX_FILE_BYTES = 256 * 1024;
 const EMBED_BATCH = 64;
+// Embedding matches handed to the reranker, which picks the final results from them.
+const RERANK_CANDIDATES = 30;
 
 // Retrieval models embed a search query and the text it should find differently.
 export type EmbeddingInput = 'query' | 'document';
@@ -20,6 +23,24 @@ export type EmbeddingInput = 'query' | 'document';
 export interface Embedder {
   readonly model: string;
   embed(texts: string[], input: EmbeddingInput, signal?: AbortSignal): Promise<number[][]>;
+}
+
+// Scores documents against a query. Returns the positions of the best `topN` documents, most relevant first.
+export interface Reranker {
+  readonly model: string;
+  rerank(query: string, documents: string[], topN: number, signal?: AbortSignal): Promise<RerankResult[]>;
+}
+
+export interface RerankResult {
+  index: number;
+  score: number;
+}
+
+export interface SearchResult {
+  hits: SearchHit[];
+  // Why the results are in plain embedding order although a reranker is set; null when they were reranked or no
+  // reranker is set.
+  rerankFailure: string | null;
 }
 
 interface IndexedChunk {
@@ -67,6 +88,7 @@ export class CodeIndex implements CodeSearch {
     private readonly embedder: Embedder,
     indexDir: string,
     private readonly maxFiles: () => number,
+    private readonly reranker: Reranker | null = null,
   ) {
     this.file = join(indexDir, `${createHash('sha1').update(workspace.root).digest('hex')}.json`);
     const stored = readJson<StoredIndex | null>(this.file, null);
@@ -91,6 +113,12 @@ export class CodeIndex implements CodeSearch {
   }
 
   async search(query: string, limit: number, signal: AbortSignal): Promise<SearchHit[]> {
+    return (await this.searchDetailed(query, limit, signal)).hits;
+  }
+
+  // Embedding search, then, with a reranker, a second pass over the best candidates. A failed rerank falls back to
+  // the embedding order instead of failing the search; a stop is passed on.
+  async searchDetailed(query: string, limit: number, signal: AbortSignal): Promise<SearchResult> {
     await this.update(signal);
     const [queryVector] = await this.embedder.embed([query], 'query', signal);
     if (!queryVector) throw new Error('The embedding service returned no vector for the query.');
@@ -107,14 +135,15 @@ export class CodeIndex implements CodeSearch {
     scored.sort((a, b) => b.score - a.score);
 
     // At most two hits per file so one large file cannot crowd out the rest.
+    const wanted = this.reranker ? Math.max(limit, RERANK_CANDIDATES) : limit;
     const perFile = new Map<string, number>();
-    const hits: SearchHit[] = [];
+    const candidates: SearchHit[] = [];
     for (const candidate of scored) {
-      if (hits.length >= limit) break;
+      if (candidates.length >= wanted) break;
       const count = perFile.get(candidate.path) ?? 0;
       if (count >= 2) continue;
       perFile.set(candidate.path, count + 1);
-      hits.push({
+      candidates.push({
         path: candidate.path,
         startLine: candidate.chunk.startLine,
         endLine: candidate.chunk.endLine,
@@ -122,7 +151,29 @@ export class CodeIndex implements CodeSearch {
         text: await this.readLines(candidate.path, candidate.chunk.startLine, candidate.chunk.endLine),
       });
     }
-    return hits;
+    if (!this.reranker || candidates.length === 0) return { hits: candidates.slice(0, limit), rerankFailure: null };
+
+    try {
+      const ranked = await this.reranker.rerank(
+        query,
+        candidates.map((hit) => `${hit.path}\n${hit.text}`),
+        Math.min(limit, candidates.length),
+        signal,
+      );
+      const hits = ranked.flatMap(({ index, score }) => {
+        const hit = candidates[index];
+        return hit ? [{ ...hit, score }] : [];
+      });
+      if (hits.length === 0) throw new Error('The reranker returned no results.');
+      return { hits, rerankFailure: null };
+    } catch (error) {
+      if (signal.aborted) throw error;
+      appLog.warn('search', 'Reranking failed; search results are in embedding order.');
+      return {
+        hits: candidates.slice(0, limit),
+        rerankFailure: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   // Throws away everything indexed so far and embeds the whole project again.
@@ -272,10 +323,11 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
       await index.update(context.signal, ({ embedded, total }) =>
         context.onProgress(`Indexing project: ${embedded}/${total} chunks\n`),
       );
-      const hits = await index.search(query, limit, context.signal);
+      const { hits, rerankFailure } = await index.searchDetailed(query, limit, context.signal);
       const content = hits.map((hit) => `${hit.path}:${hit.startLine}-${hit.endLine}\n${hit.text}`).join('\n\n---\n\n');
+      const note = rerankFailure ? `Reranking failed (${rerankFailure}); results are in embedding order.\n\n` : '';
       return {
-        content: content || 'No matches.',
+        content: note + (content || 'No matches.'),
         summary: `Searched code for "${query}" (${hits.length} results)`,
       };
     },
@@ -307,6 +359,38 @@ export function openRouterEmbedder(
         throw new Error(`OpenRouter embeddings request failed (${response.status})${detail}`);
       }
       return [...body.data].sort((a, b) => a.index - b.index).map((item) => item.embedding);
+    },
+  };
+}
+
+// Reranks through OpenRouter's rerank endpoint with Voyage's reranker. Errors name the status and OpenRouter's
+// message, never the key.
+export function openRouterReranker(
+  apiKey: string,
+  baseUrl = EMBEDDING_BASE_URL,
+  fetchImpl: typeof fetch = fetch,
+): Reranker {
+  return {
+    model: RERANK_MODEL,
+    async rerank(query, documents, topN, signal) {
+      const response = await fetchImpl(`${baseUrl.replace(/\/+$/, '')}/rerank`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: RERANK_MODEL, query, documents, top_n: topN }),
+        signal,
+      });
+      const body = (await response.json().catch(() => null)) as {
+        results?: Array<{ index: number; relevance_score: number }>;
+        error?: { message?: string };
+      } | null;
+      if (!response.ok || !Array.isArray(body?.results)) {
+        const detail = body?.error?.message ? `: ${body.error.message}` : '';
+        throw new Error(`OpenRouter rerank request failed (${response.status})${detail}`);
+      }
+      return [...body.results]
+        .filter((result) => Number.isInteger(result.index) && typeof result.relevance_score === 'number')
+        .sort((a, b) => b.relevance_score - a.relevance_score)
+        .map((result) => ({ index: result.index, score: result.relevance_score }));
     },
   };
 }

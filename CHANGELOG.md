@@ -10,6 +10,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- `search_code` reranks its best 30 embedding matches with Voyage `rerank-3` through OpenRouter, using the same OpenRouter key, before returning the requested number. If reranking fails, the results come back in embedding order with a note saying why.
 - Sign in with ChatGPT for official OpenAI models. Settings starts a browser login on localhost port 1455, stores the access token, refresh token, and account id with the same encryption as API keys, and sends those chats to the Codex backend when no custom base URL is set. An API key still works after sign-out. A custom base URL still uses that URL and the API key. Semantic search, titles, compaction summaries, and commit messages still need an OpenAI API key.
 - Secret redaction of tool results: private keys, cloud and Git host tokens, JWTs, quoted credential values and `.env`-style secret lines become `[REDACTED:_____]` before the model, the transcript or the saved chat see them; `write_file`, `edit_file` and `apply_patch` refuse text containing the placeholder.
 - Protected files: edits to `.env` files, keys, `.git`, editor and agent folders, shell start-up files and databases always ask for approval, also in Auto mode (`mustAsk` on tools).

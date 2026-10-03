@@ -376,3 +376,22 @@ Rerun of both rename tasks, Claude Sonnet 5.5, 2 runs each:
 | `rename` (small)  | `edit_file`; 15–17 s; $0.036–0.037                    | `edit_file` (4–6 calls), no shell edits; 13–15 s; $0.032–0.034                |
 
 All four runs were solved. Editing file by file costs more round trips, so the larger rename costs about twice as much; every change is now previewable and can be undone. The `rename-constant` runs had 1–3 failed `edit_file` calls each, recovered within the run; their reason will show once failed tool cards carry it (#47). The small `rename` task's one failed call (#43) is the model's own check, `grep -rn getUserName …`, which exits 1 when nothing is left to find.
+
+### Prompt cache changes (#77, 2026-10-03)
+
+**Question:** what did the prompt cache changes save on real tasks?
+
+**Answer:** about a fifth of the cost. All 12 tasks, 2 runs each on Claude Sonnet 5.5, before and after, with every run solved both times:
+
+| Suite | Cost before → after    | Cache writes before → after | Cache reads           | Output tokens   | Tool calls |
+| ----- | ---------------------- | --------------------------- | --------------------- | --------------- | ---------- |
+| Small | $0.281 → $0.195        | 66,755 → 28,788 (−57%)      | 178,707 → 198,791     | 7,817 → 8,292   | 51 → 61    |
+| Large | $1.222 → $0.989        | 235,703 → 166,678 (−29%)    | 1,097,203 → 1,113,565 | 41,320 → 34,951 | 160 → 152  |
+| All   | $1.503 → $1.184 (−21%) | 302,458 → 195,466 (−35%)    | +3%                   | −12%            | 211 → 213  |
+
+Every task cost less, from −2% (`export-bug`) to −50% (`cli-fix`); the small tasks gained most because their prompt is mostly the fixed tools and system prompt.
+
+- **Before:** `ee9aa3e`, the commit before #86. **After:** `26cbfe4`, with #86's breakpoint on the system prompt (next to the top-level automatic one), extra tools in a fixed order and the project map, plus the subagent change below.
+- **Where it comes from:** cache writes fell by a third while reads stayed level, so the requests that used to write the fixed part again now read it. No run used a subagent, so this is #86's breakpoint and tool order, not the subagent change; that one saves the tools and system prompt write on each `task` or `oracle` run on the chat's model (about 10k tokens per run), which these tasks do not exercise.
+- **Noise:** one before and one after run of each configuration, and the model's own choices vary (the small suite made 10 more tool calls after, the large suite 8 fewer). The cache-write drop is far larger than that variation, and consistent across all 12 tasks.
+- **The keep-alive** (Settings → Prompt cache, `26cbfe4`) is off by default and is not exercised here: the benchmark has no pauses between turns. Its request shape was checked against the API on Claude Sonnet 5.5 and Claude Opus 5.5 (with compaction and refusal fallback): after one real turn, two keep-alives read the whole cached prefix (8,466 and 8,470 tokens), wrote 4 and 0 tokens and returned no output, and the next real turn read the cache.

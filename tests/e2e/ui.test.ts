@@ -46,6 +46,10 @@ describe('user interface', () => {
         .getByLabel('Model', { exact: true })
         .selectOption('claude-sonnet-5-5');
       expect(await running.page.getByLabel('Model', { exact: true }).inputValue()).toBe('claude-sonnet-5-5');
+      // A new viewport size is laid out on the next frames.
+      await running.page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
       const geometry = await running.page.evaluate(() => {
         const input = document.querySelector('.composer-input')!.getBoundingClientRect();
         const send = document.querySelector('.composer-send')!.getBoundingClientRect();
@@ -61,6 +65,10 @@ describe('user interface', () => {
           sendRight: send.right,
           sendBottom: send.bottom,
           overflow: document.querySelector('.app-main')!.scrollWidth,
+          // Which part of the window is too wide, if anything is.
+          widths: [...document.querySelector('.app-main')!.children].map(
+            (child) => `${child.className}=${Math.round(child.getBoundingClientRect().width)}/${child.scrollWidth}`,
+          ),
           composerOverflow: box.scrollWidth - box.clientWidth,
           attachCenter: attach.top + attach.height / 2,
           modelCenter: model.top + model.height / 2,
@@ -75,7 +83,7 @@ describe('user interface', () => {
       expect(geometry.inputWidth).toBeGreaterThan(180);
       expect(geometry.sendRight).toBeLessThanOrEqual(geometry.width);
       expect(geometry.sendBottom).toBeLessThanOrEqual(geometry.height);
-      expect(geometry.overflow).toBeLessThanOrEqual(geometry.width);
+      expect(geometry.overflow, geometry.widths.join(' ')).toBeLessThanOrEqual(geometry.width);
       expect(geometry.composerOverflow).toBeLessThanOrEqual(1);
       expect(geometry.controlsOverlapActions).toBe(false);
       if (size.width === 1440) {

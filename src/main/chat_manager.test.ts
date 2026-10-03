@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { createServer, type AddressInfo, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,7 +21,8 @@ describe('project chat retention', () => {
   let events: ChatEvent[];
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'cc-manager-'));
+    // Real path: on macOS the temp folder is under /var, a link to /private/var, and projects are stored by real path.
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'cc-manager-')));
     mkdirSync(join(root, 'alpha'));
     mkdirSync(join(root, 'beta'));
     projects = new ProjectStore(join(root, 'projects.json'));

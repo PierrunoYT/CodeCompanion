@@ -22,21 +22,23 @@ describe('single instance per profile', () => {
     const second = spawn(electronPath, [root], {
       cwd: root,
       env: { ...process.env, PATCH_USER_DATA: running.userData, PATCH_E2E_QUIET: '1' },
-      stdio: 'ignore',
+      stdio: ['ignore', 'ignore', 'pipe'],
       windowsHide: true,
     });
-    const exitCode = await new Promise<number | null>((resolveExit, reject) => {
+    let stderr = '';
+    second.stderr!.on('data', (data: Buffer) => (stderr += data.toString()));
+    const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit, reject) => {
       const timer = setTimeout(() => {
         second.kill();
         reject(new Error('the second instance did not quit within 20 s'));
       }, 20_000);
-      second.on('exit', (code) => {
+      second.on('exit', (code, signal) => {
         clearTimeout(timer);
-        resolveExit(code);
+        resolveExit({ code, signal });
       });
     });
 
-    expect(exitCode).toBe(0);
+    expect(exit, stderr.slice(-2000)).toEqual({ code: 0, signal: null });
     // The first instance still answers.
     const info = await running.page.evaluate(() => window.api.invoke('app:info'));
     expect(info.version).toBeTruthy();

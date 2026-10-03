@@ -202,9 +202,24 @@ export function sanitizePermissionRules(rules: unknown): PermissionRule[] {
   return rules.filter((entry) => permissionRuleError(entry) === null) as PermissionRule[];
 }
 
+// What the renderer sees of a ChatGPT sign-in. Tokens stay in the main process.
+export interface ChatGptAccountView {
+  signedIn: boolean;
+  // Email from the ChatGPT id token, when the login response included one.
+  accountLabel: string | null;
+}
+
 // What the renderer sees. Secrets never leave the main process; the UI only learns whether each one is set.
 export interface SettingsView extends Omit<Settings, 'mcpServers'> {
   mcpServers: McpServerView[];
   secrets: Record<SecretName, boolean>;
   secretsEncrypted: boolean;
+  chatgpt: ChatGptAccountView;
+}
+
+// Official OpenAI chats (no custom base URL) can use a ChatGPT session or an API key. A custom base URL always
+// needs the API key; the ChatGPT session is not sent there.
+export function openaiCredentialMissing(view: Pick<SettingsView, 'openaiBaseUrl' | 'secrets' | 'chatgpt'>): boolean {
+  if (view.openaiBaseUrl.trim()) return !view.secrets.openaiApiKey;
+  return !view.secrets.openaiApiKey && !view.chatgpt.signedIn;
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, safeStorage, session } from 'electron';
+import { app, BrowserWindow, dialog, safeStorage, session, shell } from 'electron';
 import { join } from 'node:path';
 import { SECRET_NAMES } from '@shared/settings';
 import { ToolErrorLog } from './agent/tool_error_log';
@@ -10,6 +10,7 @@ import { chatToMarkdown, exportFileName } from '@shared/export';
 import { openInEditor, pickImages, saveTextFile } from './files';
 import { handle, send } from './ipc';
 import { LlmService } from './llm';
+import { signInWithChatGpt, signOutChatGpt } from './llm/codex_auth';
 import { createOpenAIClient } from './llm/openai';
 import { CodeIndex, openAIEmbedder, searchCodeTool } from './search/code_index';
 import { buildMenu } from './menu';
@@ -214,6 +215,8 @@ function start(): void {
     if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
     return settings.setSecret(name, value);
   });
+  handle('chatgpt:sign-in', () => signInWithChatGpt(settings, { openUrl: (url) => shell.openExternal(url) }));
+  handle('chatgpt:sign-out', () => signOutChatGpt(settings));
   settings.on('change', (view) => send(mainWindow, 'settings:changed', view));
 
   handle('index:status', () => {

@@ -123,8 +123,16 @@ export class MissingApiKeyError extends Error {
     super(
       provider === 'anthropic'
         ? 'Add your Anthropic API key in Settings to use Claude models.'
-        : 'Add your OpenAI API key in Settings to use this model.',
+        : 'Add your OpenAI API key or sign in with ChatGPT in Settings to use this model.',
     );
     this.name = 'MissingApiKeyError';
+  }
+}
+
+// The stored ChatGPT refresh token was rejected. The turn must stop and the user must sign in again.
+export class ChatGptSignInRequiredError extends Error {
+  constructor() {
+    super('Sign in with ChatGPT again in Settings to use this model.');
+    this.name = 'ChatGptSignInRequiredError';
   }
 }

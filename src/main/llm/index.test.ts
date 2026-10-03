@@ -47,6 +47,7 @@ describe('LlmService summarizer selection', () => {
     const llm = new LlmService({
       get: () => ({ model, effort: 'high', openaiBaseUrl: customURL }),
       getSecret: (key: string) => (key === 'openaiApiKey' ? 'local-key' : ''),
+      getChatGptSession: () => null,
     } as unknown as SettingsStore);
     const messages = Array.from({ length: 8 }, (_, index) => ({
       role: index % 2 ? 'assistant' : 'user',
@@ -91,6 +92,7 @@ describe('LlmService summarizer selection', () => {
         openaiBaseUrl: testCase.customURL ? customURL : '',
       }),
       getSecret: () => 'sk-test',
+      getChatGptSession: () => null,
     } as unknown as SettingsStore);
     const saved: SerializedConversation = { ...testCase, messages: [] };
     const conversation = llm.restoreConversation(saved);

@@ -3,7 +3,7 @@ import { formatCost, MODEL_OPTIONS, type Effort } from '@shared/models';
 import { describeIndexStatus } from '@shared/index_status';
 import type { IndexStatus, McpStatus } from '@shared/ipc';
 import type { ProjectInfo, ProjectSettings } from '@shared/project';
-import type { SecretName, Settings, SettingsView } from '@shared/settings';
+import type { ChatGptAccountView, SecretName, Settings, SettingsView } from '@shared/settings';
 import { parseMcpServers, parsePermissionRules, type McpServerView } from '@shared/settings';
 import { h, icon } from '../dom';
 
@@ -49,13 +49,18 @@ function field(label: string, control: HTMLElement, help?: string): HTMLElement 
 
 const SECRET_LABELS: Record<SecretName, [string, string]> = {
   anthropicApiKey: ['Anthropic API key', 'Needed for Claude models.'],
-  openaiApiKey: ['OpenAI API key', 'Needed for OpenAI models and for semantic code search (embeddings).'],
+  openaiApiKey: [
+    'OpenAI API key',
+    'Used for official OpenAI models when you are signed out, for a custom base URL, and for semantic code search (embeddings).',
+  ],
   googleApiKey: ['Google API key', 'Optional, for web search. Also set the search engine id below.'],
 };
 
 export interface SettingsDialogActions {
   update(patch: Partial<Settings>): Promise<SettingsView>;
   setSecret(name: SecretName, value: string): Promise<SettingsView>;
+  signInChatGpt(): Promise<SettingsView>;
+  signOutChatGpt(): Promise<SettingsView>;
   indexStatus(): Promise<IndexStatus>;
   rebuildIndex(): Promise<IndexStatus>;
   mcpStatus(): Promise<McpStatus[]>;
@@ -153,6 +158,51 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     value: String(settings.maxIndexedFiles),
   });
   const error = h('div', { class: 'text-danger me-auto small' });
+  const chatgptStatus = h('div', { class: 'd-flex align-items-center gap-2 flex-wrap' });
+  // The dialog's settings snapshot is not updated after sign-in or sign-out. Keep the last status the main process returned.
+  let chatgptAccount = settings.chatgpt;
+  const showChatGpt = (account: ChatGptAccountView) => {
+    chatgptAccount = account;
+    chatgptStatus.replaceChildren(
+      ...(account.signedIn
+        ? [
+            h('span', {}, account.accountLabel ? `Signed in as ${account.accountLabel}` : 'Signed in with ChatGPT'),
+            h(
+              'button',
+              { type: 'button', class: 'btn btn-outline-danger btn-sm', onclick: () => void signOut() },
+              'Sign out',
+            ),
+          ]
+        : [
+            h(
+              'button',
+              { type: 'button', class: 'btn btn-outline-primary btn-sm', onclick: () => void signIn() },
+              'Sign in with ChatGPT',
+            ),
+          ]),
+    );
+  };
+  const signIn = async () => {
+    error.textContent = '';
+    chatgptStatus.replaceChildren(h('span', { class: 'small text-body-secondary' }, 'Waiting for the browser…'));
+    try {
+      const next = await actions.signInChatGpt();
+      showChatGpt(next.chatgpt);
+    } catch (err) {
+      showChatGpt(chatgptAccount);
+      error.textContent = err instanceof Error ? err.message : String(err);
+    }
+  };
+  const signOut = async () => {
+    error.textContent = '';
+    try {
+      const next = await actions.signOutChatGpt();
+      showChatGpt(next.chatgpt);
+    } catch (err) {
+      error.textContent = err instanceof Error ? err.message : String(err);
+    }
+  };
+  showChatGpt(settings.chatgpt);
 
   const indexText = h('span', { class: 'small text-body-secondary flex-grow-1' }, 'Checking…');
   const reindex = h('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm', disabled: true }, 'Reindex');
@@ -224,6 +274,17 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     'div',
     {},
     h('h3', { class: 'h6 text-body-secondary' }, 'API keys'),
+    h(
+      'div',
+      { class: 'mb-3' },
+      h('div', { class: 'form-label' }, 'ChatGPT'),
+      chatgptStatus,
+      h(
+        'div',
+        { class: 'form-text' },
+        'Sign in with ChatGPT to use official OpenAI models on your subscription. Sign out to use the API key instead. A custom base URL always uses the API key. Semantic code search still needs an OpenAI API key.',
+      ),
+    ),
     !settings.secretsEncrypted
       ? h(
           'div',

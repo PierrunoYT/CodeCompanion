@@ -13,7 +13,7 @@ import {
 } from '@shared/models';
 import type { GitStatus } from '@shared/panels';
 import type { ProjectInfo } from '@shared/project';
-import type { SettingsView } from '@shared/settings';
+import { openaiCredentialMissing, type SettingsView } from '@shared/settings';
 import { h, icon, setChildren, sym } from './dom';
 import { formatTokens, readPreference, writePreference } from './format';
 import { Composer } from './views/composer';
@@ -485,7 +485,13 @@ export class App {
 
     const provider = providerForModel(this.settings.model);
     const missingKey =
-      provider === 'anthropic' ? !this.settings.secrets.anthropicApiKey : !this.settings.secrets.openaiApiKey;
+      provider === 'anthropic' ? !this.settings.secrets.anthropicApiKey : openaiCredentialMissing(this.settings);
+    const credentialHint =
+      provider === 'anthropic'
+        ? 'Add your Anthropic API key to start.'
+        : this.settings.openaiBaseUrl.trim()
+          ? 'Add your OpenAI API key to start.'
+          : 'Add your OpenAI API key or sign in with ChatGPT to start.';
     setChildren(
       this.welcome,
       h('div', { class: 'welcome-wordmark', 'aria-hidden': 'true' }, 'patch'),
@@ -495,7 +501,7 @@ export class App {
         ? h(
             'div',
             { class: 'alert alert-warning' },
-            `Add your ${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key to start. `,
+            `${credentialHint} `,
             h('button', { class: 'btn btn-sm btn-warning ms-2', onclick: () => this.openSettings() }, 'Open settings'),
           )
         : null,
@@ -715,6 +721,8 @@ export class App {
     openSettingsDialog(this.settings, {
       update: (patch) => api.invoke('settings:update', patch),
       setSecret: (name, value) => api.invoke('settings:set-secret', name, value),
+      signInChatGpt: () => api.invoke('chatgpt:sign-in'),
+      signOutChatGpt: () => api.invoke('chatgpt:sign-out'),
       indexStatus: () => api.invoke('index:status'),
       rebuildIndex: async () => {
         const status = await api.invoke('index:rebuild');

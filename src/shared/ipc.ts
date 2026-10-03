@@ -52,6 +52,9 @@ export interface InvokeApi {
   'settings:get': () => SettingsView;
   'settings:update': (patch: Partial<Settings>) => SettingsView;
   'settings:set-secret': (name: SecretName, value: string) => SettingsView;
+  // Browser sign-in for a ChatGPT account. The returned view says whether it succeeded and never includes tokens.
+  'chatgpt:sign-in': () => SettingsView;
+  'chatgpt:sign-out': () => SettingsView;
 
   'index:status': () => IndexStatus;
   'index:rebuild': () => IndexStatus;
@@ -136,6 +139,8 @@ const INVOKE: Record<InvokeChannel, true> = {
   'settings:get': true,
   'settings:update': true,
   'settings:set-secret': true,
+  'chatgpt:sign-in': true,
+  'chatgpt:sign-out': true,
   'index:status': true,
   'index:rebuild': true,
   'mcp:status': true,

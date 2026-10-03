@@ -14,6 +14,23 @@ import {
 } from '@shared/settings';
 import { readJson, writeJson } from './storage/json_file';
 
+// A ChatGPT Codex login. Access and refresh tokens are sealed like other secrets before they are written.
+export interface ChatGptSession {
+  accessToken: string;
+  refreshToken: string;
+  accountId: string;
+  accountLabel: string | null;
+  expiresAt: number;
+}
+
+interface StoredChatGpt {
+  accessToken: string;
+  refreshToken: string;
+  accountId: string;
+  accountLabel?: string;
+  expiresAt: number;
+}
+
 // Encrypts secrets at rest. In the app this is Electron's safeStorage (OS keychain / DPAPI); tests inject
 // their own.
 export interface SecretCipher {
@@ -28,12 +45,14 @@ interface StoredSettings {
   secrets: Partial<Record<SecretName, string>>;
   // env and headers of MCP servers, encrypted the same way. Keyed by server name.
   mcpSecrets?: Record<string, { env?: Record<string, string>; headers?: Record<string, string> }>;
+  chatgpt?: StoredChatGpt;
 }
 
 export class SettingsStore extends EventEmitter {
   private settings: Settings;
   private secrets: Partial<Record<SecretName, string>>;
   private mcpSecrets: Record<string, { env?: Record<string, string>; headers?: Record<string, string> }>;
+  private chatgpt: StoredChatGpt | null;
 
   constructor(
     private readonly path: string,
@@ -44,6 +63,7 @@ export class SettingsStore extends EventEmitter {
     this.settings = sanitize({ ...DEFAULT_SETTINGS, ...stored.settings });
     this.secrets = stored.secrets ?? {};
     this.mcpSecrets = stored.mcpSecrets ?? {};
+    this.chatgpt = sanitizeStoredChatGpt(stored.chatgpt);
     this.migratePlainSecrets();
   }
 
@@ -57,11 +77,18 @@ export class SettingsStore extends EventEmitter {
       SecretName,
       boolean
     >;
-    const stored = Object.values(this.secrets).filter(Boolean);
+    const stored = this.sealedSecretValues();
     const secretsEncrypted =
       stored.length > 0 ? stored.every((value) => !value.startsWith('plain:')) : this.cipher.isAvailable();
     const { mcpServers, ...rest } = this.settings;
-    return { ...rest, mcpServers: mcpServers.map((server) => this.mcpView(server)), secrets, secretsEncrypted };
+    const session = this.getChatGptSession();
+    return {
+      ...rest,
+      mcpServers: mcpServers.map((server) => this.mcpView(server)),
+      secrets,
+      secretsEncrypted,
+      chatgpt: { signedIn: session !== null, accountLabel: session?.accountLabel ?? null },
+    };
   }
 
   // The full server config, including decrypted env and headers, for the process that connects to the servers.
@@ -112,8 +139,48 @@ export class SettingsStore extends EventEmitter {
     return this.view();
   }
 
+  getChatGptSession(): ChatGptSession | null {
+    this.migratePlainSecrets();
+    const stored = this.chatgpt;
+    if (!stored) return null;
+    const accessToken = this.openSealed(stored.accessToken);
+    const refreshToken = this.openSealed(stored.refreshToken);
+    if (!accessToken || !refreshToken || !stored.accountId) return null;
+    const label = stored.accountLabel?.trim() || null;
+    return {
+      accessToken,
+      refreshToken,
+      accountId: stored.accountId,
+      accountLabel: label && label !== accessToken && label !== refreshToken ? label : null,
+      expiresAt: stored.expiresAt,
+    };
+  }
+
+  setChatGptSession(session: ChatGptSession | null): SettingsView {
+    if (!session) {
+      this.persist(this.settings, this.secrets, null);
+      return this.view();
+    }
+    const accessToken = session.accessToken.trim();
+    const refreshToken = session.refreshToken.trim();
+    const accountId = session.accountId.trim();
+    if (!accessToken || !refreshToken || !accountId || !Number.isFinite(session.expiresAt)) {
+      throw new Error('ChatGPT sign-in did not return a usable session.');
+    }
+    const accountLabel = session.accountLabel?.trim() || '';
+    const stored: StoredChatGpt = {
+      accessToken: this.seal(accessToken),
+      refreshToken: this.seal(refreshToken),
+      accountId,
+      expiresAt: session.expiresAt,
+      ...(accountLabel && accountLabel !== accessToken && accountLabel !== refreshToken ? { accountLabel } : {}),
+    };
+    this.persist(this.settings, this.secrets, stored);
+    return this.view();
+  }
+
   private migratePlainSecrets(): void {
-    if (!this.cipher.isAvailable() || !Object.values(this.secrets).some((value) => value?.startsWith('plain:'))) return;
+    if (!this.cipher.isAvailable() || !this.sealedSecretValues().some((value) => value.startsWith('plain:'))) return;
     // Stage the complete migration before writing or changing memory. A failed cipher or write must leave keys usable.
     try {
       const secrets = { ...this.secrets };
@@ -121,18 +188,67 @@ export class SettingsStore extends EventEmitter {
         const value = secrets[name];
         if (value?.startsWith('plain:')) secrets[name] = this.cipher.encrypt(value.slice('plain:'.length));
       }
-      writeJson(this.path, { settings: this.settings, secrets } satisfies StoredSettings);
+      const chatgpt = this.chatgpt ? this.reencryptChatGpt(this.chatgpt) : null;
+      this.writeStored(this.settings, secrets, chatgpt);
       this.secrets = secrets;
+      this.chatgpt = chatgpt;
     } catch {
       // Retain the original storage representation; a later access can retry when encryption/storage recovers.
     }
   }
 
-  private persist(settings: Settings, secrets: Partial<Record<SecretName, string>>): void {
-    writeJson(this.path, { settings, secrets, mcpSecrets: this.mcpSecrets } satisfies StoredSettings);
+  private persist(
+    settings: Settings,
+    secrets: Partial<Record<SecretName, string>>,
+    chatgpt: StoredChatGpt | null = this.chatgpt,
+  ): void {
+    this.writeStored(settings, secrets, chatgpt);
     this.settings = settings;
     this.secrets = secrets;
+    this.chatgpt = chatgpt;
     this.emit('change', this.view());
+  }
+
+  private writeStored(
+    settings: Settings,
+    secrets: Partial<Record<SecretName, string>>,
+    chatgpt: StoredChatGpt | null,
+  ): void {
+    const stored: StoredSettings = { settings, secrets, mcpSecrets: this.mcpSecrets };
+    if (chatgpt) stored.chatgpt = chatgpt;
+    writeJson(this.path, stored);
+  }
+
+  private sealedSecretValues(): string[] {
+    const values = Object.values(this.secrets).filter((value): value is string => Boolean(value));
+    if (this.chatgpt) values.push(this.chatgpt.accessToken, this.chatgpt.refreshToken);
+    return values;
+  }
+
+  private seal(value: string): string {
+    return this.cipher.isAvailable() ? this.cipher.encrypt(value) : `plain:${value}`;
+  }
+
+  private openSealed(value: string): string {
+    if (!value) return '';
+    if (value.startsWith('plain:')) return value.slice('plain:'.length);
+    try {
+      return this.cipher.decrypt(value);
+    } catch {
+      return '';
+    }
+  }
+
+  private reencryptChatGpt(stored: StoredChatGpt): StoredChatGpt {
+    return {
+      ...stored,
+      accessToken: stored.accessToken.startsWith('plain:')
+        ? this.cipher.encrypt(stored.accessToken.slice('plain:'.length))
+        : stored.accessToken,
+      refreshToken: stored.refreshToken.startsWith('plain:')
+        ? this.cipher.encrypt(stored.refreshToken.slice('plain:'.length))
+        : stored.refreshToken,
+    };
   }
 
   private storeMcpSecrets(servers: McpServerConfig[]): void {
@@ -225,4 +341,20 @@ function sanitize(settings: Settings): Settings {
   result.mcpServers = sanitizeMcpServers(result.mcpServers);
   result.permissionRules = sanitizePermissionRules(result.permissionRules);
   return result;
+}
+
+function sanitizeStoredChatGpt(value: unknown): StoredChatGpt | null {
+  if (!value || typeof value !== 'object') return null;
+  const entry = value as Record<string, unknown>;
+  if (typeof entry.accessToken !== 'string' || typeof entry.refreshToken !== 'string') return null;
+  if (typeof entry.accountId !== 'string' || !entry.accountId.trim()) return null;
+  if (typeof entry.expiresAt !== 'number' || !Number.isFinite(entry.expiresAt)) return null;
+  const accountLabel = typeof entry.accountLabel === 'string' ? entry.accountLabel.trim() : '';
+  return {
+    accessToken: entry.accessToken,
+    refreshToken: entry.refreshToken,
+    accountId: entry.accountId.trim(),
+    expiresAt: entry.expiresAt,
+    ...(accountLabel ? { accountLabel } : {}),
+  };
 }

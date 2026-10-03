@@ -10,6 +10,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Sign in with ChatGPT for official OpenAI models. Settings starts a browser login on localhost port 1455, stores the access token, refresh token, and account id with the same encryption as API keys, and sends those chats to the Codex backend when no custom base URL is set. An API key still works after sign-out. A custom base URL still uses that URL and the API key. Semantic search, titles, compaction summaries, and commit messages still need an OpenAI API key.
 - Secret redaction of tool results: private keys, cloud and Git host tokens, JWTs, quoted credential values and `.env`-style secret lines become `[REDACTED:_____]` before the model, the transcript or the saved chat see them; `write_file`, `edit_file` and `apply_patch` refuse text containing the placeholder.
 - Protected files: edits to `.env` files, keys, `.git`, editor and agent folders, shell start-up files and databases always ask for approval, also in Auto mode (`mustAsk` on tools).
 - Permission rules (Settings → "Permission rules (JSON)"): `allow`, `reject`, `ask` or `delegate` to an external program, matched by glob on the tool name and input fields, first match wins, optional `subagent`/`thread` context. Saving an `allow` or `delegate` rule asks for confirmation.
@@ -69,6 +70,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Fixed
 
+- Sign in with ChatGPT keeps a valid session when two chats refresh at once. A refresh that finishes after sign-out, or after a sign-in to another account, leaves that newer choice in place. Starting sign-in again cancels one that is still waiting, and a callback for a different login does not abort the current one.
 - The Linux deb installs again next to GNU patch: it was named `patch`, like GNU patch's own package, so apt took it for a downgrade of that package and refused, and its install script would have pointed `/usr/bin/patch` at the app. The deb package and the Linux executable are now `patch-app` (`/usr/bin/patch-app`).
 - The terminal panel works on macOS: node-pty's `spawn-helper` is shipped without the execute bit, which made every terminal start fail with `posix_spawnp failed`. A `postinstall` script restores it, so development installs and the packaged app both get it, and CI checks it ([#14](https://github.com/PierrunoYT/patch/issues/14)).
 - CI runs the tests on Linux (under Xvfb) and macOS again, next to Windows. On Linux the end-to-end window is no longer transparent, since X11 stopped painting it and the transcript never updated, and every end-to-end run uses a 1400×1000 viewport, so a small screen no longer hides the footer's `AGENTS.md` label (which also made a project-switching test fail now and then on Windows) ([#14](https://github.com/PierrunoYT/patch/issues/14)).

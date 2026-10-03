@@ -1,5 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { parseMcpServers, parsePermissionRules, sanitizeMcpServers, sanitizePermissionRules } from './settings';
+import {
+  openaiCredentialMissing,
+  parseMcpServers,
+  parsePermissionRules,
+  sanitizeMcpServers,
+  sanitizePermissionRules,
+  type SettingsView,
+} from './settings';
+
+function credentialView(patch: {
+  openaiBaseUrl?: string;
+  secrets?: Partial<SettingsView['secrets']>;
+  chatgpt?: Partial<SettingsView['chatgpt']>;
+}): Pick<SettingsView, 'openaiBaseUrl' | 'secrets' | 'chatgpt'> {
+  return {
+    openaiBaseUrl: patch.openaiBaseUrl ?? '',
+    secrets: { anthropicApiKey: false, openaiApiKey: false, googleApiKey: false, ...patch.secrets },
+    chatgpt: { signedIn: false, accountLabel: null, ...patch.chatgpt },
+  };
+}
+
+describe('openaiCredentialMissing', () => {
+  it('passes a ChatGPT session for official OpenAI and still fails with neither session nor key', () => {
+    expect(openaiCredentialMissing(credentialView({ chatgpt: { signedIn: true, accountLabel: 'a@b.c' } }))).toBe(false);
+    expect(openaiCredentialMissing(credentialView({ secrets: { openaiApiKey: true } }))).toBe(false);
+    expect(openaiCredentialMissing(credentialView({}))).toBe(true);
+    expect(
+      openaiCredentialMissing(
+        credentialView({ openaiBaseUrl: 'http://localhost:11434/v1', chatgpt: { signedIn: true, accountLabel: null } }),
+      ),
+    ).toBe(true);
+  });
+});
 
 describe('parseMcpServers', () => {
   it('accepts valid stdio and http servers', () => {

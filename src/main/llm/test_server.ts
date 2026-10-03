@@ -19,7 +19,16 @@ export class MockApiServer {
       let raw = '';
       req.on('data', (chunk) => (raw += chunk));
       req.on('end', () => {
-        this.requests.push({ path: req.url ?? '', headers: req.headers, body: raw ? JSON.parse(raw) : null });
+        let body: unknown = null;
+        if (raw) {
+          try {
+            body = JSON.parse(raw);
+          } catch {
+            // Token requests are form-encoded, not JSON.
+            body = raw;
+          }
+        }
+        this.requests.push({ path: req.url ?? '', headers: req.headers, body });
         const next = this.responses.shift();
         if (!next) {
           res.writeHead(500).end('no canned response');
@@ -55,6 +64,17 @@ export class MockApiServer {
     this.responses.push((res) => {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(body));
+    });
+  }
+
+  // Holds the next JSON response until `ready` resolves, so a test can change settings mid-request.
+  queueJsonWhen(ready: Promise<void>, status: number, body: unknown): void {
+    this.responses.push((res) => {
+      void ready.then(() => {
+        if (res.writableEnded) return;
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      });
     });
   }
 }

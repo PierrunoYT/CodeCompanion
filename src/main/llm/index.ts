@@ -1,7 +1,9 @@
 import { providerForModel, SMALL_MODELS, type Provider } from '@shared/models';
 import type { SettingsStore } from '../settings';
 import { AnthropicCompletionClient, AnthropicConversation, createAnthropicClient } from './anthropic';
+import { CodexAuthedConversation, createCodexOpenAIClient, ensureFreshCodexSession } from './codex_auth';
 import { createOpenAIClient, OpenAICompletionClient, OpenAIConversation } from './openai';
+import { chooseOpenAIRoute, codexResponsesBaseUrl } from './openai_route';
 import { OpenAIResponsesConversation } from './openai_responses';
 import {
   MissingApiKeyError,
@@ -97,10 +99,42 @@ export class LlmService {
       });
     }
     const key = this.settings.getSecret('openaiApiKey');
+    if (openaiApi === 'chat') {
+      if (!key) throw new MissingApiKeyError('openai');
+      return new OpenAIConversation(
+        createOpenAIClient(key, settings.openaiBaseUrl || TEST_OPENAI_BASE_URL),
+        model,
+        messages as never,
+        compaction,
+      );
+    }
+    const route = chooseOpenAIRoute({
+      openaiBaseUrl: settings.openaiBaseUrl,
+      apiKey: key,
+      session: this.settings.getChatGptSession(),
+      codexBaseUrl: codexResponsesBaseUrl(),
+    });
+    // A custom base URL stays on that URL with the API key, including for a restored Responses history.
+    if (route.kind === 'codex' && !settings.openaiBaseUrl.trim()) {
+      const tokens = { accessToken: route.accessToken, accountId: route.accountId };
+      const client = createCodexOpenAIClient(route.baseUrl, {
+        accessToken: () => tokens.accessToken,
+        accountId: () => tokens.accountId,
+      });
+      const inner = new OpenAIResponsesConversation(client, model, settings.effort, messages as never, compaction);
+      return new CodexAuthedConversation(inner, async () => {
+        const fresh = await ensureFreshCodexSession(this.settings);
+        tokens.accessToken = fresh.accessToken;
+        tokens.accountId = fresh.accountId;
+      });
+    }
     if (!key) throw new MissingApiKeyError('openai');
-    const client = createOpenAIClient(key, settings.openaiBaseUrl || TEST_OPENAI_BASE_URL);
-    return openaiApi === 'responses'
-      ? new OpenAIResponsesConversation(client, model, settings.effort, messages as never, compaction)
-      : new OpenAIConversation(client, model, messages as never, compaction);
+    return new OpenAIResponsesConversation(
+      createOpenAIClient(key, settings.openaiBaseUrl || TEST_OPENAI_BASE_URL),
+      model,
+      settings.effort,
+      messages as never,
+      compaction,
+    );
   }
 }
